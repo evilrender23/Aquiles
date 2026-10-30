@@ -5,7 +5,9 @@ import { BarraLateral } from "./componentes/BarraLateral";
 import { BarraTitulo } from "./componentes/BarraTitulo";
 import { VistaAjustes } from "./componentes/VistaAjustes";
 import { VistaConversacion } from "./componentes/VistaConversacion";
+import { VistaHabilidades } from "./componentes/VistaHabilidades";
 import { VistaInicio } from "./componentes/VistaInicio";
+import { VistaMemoria } from "./componentes/VistaMemoria";
 import { ProveedorApp, useEstado } from "./estado/almacen";
 
 export function App() {
@@ -21,7 +23,8 @@ function Marco() {
   // En ventanas estrechas la barra lateral se superpone y se abre desde la barra de título.
   const [lateralAbierta, setLateralAbierta] = useState(false);
   const sesion = estado.activa ? estado.sesiones[estado.activa] : undefined;
-  const ruta = estado.vista === "conversacion" ? sesion?.cwd : estado.vista === "inicio" ? estado.ajustes?.carpeta : undefined;
+  // En Habilidades y Memoria, la carpeta de la sesión activa es la del proyecto que se muestra.
+  const ruta = estado.vista === "inicio" ? estado.ajustes?.carpeta : estado.vista === "ajustes" ? undefined : sesion?.cwd;
 
   return (
     <div className={clases("app", lateralAbierta && "app--lateral-abierta")}>
@@ -33,6 +36,10 @@ function Marco() {
         <main className="app__vista">
           {estado.vista === "ajustes" ? (
             <VistaAjustes />
+          ) : estado.vista === "habilidades" ? (
+            <VistaHabilidades />
+          ) : estado.vista === "memoria" ? (
+            <VistaMemoria />
           ) : estado.vista === "conversacion" && estado.activa ? (
             <VistaConversacion key={estado.activa} sesionId={estado.activa} />
           ) : (

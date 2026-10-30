@@ -11,10 +11,10 @@ const COMPONENTES: Components = {
   pre: ({ node: _n, ...p }) => <pre className="nx-codigo md__pre" {...p} />,
 };
 
-export function Markdown({ texto, animar = false, cursor = false }: { texto: string; animar?: boolean; cursor?: boolean }) {
+export function Markdown({ texto, animar = false, cursor = false, compacto = false }: { texto: string; animar?: boolean; cursor?: boolean; compacto?: boolean }) {
   const rehype = useMemo<Options["rehypePlugins"]>(() => (animar ? [[rehypeBlurText, { cursor }]] : []), [animar, cursor]);
   return (
-    <div className="md">
+    <div className={compacto ? "md md--compacto" : "md"}>
       <ReactMarkdown remarkPlugins={PLUGINS_REMARK} rehypePlugins={rehype} components={COMPONENTES}>
         {texto}
       </ReactMarkdown>

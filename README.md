@@ -2,7 +2,7 @@
 
 Agente personal con app de escritorio. Código propio: núcleo en TypeScript sobre Bun y app en Tauri 2 + React.
 
-Estado: **fase 1** (el motor). El plan completo está en la wiki del proyecto (`../wiki/plan-aquiles.md`).
+Estado: **fase 3** (memoria, skills y búsqueda). El plan completo está en la wiki del proyecto (`../wiki/plan-aquiles.md`).
 
 ## Estructura
 
@@ -10,18 +10,19 @@ Estado: **fase 1** (el motor). El plan completo está en la wiki del proyecto (`
 apps/escritorio/        app Tauri 2: src-tauri/ (Rust) + src/ (React)
 packages/nucleo/        el agente: bucle, proveedores, herramientas, permisos, sesiones, servidor JSON-RPC, CLI
 packages/protocolo/     esquemas y tipos compartidos entre la app y el núcleo
+skills/                 skills que vienen con Aquiles
 banco/                  20 tareas con comprobación automática para medir el motor
 ```
 
-Proveedores: `agy` (CLI de Google Antigravity, por defecto), `anthropic` (`ANTHROPIC_API_KEY`), `ollama`, `lmstudio`, `openrouter`, `openai` (estos cuatro con `--modelo`) y `simulado`.
-Los datos (sesiones, salidas largas) van a `%APPDATA%\Aquiles\perfiles\<perfil>\`, o a `AQUILES_HOME`.
+Proveedores: `agy` (CLI de Google Antigravity, por defecto), `claude` (CLI de Claude Code), `anthropic` (`ANTHROPIC_API_KEY`), `ollama`, `lmstudio`, `openrouter`, `openai` (estos cuatro con `--modelo`) y `simulado`.
+Los datos (sesiones, salidas largas, memoria, skills, índice de búsqueda) van a `%APPDATA%\Aquiles\perfiles\<perfil>\`, o a `AQUILES_HOME`.
 
 ## Requisitos (Windows)
 
 - [Bun](https://bun.sh) ≥ 1.4.4.
 - Rust con el toolchain `stable-x86_64-pc-windows-msvc`. `src-tauri/rust-toolchain.toml` lo selecciona solo y necesita Visual Studio Build Tools con C++.
 - WebView2 (viene con Windows 11).
-- Para hablar con un modelo: el CLI de Google Antigravity (`agy`) con la sesión iniciada. Es el único proveedor real por ahora.
+- Para hablar con un modelo: el CLI de Google Antigravity (`agy`) o el de Claude Code (`claude`), con la sesión iniciada; o una clave de API.
 
 ## Comandos
 
@@ -34,7 +35,7 @@ bun run cli -- --continuar                      # reanuda la última sesión (o 
 bun run cli -- --modo-aprobacion libre-proyecto # sin preguntar dentro de la carpeta
 bun banco/ejecutar.ts --validar                 # comprueba las tareas del banco (sin modelo)
 bun banco/ejecutar.ts --proveedor agy           # mide el motor con un modelo real (tarda)
-bun packages/nucleo/scripts/probar-agy.ts       # prueba de humo con un modelo real (gasta cuota)
+bun packages/nucleo/scripts/probar-modelo.ts   # prueba de humo con un modelo real (gasta cuota; --proveedor claude)
 bun run compilar:nucleo                         # núcleo → .exe único (sidecar de la app)
 bun packages/nucleo/scripts/medir-arranque.ts   # arranque del .exe y FTS5
 bun run escritorio                              # compila el núcleo y abre la app en modo desarrollo

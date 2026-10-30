@@ -164,7 +164,8 @@ button.nx-chip:hover:not(:disabled) {
   color: var(--ink-strong);
 }
 button.nx-chip[aria-pressed="true"],
-button.nx-chip[aria-checked="true"] {
+button.nx-chip[aria-checked="true"],
+button.nx-chip[aria-selected="true"] {
   border-color: var(--lime-borde);
   background: var(--lime-tinte);
   color: var(--ink-strong);
@@ -420,4 +421,105 @@ label.nx-chip--opcion:has(:checked) {
 label.nx-chip--opcion:has(:focus-visible) {
   outline: 2px solid var(--lime);
   outline-offset: 3px;
+}
+
+/* ── Interruptor (lienzo, Automatizaciones) ────────── */
+.nx-interruptor {
+  display: inline-flex;
+  flex: none;
+  width: 52px;
+  height: 30px;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  cursor: pointer;
+  transition:
+    background-color 200ms var(--ease),
+    border-color 200ms var(--ease);
+}
+.nx-interruptor__bola {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-muted);
+  transition:
+    transform 200ms var(--ease),
+    background-color 200ms var(--ease);
+}
+.nx-interruptor[aria-checked="true"] {
+  border-color: var(--lime);
+  background: var(--lime);
+}
+.nx-interruptor[aria-checked="true"] .nx-interruptor__bola {
+  transform: translateX(22px);
+  background: var(--on-lime);
+}
+.nx-interruptor:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* ── Pestañas (chips) ──────────────────────────────── */
+.nx-pestanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nx-pestanas > .nx-chip {
+  height: 40px;
+  padding: 0 16px;
+}
+
+/* ── Buscador en píldora ───────────────────────────── */
+.nx-busqueda {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 48px;
+  padding: 0 6px 0 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--ink-muted);
+  transition: border-color 140ms var(--ease);
+}
+.nx-busqueda:focus-within {
+  border-color: var(--lime-borde);
+}
+.nx-busqueda__lupa {
+  flex: none;
+}
+.nx-busqueda__entrada {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink-strong);
+  font: 400 15px/1 var(--font-sans);
+}
+.nx-busqueda__entrada:focus-visible {
+  outline: none;
+}
+.nx-busqueda__entrada::-webkit-search-cancel-button {
+  appearance: none;
+}
+.nx-busqueda .nx-busqueda__vaciar {
+  border-radius: var(--radius-pill);
+}
+.nx-busqueda--pequeno {
+  height: 40px;
+  gap: 8px;
+  padding: 0 4px 0 14px;
+}
+.nx-busqueda--pequeno .nx-busqueda__entrada {
+  font-size: 14px;
+}
+.nx-busqueda--pequeno .nx-busqueda__vaciar {
+  width: 30px;
+  height: 30px;
 }

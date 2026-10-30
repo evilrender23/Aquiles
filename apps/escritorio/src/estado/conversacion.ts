@@ -58,7 +58,10 @@ export function anadirAviso(c: Conversacion, nivel: "aviso" | "error", texto: st
   return { ...c, elementos: [...c.elementos, { tipo: "aviso", id: nuevoId(), nivel, texto }] };
 }
 
-export function aplicarEvento(c: Conversacion, e: Evento, ahora: number): Conversacion {
+/** Eventos de una sesión concreta (los demás no tocan la conversación). */
+export type EventoSesion = Extract<Evento, { sesionId: string }>;
+
+export function aplicarEvento(c: Conversacion, e: EventoSesion, ahora: number): Conversacion {
   switch (e.tipo) {
     case "mensaje.delta": {
       const p = dejarDePensar(c, ahora);
@@ -116,8 +119,6 @@ export function aplicarEvento(c: Conversacion, e: Evento, ahora: number): Conver
       if (e.motivo === "parado") return anadirAviso(fin, "aviso", "Detenido");
       return fin;
     }
-    case "sesion.actualizada":
-      return c;
   }
 }
 

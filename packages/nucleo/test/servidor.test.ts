@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RUTA_RPC, type Evento } from "@aquiles/protocolo";
@@ -12,6 +12,8 @@ const TOKEN = "token-de-prueba-0123456789";
 let servidor: Servidor;
 let cwd = "";
 let perfil = "";
+/** System prompt de la última llamada al modelo. */
+let ultimoSistema = "";
 
 beforeAll(async () => {
   cwd = await mkdtemp(join(tmpdir(), "aquiles-srv-"));
@@ -20,6 +22,7 @@ beforeAll(async () => {
   // Guion: si el último mensaje es del usuario y pide "eco", llama a eco; si pide "lee", llama a leer; si hay resultado, contesta.
   const proveedor = new ProveedorSimulado([
     (p) => {
+      ultimoSistema = p.sistema;
       const ultimo = p.mensajes.at(-1);
       if (ultimo?.rol === "herramienta") return { texto: `resultado: ${ultimo.resultado.split("\n").length} líneas, error=${ultimo.error}`, llamadas: [] };
       const pide = ultimo?.rol === "usuario" ? ultimo.texto : "";
@@ -80,7 +83,7 @@ test("rechaza token malo y origen ajeno", async () => {
 test("turno completo, persistencia y reanudar", async () => {
   const ws = await conectar();
   const c = rpc(ws);
-  expect((await c.llamar("nucleo.info", {})).result).toMatchObject({ proveedor: "simulado", protocolo: 3 });
+  expect((await c.llamar("nucleo.info", {})).result).toMatchObject({ proveedor: "simulado", protocolo: 4 });
   const { result: s } = await c.llamar("sesion.crear", {});
   expect(s).toMatchObject({ cwd, modoAprobacion: "preguntar-ejecutar" });
   expect((await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "lee hola.txt" })).result).toEqual({ aceptado: true });
@@ -139,5 +142,41 @@ test("errores JSON-RPC", async () => {
   expect((await c.llamar("no.existe", {})).error.code).toBe(-32601);
   expect((await c.llamar("prompt.enviar", { sesionId: "" })).error.code).toBe(-32602);
   expect((await c.llamar("prompt.enviar", { sesionId: "x", texto: "hola" })).error.code).toBe(1001);
+  ws.close();
+});
+
+test("memoria, skills y búsqueda: lo guardado entra en la sesión siguiente", async () => {
+  const ws = await conectar();
+  const c = rpc(ws);
+  const guardado = (await c.llamar("memoria.guardar", { destino: "usuario", entradas: ["Prefiere respuestas cortas"] })).result;
+  expect(guardado).toMatchObject({ entradas: ["Prefiere respuestas cortas"], limite: 1400 });
+  expect(guardado.usados).toBeGreaterThan(0);
+  expect(c.eventos).toContainEqual({ tipo: "memoria.actualizada", destino: "usuario" });
+  expect((await c.llamar("memoria.guardar", { destino: "usuario", entradas: ["x".repeat(2000)] })).error.code).toBe(-32602);
+  expect((await c.llamar("memoria.guardar", { destino: "proyecto", entradas: ["sin carpeta"] })).error.code).toBe(-32602);
+  await c.llamar("memoria.guardar", { destino: "proyecto", cwd, entradas: ["Los tests van con bun test"] });
+  expect((await c.llamar("memoria.alma", { texto: "Tono seco." })).result).toEqual({ texto: "Tono seco." });
+  const leida = (await c.llamar("memoria.leer", { cwd })).result;
+  expect(leida).toMatchObject({ alma: "Tono seco.", proyecto: { cwd, entradas: ["Los tests van con bun test"] } });
+
+  await mkdir(join(perfil, "skills", "probar-cosas"), { recursive: true });
+  await writeFile(join(perfil, "skills", "probar-cosas", "SKILL.md"), "---\nname: probar-cosas\ndescription: Cómo probar cosas.\n---\n\n1. Probar.\n");
+  expect((await c.llamar("skills.listar", { cwd })).result.skills).toMatchObject([{ nombre: "probar-cosas", origen: "manual", activa: true }]);
+
+  const { result: s } = await c.llamar("sesion.crear", {});
+  await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "lee la receta de cebolleta" });
+  await c.esperarFin();
+  for (const parte of ["Prefiere respuestas cortas", "Los tests van con bun test", "Tono seco.", "probar-cosas — Cómo probar cosas."]) {
+    expect(ultimoSistema).toContain(parte);
+  }
+  const resultados = (await c.llamar("buscar.sesiones", { consulta: "cebolleta" })).result.resultados;
+  expect(resultados[0]).toMatchObject({ sesionId: s.sesionId, rol: "usuario" });
+  expect(resultados[0].fragmento).toContain("«cebolleta»");
+
+  expect((await c.llamar("skills.ajustar", { nombre: "probar-cosas", activa: false, cwd })).result.activa).toBe(false);
+  expect(c.eventos).toContainEqual({ tipo: "skills.actualizadas" });
+  expect((await c.llamar("skills.leer", { nombre: "no-existe" })).error.code).toBe(-32602);
+  await c.llamar("sesion.borrar", { sesionId: s.sesionId });
+  expect((await c.llamar("buscar.sesiones", { consulta: "cebolleta" })).result.resultados).toEqual([]);
   ws.close();
 });

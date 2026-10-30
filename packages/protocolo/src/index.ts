@@ -8,7 +8,7 @@
  */
 import { z } from "zod";
 
-export const VERSION_PROTOCOLO = 3;
+export const VERSION_PROTOCOLO = 4;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -55,6 +55,20 @@ export const metodos = {
   "prompt.enviar": z.object({ sesionId: idSesion, texto: z.string().min(1) }),
   "prompt.steer": z.object({ sesionId: idSesion, texto: z.string().min(1) }),
   "prompt.parar": z.object({ sesionId: idSesion }),
+  /** Memoria del perfil; con `cwd`, también la del proyecto de esa carpeta. */
+  "memoria.leer": z.object({ cwd: z.string().min(1).optional() }),
+  /** Sustituye todas las entradas de un destino (la interfaz edita la lista entera). */
+  "memoria.guardar": z.object({
+    destino: z.enum(["usuario", "agente", "proyecto"]),
+    cwd: z.string().min(1).optional(),
+    entradas: z.array(z.string()),
+  }),
+  /** Personalidad (SOUL.md). Vale para las sesiones nuevas. */
+  "memoria.alma": z.object({ texto: z.string() }),
+  "skills.listar": z.object({ cwd: z.string().min(1).optional() }),
+  "skills.leer": z.object({ nombre: z.string().min(1), cwd: z.string().min(1).optional() }),
+  "skills.ajustar": z.object({ nombre: z.string().min(1), activa: z.boolean(), cwd: z.string().min(1).optional() }),
+  "buscar.sesiones": z.object({ consulta: z.string().min(1), limite: z.number().int().min(1).max(100).optional() }),
 };
 
 export type NombreMetodo = keyof typeof metodos;
@@ -132,6 +146,49 @@ export interface Resultados {
   "prompt.enviar": { aceptado: true };
   "prompt.steer": { encolado: true };
   "prompt.parar": { parado: boolean };
+  "memoria.leer": { usuario: BloqueMemoria; agente: BloqueMemoria; proyecto?: BloqueMemoria & { cwd: string }; alma: string };
+  "memoria.guardar": BloqueMemoria;
+  "memoria.alma": { texto: string };
+  "skills.listar": { skills: InfoSkill[] };
+  "skills.leer": InfoSkill & { contenido: string; ficheros: string[] };
+  "skills.ajustar": InfoSkill;
+  "buscar.sesiones": { resultados: ResultadoBusqueda[] };
+}
+
+export type DestinoMemoria = "usuario" | "agente" | "proyecto";
+
+/** Memoria acotada: entradas cortas con un límite de caracteres por destino. */
+export interface BloqueMemoria {
+  entradas: string[];
+  /** Caracteres usados y límite. */
+  usados: number;
+  limite: number;
+}
+
+export interface InfoSkill {
+  nombre: string;
+  descripcion: string;
+  /** incluida = viene con Aquiles; manual = la puso alguien a mano; aprendida = la creó el agente. */
+  origen: "incluida" | "manual" | "aprendida";
+  /** Dónde está: carpeta del perfil, del proyecto (`<cwd>/.aquiles/skills`) o las incluidas. */
+  ubicacion: "perfil" | "proyecto" | "incluida";
+  ruta: string;
+  activa: boolean;
+  usos: number;
+  ultimoUso?: string;
+  creada?: string;
+  actualizada: string;
+}
+
+export interface ResultadoBusqueda {
+  sesionId: string;
+  titulo?: string;
+  cwd: string;
+  /** Fecha del mensaje encontrado (ISO). */
+  fecha: string;
+  rol: "usuario" | "asistente" | "herramienta" | "resumen";
+  /** Trozo del mensaje con la coincidencia marcada con «» */
+  fragmento: string;
 }
 
 /** Peticiones del núcleo al cliente. */
@@ -166,6 +223,8 @@ export type Evento =
   | { tipo: "herramienta.progreso"; sesionId: string; id: string; texto: string }
   | { tipo: "herramienta.fin"; sesionId: string; id: string; nombre: string; resultado: string; error: boolean; diffs?: Diff[] }
   | { tipo: "sesion.actualizada"; sesion: InfoSesion }
+  | { tipo: "memoria.actualizada"; destino: DestinoMemoria | "alma"; cwd?: string }
+  | { tipo: "skills.actualizadas" }
   | { tipo: "tareas"; sesionId: string; tareas: TareaVisible[] }
   | { tipo: "contexto.uso"; sesionId: string; tokens: number; ventana?: number }
   | { tipo: "contexto.compactado"; sesionId: string; metodo: "poda" | "resumen"; antes: number; despues: number }

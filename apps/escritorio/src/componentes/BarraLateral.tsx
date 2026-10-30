@@ -1,10 +1,11 @@
 import type { InfoSesion } from "@aquiles/protocolo";
-import { Boton, BranchedMenu, Etiqueta, LogoAscii, clases, type GrupoRamas } from "@aquiles/ui";
+import { Boton, BranchedMenu, CampoBusqueda, Etiqueta, LogoAscii, clases, type GrupoRamas } from "@aquiles/ui";
 import { useEffect, useMemo, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { nombreCarpeta } from "../estado/formato";
 import { useReloj } from "../estado/reloj";
 import { FilaSesion } from "./FilaSesion";
+import { ResultadosBusqueda } from "./ResultadosBusqueda";
 
 /** Sesiones agrupadas por carpeta de trabajo; grupos y sesiones, de la más reciente a la más antigua. */
 function agrupar(sesiones: InfoSesion[]): GrupoRamas<InfoSesion>[] {
@@ -19,7 +20,8 @@ function agrupar(sesiones: InfoSesion[]): GrupoRamas<InfoSesion>[] {
 
 export function BarraLateral({ alElegir }: { alElegir: () => void }) {
   const estado = useEstado();
-  const { nuevaSesion, abrirSesion, abrirAjustes } = useAcciones();
+  const { nuevaSesion, abrirSesion, abrirHabilidades, abrirMemoria, abrirAjustes } = useAcciones();
+  const [consulta, setConsulta] = useState("");
   const grupos = useMemo(() => agrupar(Object.values(estado.sesiones)), [estado.sesiones]);
   const [abiertos, setAbiertos] = useState<ReadonlySet<string>>(new Set());
   const cwdActiva = estado.activa ? estado.sesiones[estado.activa]?.cwd : undefined;
@@ -49,7 +51,9 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
 
   const secciones = [
     { n: "01", etiqueta: "Conversaciones", activa: estado.vista === "conversacion", ir: ir(() => (estado.activa ? abrirSesion(estado.activa) : nuevaSesion())) },
-    { n: "02", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(abrirAjustes) },
+    { n: "02", etiqueta: "Habilidades", activa: estado.vista === "habilidades", ir: ir(abrirHabilidades) },
+    { n: "03", etiqueta: "Memoria", activa: estado.vista === "memoria", ir: ir(abrirMemoria) },
+    { n: "04", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(abrirAjustes) },
   ];
 
   return (
@@ -73,24 +77,31 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
 
       {grupos.length > 0 && (
         <div className="lateral__historial">
-          <Etiqueta className="lateral__titulo-historial">Historial</Etiqueta>
-          <BranchedMenu
-            etiqueta="Historial de conversaciones"
-            grupos={grupos}
-            abiertos={abiertos}
-            alAlternar={alternar}
-            claveHijo={(s) => s.sesionId}
-            esActual={(s) => estado.vista === "conversacion" && s.sesionId === estado.activa}
-            renderHijo={(s, actual) => (
-              <FilaSesion
-                sesion={s}
-                actual={actual}
-                pendiente={estado.pendientes.find((p) => p.sesionId === s.sesionId)?.tipo}
-                ahora={ahora}
-                alAbrir={ir(() => abrirSesion(s.sesionId))}
+          <CampoBusqueda className="lateral__buscar" tamano="pequeno" etiqueta="Buscar en las conversaciones" placeholder="Buscar" valor={consulta} alCambiar={setConsulta} />
+          {consulta.trim() ? (
+            <ResultadosBusqueda consulta={consulta} ahora={ahora} alAbrir={(id) => ir(() => abrirSesion(id))()} />
+          ) : (
+            <>
+              <Etiqueta className="lateral__titulo-historial">Historial</Etiqueta>
+              <BranchedMenu
+                etiqueta="Historial de conversaciones"
+                grupos={grupos}
+                abiertos={abiertos}
+                alAlternar={alternar}
+                claveHijo={(s) => s.sesionId}
+                esActual={(s) => estado.vista === "conversacion" && s.sesionId === estado.activa}
+                renderHijo={(s, actual) => (
+                  <FilaSesion
+                    sesion={s}
+                    actual={actual}
+                    pendiente={estado.pendientes.find((p) => p.sesionId === s.sesionId)?.tipo}
+                    ahora={ahora}
+                    alAbrir={ir(() => abrirSesion(s.sesionId))}
+                  />
+                )}
               />
-            )}
-          />
+            </>
+          )}
         </div>
       )}
     </aside>

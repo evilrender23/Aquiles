@@ -2,6 +2,7 @@ import type { InfoProveedor } from "@aquiles/protocolo";
 import type { Proveedor } from "../tipos";
 import { ProveedorAgy } from "./agy";
 import { ProveedorAnthropic } from "./anthropic";
+import { MODELOS_CLAUDE, ProveedorClaude } from "./claude-cli";
 import { presetsOpenAI, proveedorDePreset, type NombrePresetOpenAI } from "./openai-compatible";
 import { guionDemo, ProveedorSimulado } from "./simulado";
 
@@ -9,10 +10,11 @@ export interface OpcionesProveedor {
   modelo?: string;
 }
 
-export const PROVEEDORES = ["agy", "anthropic", ...(Object.keys(presetsOpenAI) as NombrePresetOpenAI[]), "simulado"] as const;
+export const PROVEEDORES = ["agy", "claude", "anthropic", ...(Object.keys(presetsOpenAI) as NombrePresetOpenAI[]), "simulado"] as const;
 
 const NOMBRES: Record<string, string> = {
   agy: "Antigravity (agy)",
+  claude: "Claude Code (claude)",
   anthropic: "Anthropic",
   ollama: "Ollama",
   lmstudio: "LM Studio",
@@ -33,6 +35,7 @@ const MODELOS_ANTHROPIC = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku
 /** Crea un proveedor por nombre (CLI, servidor y banco de tareas). */
 export function crearProveedor(nombre: string, opciones: OpcionesProveedor = {}): Proveedor {
   if (nombre === "agy") return new ProveedorAgy({ modelo: opciones.modelo });
+  if (nombre === "claude") return new ProveedorClaude({ modelo: opciones.modelo });
   if (nombre === "anthropic") return new ProveedorAnthropic({ modelo: opciones.modelo });
   if (nombre === "simulado") return new ProveedorSimulado(guionDemo(), 15);
   if (nombre in presetsOpenAI) {
@@ -95,6 +98,11 @@ export async function listarProveedores(incluirSimulado = false): Promise<InfoPr
       const modelos = await modelosAgy().catch(() => []);
       return info("agy", { disponible: true, modelos });
     })(),
+    Promise.resolve(
+      Bun.which("claude")
+        ? info("claude", { disponible: true, modelos: MODELOS_CLAUDE })
+        : info("claude", { disponible: false, motivo: "claude no está instalado", modelos: [] }),
+    ),
     Promise.resolve(
       info("anthropic", {
         disponible: hayClave("anthropic"), ...(hayClave("anthropic") ? {} : { motivo: "falta la clave" }),

@@ -23,6 +23,8 @@ export interface Sesion {
   modelo?: string;
   /** Título puesto a mano; si falta, se usa el primer mensaje. */
   titulo?: string;
+  /** Líneas "mensaje" escritas en el JSONL (incluidas las anteriores a una compactación). */
+  lineasMensaje: number;
   /** Claves de "permitir siempre" concedidas en esta sesión. */
   permitidos: Set<string>;
   lecturas: Map<string, Huella>;
@@ -60,22 +62,34 @@ export function sistemaBase(cwd: string, fecha = new Date()): string {
 
 type Linea =
   | { tipo: "inicio"; id: string; cwd: string; sistema: string; creada: string; modoAprobacion: ModoAprobacion; proveedor?: string; modelo?: string }
-  | { tipo: "mensaje"; mensaje: Mensaje }
+  | { tipo: "mensaje"; mensaje: Mensaje; fecha?: string }
   | ({ tipo: "ajuste" } & Ajuste)
   | { tipo: "compactacion"; mensajes: Mensaje[] };
+
+export interface GanchosSesiones {
+  /** Construye el system prompt de una sesión nueva (se congela para toda la sesión). */
+  sistema?: (cwd: string) => string;
+  /** Tras guardar un mensaje; `ordinal` = posición de su línea "mensaje" en el JSONL (desde 0). */
+  alAnotar?: (s: Sesion, m: Mensaje, ordinal: number, fecha: string) => void;
+}
 
 export class AlmacenSesiones {
   private enMemoria = new Map<string, Sesion>();
 
   /** `directorio` null: solo en memoria (tests). */
-  constructor(private directorio: string | null, private proveedorPorDefecto = "agy") {
+  constructor(
+    private directorio: string | null,
+    private proveedorPorDefecto = "agy",
+    private ganchos: GanchosSesiones = {},
+  ) {
     if (directorio) mkdirSync(directorio, { recursive: true });
   }
 
   crear(cwd: string, o: OpcionesSesion = { proveedor: this.proveedorPorDefecto }): Sesion {
     const ahora = new Date().toISOString();
     const modo = o.modoAprobacion ?? "preguntar-ejecutar";
-    const s = nueva(crypto.randomUUID(), cwd, sistemaBase(cwd), ahora, modo, o.proveedor, o.modelo);
+    const sistema = this.ganchos.sistema?.(cwd) ?? sistemaBase(cwd);
+    const s = nueva(crypto.randomUUID(), cwd, sistema, ahora, modo, o.proveedor, o.modelo);
     this.enMemoria.set(s.id, s);
     this.escribir(
       s,
@@ -97,7 +111,10 @@ export class AlmacenSesiones {
   }
 
   anotar(s: Sesion, m: Mensaje): void {
-    this.escribir(s, { tipo: "mensaje", mensaje: m });
+    const fecha = new Date().toISOString();
+    this.escribir(s, { tipo: "mensaje", mensaje: m, fecha });
+    const ordinal = s.lineasMensaje++;
+    this.ganchos.alAnotar?.(s, m, ordinal, fecha);
   }
 
   anotarCompactacion(s: Sesion): void {
@@ -159,7 +176,7 @@ function nueva(
 ): Sesion {
   return {
     id, cwd, sistema, mensajes: [], creada, actualizada: creada, modoAprobacion, proveedor, ...(modelo ? { modelo } : {}),
-    permitidos: new Set(), lecturas: new Map(), estado: new Map(), steer: [],
+    permitidos: new Set(), lecturas: new Map(), estado: new Map(), steer: [], lineasMensaje: 0,
   };
 }
 
@@ -182,7 +199,10 @@ function cargar(ruta: string, proveedorPorDefecto: string): Sesion | undefined {
     }
     if (l.tipo === "inicio") {
       s = nueva(l.id, l.cwd, l.sistema, l.creada, l.modoAprobacion ?? "preguntar-ejecutar", l.proveedor ?? proveedorPorDefecto, l.modelo);
-    } else if (s && l.tipo === "mensaje") s.mensajes.push(l.mensaje);
+    } else if (s && l.tipo === "mensaje") {
+      s.mensajes.push(l.mensaje);
+      s.lineasMensaje++;
+    }
     else if (s && l.tipo === "compactacion") s.mensajes = l.mensajes;
     else if (s && l.tipo === "ajuste") aplicar(s, l);
   }

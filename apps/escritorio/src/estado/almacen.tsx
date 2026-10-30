@@ -1,8 +1,22 @@
 /**
  * Estado de la app: conexión con el núcleo, sesiones, conversaciones abiertas, peticiones pendientes
  * (permisos y preguntas), proveedores y ajustes. Un reducer puro + acciones que hablan con el núcleo.
+ * Memoria, habilidades y búsqueda no se guardan aquí: las piden sus vistas (ver `carga.ts`) y este estado
+ * solo lleva la cuenta de cuándo cambian (`revisiones`).
  */
-import type { Ajustes, Evento, InfoProveedor, InfoSesion, MensajeHistorial, ModoAprobacion } from "@aquiles/protocolo";
+import type {
+  Ajustes,
+  BloqueMemoria,
+  DestinoMemoria,
+  Evento,
+  InfoProveedor,
+  InfoSesion,
+  InfoSkill,
+  MensajeHistorial,
+  ModoAprobacion,
+  ResultadoBusqueda,
+  Resultados,
+} from "@aquiles/protocolo";
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { datosConexion } from "../conexion";
 import { borrarClaveLlavero, guardarClaveLlavero } from "../plataforma/claves";
@@ -26,7 +40,15 @@ type Accion =
   | { tipo: "pendiente"; pendiente: Pendiente }
   | { tipo: "pendiente.resuelto"; id: string; ahora: number };
 
-const inicial: EstadoApp = { conexion: "conectando", vista: "inicio", sesiones: {}, conversaciones: {}, pendientes: [], proveedores: [] };
+const inicial: EstadoApp = {
+  conexion: "conectando",
+  vista: "inicio",
+  sesiones: {},
+  conversaciones: {},
+  pendientes: [],
+  proveedores: [],
+  revisiones: { memoria: 0, skills: 0 },
+};
 
 function conConversacion(s: EstadoApp, sesionId: string, f: (c: Conversacion) => Conversacion): EstadoApp {
   const c = s.conversaciones[sesionId] ?? conversacionVacia();
@@ -43,7 +65,16 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
       const sesiones = Object.fromEntries(a.sesiones.map((x) => [x.sesionId, x]));
       const activa = s.activa && sesiones[s.activa] ? s.activa : undefined;
       // Tras reconectar lo cargado puede estar desfasado: se vuelve a pedir al abrir.
-      return { ...s, conexion: "conectada", sesiones, ajustes: a.ajustes, conversaciones: {}, activa, vista: activa || s.vista === "ajustes" ? s.vista : "inicio" };
+      return {
+        ...s,
+        conexion: "conectada",
+        sesiones,
+        ajustes: a.ajustes,
+        conversaciones: {},
+        activa,
+        vista: activa || s.vista !== "conversacion" ? s.vista : "inicio",
+        revisiones: { memoria: s.revisiones.memoria + 1, skills: s.revisiones.skills + 1 },
+      };
     }
     case "proveedores":
       return { ...s, proveedores: a.proveedores };
@@ -77,6 +108,8 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
     case "evento": {
       const e = a.evento;
       if (e.tipo === "sesion.actualizada") return { ...s, sesiones: { ...s.sesiones, [e.sesion.sesionId]: e.sesion } };
+      if (e.tipo === "memoria.actualizada") return { ...s, revisiones: { ...s.revisiones, memoria: s.revisiones.memoria + 1 } };
+      if (e.tipo === "skills.actualizadas") return { ...s, revisiones: { ...s.revisiones, skills: s.revisiones.skills + 1 } };
       const pendientes = e.tipo === "turno.fin" ? s.pendientes.filter((p) => p.sesionId !== e.sesionId) : s.pendientes;
       const c = s.conversaciones[e.sesionId];
       if (!c) return pendientes === s.pendientes ? s : { ...s, pendientes };
@@ -108,6 +141,8 @@ export interface Acciones {
   reconectar: () => void;
   abrirSesion: (sesionId: string) => void;
   nuevaSesion: () => void;
+  abrirHabilidades: () => void;
+  abrirMemoria: () => void;
   abrirAjustes: () => void;
   empezar: (p: { texto: string; proveedor?: string; modelo?: string; modoAprobacion?: ModoAprobacion }) => Promise<void>;
   enviar: (sesionId: string, texto: string) => Promise<void>;
@@ -119,6 +154,14 @@ export interface Acciones {
   guardarAjustes: (cambios: Partial<Ajustes>) => Promise<Ajustes>;
   guardarClave: (proveedor: string, clave: string) => Promise<void>;
   borrarClave: (proveedor: string) => Promise<void>;
+  listarSkills: (cwd?: string) => Promise<InfoSkill[]>;
+  leerSkill: (nombre: string, cwd?: string) => Promise<Resultados["skills.leer"]>;
+  ajustarSkill: (nombre: string, activa: boolean) => Promise<InfoSkill>;
+  leerMemoria: (cwd?: string) => Promise<Resultados["memoria.leer"]>;
+  /** Sustituye todas las entradas del destino; el núcleo valida y, si las rechaza, lanza su error. */
+  guardarMemoria: (destino: DestinoMemoria, entradas: string[], cwd?: string) => Promise<BloqueMemoria>;
+  guardarAlma: (texto: string) => Promise<string>;
+  buscarSesiones: (consulta: string) => Promise<ResultadoBusqueda[]>;
 }
 
 const ContextoEstado = createContext<EstadoApp | null>(null);
@@ -239,6 +282,8 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
         if (!estadoRef.current.conversaciones[sesionId]) void cargar(sesionId);
       },
       nuevaSesion: () => despachar({ tipo: "vista", vista: "inicio" }),
+      abrirHabilidades: () => despachar({ tipo: "vista", vista: "habilidades" }),
+      abrirMemoria: () => despachar({ tipo: "vista", vista: "memoria" }),
       abrirAjustes: () => despachar({ tipo: "vista", vista: "ajustes" }),
       empezar: async ({ texto, ...opciones }) => {
         const sesion = await rpc().llamar("sesion.crear", opciones);
@@ -277,6 +322,14 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
         await borrarClaveLlavero(proveedor);
         await rpc().llamar("ajustes.clave", { proveedor, clave: "" });
       },
+      // async: rpc() lanza si no hay conexión y así llega como promesa rechazada.
+      listarSkills: async (cwd) => (await rpc().llamar("skills.listar", { cwd })).skills,
+      leerSkill: async (nombre, cwd) => rpc().llamar("skills.leer", { nombre, cwd }),
+      ajustarSkill: async (nombre, activa) => rpc().llamar("skills.ajustar", { nombre, activa }),
+      leerMemoria: async (cwd) => rpc().llamar("memoria.leer", { cwd }),
+      guardarMemoria: async (destino, entradas, cwd) => rpc().llamar("memoria.guardar", { destino, entradas, cwd }),
+      guardarAlma: async (texto) => (await rpc().llamar("memoria.alma", { texto })).texto,
+      buscarSesiones: async (consulta) => (await rpc().llamar("buscar.sesiones", { consulta, limite: 30 })).resultados,
     };
   }, [cargar, conectar, refrescarProveedores, rpc]);
 
@@ -297,6 +350,11 @@ export function useAcciones(): Acciones {
   const a = useContext(ContextoAcciones);
   if (!a) throw new Error("useAcciones fuera de ProveedorApp");
   return a;
+}
+
+/** Carpeta de la sesión activa (la última abierta), si la hay: la de su proyecto en Memoria y Habilidades. */
+export function cwdActiva(s: EstadoApp): string | undefined {
+  return s.activa ? s.sesiones[s.activa]?.cwd : undefined;
 }
 
 export function estaTrabajando(s: EstadoApp, sesionId: string | undefined): boolean {

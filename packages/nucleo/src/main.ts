@@ -9,6 +9,8 @@
  * Con AQUILES_VIGILAR_STDIN=1 el núcleo termina cuando se cierra stdin: si la app muere, él también.
  */
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { LINEA_LISTO, MODOS_APROBACION, type ModoAprobacion } from "@aquiles/protocolo";
 import paquete from "../package.json";
@@ -43,10 +45,13 @@ if (!MODOS_APROBACION.includes(modo)) {
 
 const herramientas = herramientasPorDefecto();
 const perfil = directorioPerfil(op.perfil);
+/** Skills que vienen con Aquiles: junto al .exe compilado o, en desarrollo, en `skills/` del repo. */
+const skillsIncluidas =
+  [join(dirname(process.execPath), "skills"), join(import.meta.dir, "..", "..", "..", "skills")].find((d) => existsSync(d)) ?? null;
 
 if (op.cli) {
   await ejecutarCli({
-    proveedor: crearProveedor(op.proveedor!, { modelo: op.modelo }), herramientas, cwd: op.cwd!, perfil, modoAprobacion: modo,
+    proveedor: crearProveedor(op.proveedor!, { modelo: op.modelo }), herramientas, cwd: op.cwd!, perfil, skillsIncluidas, modoAprobacion: modo,
     reanudar: op.continuar ? "ultima" : op.reanudar,
   });
   process.exit(0);
@@ -69,11 +74,12 @@ const servidor = iniciarServidor({
   cwdPorDefecto: op.cwd!,
   version: paquete.version,
   perfil,
+  skillsIncluidas,
   incluirSimulado: op.proveedor === "simulado" || process.env.AQUILES_DESARROLLO === "1",
   origenesPermitidos: [...ORIGENES_APP, ...extra],
   log,
 });
-log(`v${paquete.version}, proveedor por defecto ${op.proveedor}${op.modelo ? ` (${op.modelo})` : ""}, carpeta ${op.cwd}, perfil ${perfil}`);
+log(`v${paquete.version}, proveedor por defecto ${op.proveedor}${op.modelo ? ` (${op.modelo})` : ""}, carpeta ${op.cwd}, perfil ${perfil}, skills incluidas ${skillsIncluidas ?? "ninguna"}`);
 console.log(`${LINEA_LISTO} port=${servidor.puerto}`);
 
 const salir = async () => {

@@ -46,7 +46,7 @@ export type Pendiente =
       responder: (r: string) => void;
     };
 
-export type Vista = "inicio" | "conversacion" | "ajustes";
+export type Vista = "inicio" | "conversacion" | "habilidades" | "memoria" | "ajustes";
 export type EstadoConexion = "conectando" | "conectada" | "caida";
 
 export interface EstadoApp {
@@ -59,4 +59,6 @@ export interface EstadoApp {
   pendientes: Pendiente[];
   proveedores: InfoProveedor[];
   ajustes?: Ajustes;
+  /** Suben con memoria.actualizada y skills.actualizadas (y al reconectar): las vistas que las muestran vuelven a pedirlas. */
+  revisiones: { memoria: number; skills: number };
 }

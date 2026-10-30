@@ -24,10 +24,13 @@ import {
 import type { ServerWebSocket } from "bun";
 import { AlmacenAjustes } from "./ajustes";
 import { ejecutarTurno } from "./bucle";
+import { abrirConocimiento } from "./conocimiento";
 import type { Herramienta } from "./herramientas/herramienta";
 import { cerrarEstadoSesion } from "./herramientas/index";
+import { ErrorMemoria } from "./memoria";
 import { crearProveedor, establecerClave, listarProveedores } from "./proveedores/index";
 import { AlmacenSesiones, historial, info, type Sesion } from "./sesiones";
+import { ErrorSkill } from "./skills";
 import type { Proveedor } from "./tipos";
 
 export const ORIGENES_APP = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost", "http://localhost:1420"];
@@ -43,8 +46,10 @@ export interface OpcionesServidor {
   herramientas: readonly Herramienta<any>[];
   cwdPorDefecto: string;
   version: string;
-  /** Carpeta del perfil (sesiones/, salidas/, ajustes.json); null = solo memoria. */
+  /** Carpeta del perfil (sesiones/, salidas/, memoria/, skills/, ajustes.json); null = solo memoria. */
   perfil: string | null;
+  /** Carpeta de las skills que vienen con Aquiles. */
+  skillsIncluidas?: string | null;
   /** Ofrecer el proveedor simulado en proveedores.listar (desarrollo). */
   incluirSimulado?: boolean;
   origenesPermitidos?: readonly string[];
@@ -63,7 +68,6 @@ class FalloRpc extends Error {
 }
 
 export function iniciarServidor(o: OpcionesServidor): Servidor {
-  const sesiones = new AlmacenSesiones(o.perfil ? join(o.perfil, "sesiones") : null, o.proveedor);
   const clientes = new Set<ServerWebSocket<unknown>>();
   const origenes = o.origenesPermitidos ?? ORIGENES_APP;
   const log = o.log ?? (() => {});
@@ -73,6 +77,21 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
   const emitir = (evento: Evento) => {
     const texto = JSON.stringify({ jsonrpc: "2.0", method: "evento", params: evento });
     for (const ws of clientes) ws.send(texto);
+  };
+
+  const conocimiento = abrirConocimiento({ perfil: o.perfil, incluidas: o.skillsIncluidas, emitir, log });
+  const { memoria, skills, indice } = conocimiento;
+  const herramientas = [...o.herramientas, ...conocimiento.herramientas];
+  const sesiones = new AlmacenSesiones(o.perfil ? join(o.perfil, "sesiones") : null, o.proveedor, conocimiento.ganchos);
+  /** Los errores de memoria y skills son de datos del cliente (límite, nombre, formato). */
+  const comoParams = <T>(f: () => T): T => {
+    try {
+      return f();
+    } catch (e) {
+      if (e instanceof ErrorMemoria) throw new FalloRpc(codigosError.paramsInvalidos, e.message, e.exceso === undefined ? undefined : { exceso: e.exceso });
+      if (e instanceof ErrorSkill) throw new FalloRpc(codigosError.paramsInvalidos, e.message);
+      throw e;
+    }
   };
 
   /** Pide algo a la interfaz; responde el primer cliente que conteste. */
@@ -168,6 +187,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     "sesion.renombrar": ({ sesionId, titulo }) => {
       const s = obtener(sesionId);
       sesiones.ajustar(s, { titulo: titulo.trim() });
+      indice.registrarSesion(info(s));
       avisar(s);
       return info(s);
     },
@@ -179,6 +199,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
         for (const p of proveedores.values()) await p.cerrar?.(s.id);
       }
       if (!sesiones.borrar(sesionId)) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
+      indice.borrarSesion(sesionId);
       return { borrada: true };
     },
     "prompt.enviar": ({ sesionId, texto }) => {
@@ -197,7 +218,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
         sistema: s.sistema,
         mensajes: s.mensajes,
         proveedor,
-        herramientas: o.herramientas,
+        herramientas,
         emitir,
         senal: control.signal,
         entorno: s,
@@ -234,6 +255,34 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       s.turno.abort();
       return { parado: true };
     },
+    "memoria.leer": ({ cwd }) => ({
+      usuario: memoria.leer("usuario"),
+      agente: memoria.leer("agente"),
+      ...(cwd ? { proyecto: { ...memoria.leer("proyecto", cwd), cwd } } : {}),
+      alma: memoria.alma(),
+    }),
+    "memoria.guardar": ({ destino, cwd, entradas }) => {
+      const bloque = comoParams(() => memoria.guardar(destino, entradas, cwd));
+      emitir({ tipo: "memoria.actualizada", destino, ...(destino === "proyecto" && cwd ? { cwd } : {}) });
+      return bloque;
+    },
+    "memoria.alma": ({ texto }) => {
+      const guardado = memoria.guardarAlma(texto);
+      emitir({ tipo: "memoria.actualizada", destino: "alma" });
+      return { texto: guardado };
+    },
+    "skills.listar": ({ cwd }) => ({ skills: skills.listar(cwd) }),
+    "skills.leer": ({ nombre, cwd }) => {
+      const skill = skills.leer(nombre, cwd);
+      if (!skill) throw new FalloRpc(codigosError.paramsInvalidos, `No existe la skill ${nombre}`);
+      return skill;
+    },
+    "skills.ajustar": ({ nombre, activa, cwd }) => {
+      const skill = comoParams(() => skills.ajustar(nombre, activa, cwd));
+      emitir({ tipo: "skills.actualizadas" });
+      return skill;
+    },
+    "buscar.sesiones": ({ consulta, limite }) => ({ resultados: indice.buscar(consulta, limite) }),
   };
 
   const atender = async (bruto: string): Promise<RespuestaRpc | undefined> => {
@@ -308,6 +357,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       }
       servidor.stop(true);
       for (const p of proveedores.values()) await p.cerrar?.();
+      conocimiento.cerrar();
     },
   };
 }

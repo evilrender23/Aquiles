@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import type { ModoAprobacion } from "@aquiles/protocolo";
 import { ejecutarTurno } from "./bucle";
+import { abrirConocimiento } from "./conocimiento";
 import type { Herramienta } from "./herramientas/herramienta";
 import { cerrarEstadoSesion } from "./herramientas/index";
 import { AlmacenSesiones, type Sesion } from "./sesiones";
@@ -17,13 +18,17 @@ export interface OpcionesCli {
   herramientas: readonly Herramienta<any>[];
   cwd: string;
   perfil: string;
+  /** Carpeta de las skills que vienen con Aquiles. */
+  skillsIncluidas?: string | null;
   modoAprobacion: ModoAprobacion;
   /** Id de sesión a reanudar, o "ultima". */
   reanudar?: string;
 }
 
 export async function ejecutarCli(o: OpcionesCli): Promise<void> {
-  const almacen = new AlmacenSesiones(join(o.perfil, "sesiones"));
+  const conocimiento = abrirConocimiento({ perfil: o.perfil, incluidas: o.skillsIncluidas });
+  const herramientas = [...o.herramientas, ...conocimiento.herramientas];
+  const almacen = new AlmacenSesiones(join(o.perfil, "sesiones"), o.proveedor.nombre, conocimiento.ganchos);
   let sesion: Sesion | undefined;
   if (o.reanudar) {
     const id = o.reanudar === "ultima" ? almacen.listar()[0]?.sesionId : o.reanudar;
@@ -62,7 +67,7 @@ export async function ejecutarCli(o: OpcionesCli): Promise<void> {
         sistema: s.sistema,
         mensajes: s.mensajes,
         proveedor: o.proveedor,
-        herramientas: o.herramientas,
+        herramientas,
         senal: turno.signal,
         entorno: s,
         alAnadir: (m) => almacen.anotar(s, m),
@@ -102,5 +107,6 @@ export async function ejecutarCli(o: OpcionesCli): Promise<void> {
     rl.close();
     await cerrarEstadoSesion(s.estado);
     await o.proveedor.cerrar?.();
+    conocimiento.cerrar();
   }
 }

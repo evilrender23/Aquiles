@@ -1,26 +1,30 @@
 /**
- * Prueba de humo con un modelo real a través de agy (gasta cuota de tu cuenta de Antigravity).
- *   bun packages/nucleo/scripts/probar-agy.ts [--modelo ID]
+ * Prueba de humo con un modelo real (gasta cuota de la cuenta del proveedor).
+ *   bun packages/nucleo/scripts/probar-modelo.ts [--proveedor agy|claude|…] [--modelo ID]
  * Crea una carpeta temporal con un fichero, pide a Aquiles que lo lea y hace una segunda
- * pregunta en la misma sesión para comprobar que el proceso de agy se reutiliza.
+ * pregunta en la misma sesión para comprobar que el proceso del CLI se reutiliza.
  */
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { ejecutarTurno } from "../src/bucle";
+import { type EntornoTurno, ejecutarTurno } from "../src/bucle";
 import { leer } from "../src/herramientas/leer";
-import { ProveedorAgy } from "../src/proveedores/agy";
+import { crearProveedor } from "../src/proveedores/index";
 import { sistemaBase } from "../src/sesiones";
 import type { Mensaje } from "../src/tipos";
 
-const { values } = parseArgs({ args: process.argv.slice(2), options: { modelo: { type: "string" } } });
-const cwd = await mkdtemp(join(tmpdir(), "aquiles-agy-"));
+const { values } = parseArgs({
+  args: process.argv.slice(2),
+  options: { proveedor: { type: "string", default: "agy" }, modelo: { type: "string" } },
+});
+const cwd = await mkdtemp(join(tmpdir(), "aquiles-humo-"));
 const codigo = String(1000 + Math.floor(Math.random() * 9000));
 await writeFile(join(cwd, "nota.txt"), `Instrucciones del almacén.\nEl código de la puerta es ${codigo}.\nNo lo compartas.\n`);
 
-const proveedor = new ProveedorAgy({ modelo: values.modelo });
+const proveedor = crearProveedor(values.proveedor, { modelo: values.modelo });
 const mensajes: Mensaje[] = [];
+const entorno: EntornoTurno = { lecturas: new Map(), estado: new Map(), permitidos: new Set(), modoAprobacion: "preguntar-ejecutar", steer: [] };
 let fallos = 0;
 
 for (const [pregunta, esperado] of [
@@ -38,6 +42,7 @@ for (const [pregunta, esperado] of [
     proveedor,
     herramientas: [leer],
     senal: new AbortController().signal,
+    entorno,
     emitir(ev) {
       if (ev.tipo === "mensaje.delta") {
         primerDelta ||= performance.now() - inicio;

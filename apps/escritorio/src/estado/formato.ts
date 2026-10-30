@@ -25,6 +25,26 @@ export function fechaRelativa(iso: string, ahora = Date.now()): string {
   return d.getFullYear() === hoy.getFullYear() ? base : `${base} ${d.getFullYear()}`;
 }
 
+/** Para cifras grandes: «hoy», «ayer», «27 oct», «27 oct 2025». */
+export function fechaCorta(iso: string, ahora = Date.now()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const hoy = new Date(ahora);
+  const ayer = new Date(ahora);
+  ayer.setDate(ayer.getDate() - 1);
+  const mismoDia = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (mismoDia(d, hoy)) return "hoy";
+  if (mismoDia(d, ayer)) return "ayer";
+  const base = `${d.getDate()} ${MESES[d.getMonth()]}`;
+  return d.getFullYear() === hoy.getFullYear() ? base : `${base} ${d.getFullYear()}`;
+}
+
+/** Fecha y hora completas, para el title. */
+export function fechaCompleta(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
+}
+
 const decimal = (n: number) => n.toFixed(1).replace(/\.0$/, "").replace(".", ",");
 
 /** 61400 → «61,4k»; 200000 → «200k». */
