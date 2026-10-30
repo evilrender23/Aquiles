@@ -197,5 +197,7 @@ test("resumen, clave de permiso y formato de salida", () => {
     "procesos",
     "tareas",
     "preguntar",
+    "leer_web",
+    "buscar_web",
   ]);
 });

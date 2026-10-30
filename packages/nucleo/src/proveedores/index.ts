@@ -30,6 +30,17 @@ export const VARIABLES_CLAVE: Record<string, string> = {
   openai: "OPENAI_API_KEY",
 };
 
+/** Secretos de otros servicios (canales, búsqueda), que también llegan del llavero con ajustes.clave. */
+export const VARIABLES_SECRETOS: Record<string, string> = {
+  ...VARIABLES_CLAVE,
+  telegram: "AQUILES_TELEGRAM_TOKEN",
+  discord: "AQUILES_DISCORD_TOKEN",
+  slack: "AQUILES_SLACK_TOKEN",
+  "slack-app": "AQUILES_SLACK_APP_TOKEN",
+  correo: "AQUILES_CORREO_CLAVE",
+  brave: "AQUILES_BRAVE_KEY",
+};
+
 const MODELOS_ANTHROPIC = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"];
 
 /** Crea un proveedor por nombre (CLI, servidor y banco de tareas). */
@@ -47,7 +58,7 @@ export function crearProveedor(nombre: string, opciones: OpcionesProveedor = {})
 
 /** Pone la clave en el entorno de este proceso (no se guarda en disco). */
 export function establecerClave(proveedor: string, clave: string): void {
-  const variable = VARIABLES_CLAVE[proveedor];
+  const variable = VARIABLES_SECRETOS[proveedor];
   if (!variable) throw new Error(`${proveedor} no usa clave`);
   if (clave) process.env[variable] = clave;
   else delete process.env[variable];

@@ -8,28 +8,36 @@ import type {
   Ajustes,
   BloqueMemoria,
   DestinoMemoria,
+  EntradaAprendizaje,
   Evento,
   InfoProveedor,
   InfoSesion,
   InfoSkill,
   MensajeHistorial,
   ModoAprobacion,
+  NombreMetodo,
+  Params,
+  Propuesta,
   ResultadoBusqueda,
   Resultados,
+  VersionSkill,
 } from "@aquiles/protocolo";
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { datosConexion } from "../conexion";
 import { borrarClaveLlavero, guardarClaveLlavero } from "../plataforma/claves";
 import { ClienteRpc } from "../rpc";
-import { anadirAviso, anadirUsuario, aplicarEvento, conversacionVacia, desdeHistorial } from "./conversacion";
-import type { Conversacion, EstadoApp, EstadoConexion, Pendiente, Vista } from "./tipos";
+import { anadirAviso, anadirUsuario, aplicarEvento, conversacionVacia, desdeHistorial, type EventoSesion } from "./conversacion";
+import { alAbrirSesion, alReiniciarNucleo } from "../plataforma/aplicacion";
+import { notificarSistema } from "../plataforma/notificaciones";
+import { enTauri } from "../plataforma/tauri";
+import type { Conversacion, EstadoApp, EstadoConexion, Notificacion, Pendiente, PestanaMemoria, Subagente, Vista } from "./tipos";
 
 type Accion =
   | { tipo: "conexion"; estado: EstadoConexion; error?: string }
   | { tipo: "inicial"; sesiones: InfoSesion[]; ajustes: Ajustes }
   | { tipo: "proveedores"; proveedores: InfoProveedor[] }
   | { tipo: "ajustes"; ajustes: Ajustes }
-  | { tipo: "vista"; vista: Vista; activa?: string }
+  | { tipo: "vista"; vista: Vista; activa?: string; pestanaMemoria?: PestanaMemoria }
   | { tipo: "sesion"; sesion: InfoSesion }
   | { tipo: "sesion.borrada"; sesionId: string }
   | { tipo: "cargando"; sesionId: string }
@@ -38,7 +46,10 @@ type Accion =
   | { tipo: "usuario"; sesionId: string; texto: string; steer: boolean; ahora: number }
   | { tipo: "aviso"; sesionId: string; nivel: "aviso" | "error"; texto: string; fin?: boolean }
   | { tipo: "pendiente"; pendiente: Pendiente }
-  | { tipo: "pendiente.resuelto"; id: string; ahora: number };
+  | { tipo: "pendiente.resuelto"; id: string; ahora: number }
+  | { tipo: "notificacion"; notificacion: Notificacion }
+  | { tipo: "notificacion.cerrada"; id: number }
+  | { tipo: "voz"; voz: EstadoApp["voz"] };
 
 const inicial: EstadoApp = {
   conexion: "conectando",
@@ -47,8 +58,35 @@ const inicial: EstadoApp = {
   conversaciones: {},
   pendientes: [],
   proveedores: [],
-  revisiones: { memoria: 0, skills: 0 },
+  revisiones: { memoria: 0, skills: 0, aprendizaje: 0, cron: 0, canales: 0, mcp: 0, kanban: 0, plugins: 0 },
+  subagentes: {},
+  notificaciones: [],
 };
+
+/** Lo último que escribe un subagente (lo que cabe en su tarjeta). */
+const COLA_SUBAGENTE = 600;
+
+/** Panel de subagentes: nacen con subagente.inicio, escriben con sus mensaje.delta y acaban con subagente.fin. */
+function conSubagentes(s: EstadoApp, e: Evento): EstadoApp {
+  const actualizar = (subId: string, f: (x: Subagente) => Subagente) => {
+    const x = s.subagentes[subId];
+    return x ? { ...s, subagentes: { ...s.subagentes, [subId]: f(x) } } : s;
+  };
+  switch (e.tipo) {
+    case "subagente.inicio":
+      return { ...s, subagentes: { ...s.subagentes, [e.subId]: { subId: e.subId, padre: e.sesionId, tarea: e.tarea, estado: "en-curso", texto: "" } } };
+    case "subagente.fin":
+      return actualizar(e.subId, (x) => ({ ...x, estado: e.motivo, texto: (e.texto || x.texto).slice(-COLA_SUBAGENTE), ...(e.error ? { error: e.error } : {}) }));
+    case "mensaje.delta":
+      return actualizar(e.sesionId, (x) => ({ ...x, texto: (x.texto + e.texto).slice(-COLA_SUBAGENTE) }));
+    default:
+      return s;
+  }
+}
+
+const subir = (s: EstadoApp, clave: keyof EstadoApp["revisiones"]): EstadoApp => ({ ...s, revisiones: { ...s.revisiones, [clave]: s.revisiones[clave] + 1 } });
+
+const esDeSesion = (e: Evento): e is EventoSesion => "sesionId" in e;
 
 function conConversacion(s: EstadoApp, sesionId: string, f: (c: Conversacion) => Conversacion): EstadoApp {
   const c = s.conversaciones[sesionId] ?? conversacionVacia();
@@ -60,7 +98,7 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
     case "conexion":
       if (a.estado === "conectada") return { ...s, conexion: a.estado, errorConexion: undefined };
       // Las peticiones del núcleo mueren con la conexión.
-      return { ...s, conexion: a.estado, errorConexion: a.error, pendientes: a.estado === "caida" ? [] : s.pendientes };
+      return { ...s, conexion: a.estado, errorConexion: a.error, pendientes: a.estado === "caida" || a.estado === "reiniciando" ? [] : s.pendientes };
     case "inicial": {
       const sesiones = Object.fromEntries(a.sesiones.map((x) => [x.sesionId, x]));
       const activa = s.activa && sesiones[s.activa] ? s.activa : undefined;
@@ -73,7 +111,7 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
         conversaciones: {},
         activa,
         vista: activa || s.vista !== "conversacion" ? s.vista : "inicio",
-        revisiones: { memoria: s.revisiones.memoria + 1, skills: s.revisiones.skills + 1 },
+        revisiones: Object.fromEntries(Object.entries(s.revisiones).map(([k, v]) => [k, v + 1])) as EstadoApp["revisiones"],
       };
     }
     case "proveedores":
@@ -81,7 +119,7 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
     case "ajustes":
       return { ...s, ajustes: a.ajustes };
     case "vista":
-      return { ...s, vista: a.vista, activa: a.vista === "inicio" ? undefined : (a.activa ?? s.activa) };
+      return { ...s, vista: a.vista, activa: a.vista === "inicio" ? undefined : (a.activa ?? s.activa), pestanaMemoria: a.pestanaMemoria };
     case "sesion":
       return { ...s, sesiones: { ...s.sesiones, [a.sesion.sesionId]: a.sesion } };
     case "sesion.borrada": {
@@ -110,10 +148,24 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
       if (e.tipo === "sesion.actualizada") return { ...s, sesiones: { ...s.sesiones, [e.sesion.sesionId]: e.sesion } };
       if (e.tipo === "memoria.actualizada") return { ...s, revisiones: { ...s.revisiones, memoria: s.revisiones.memoria + 1 } };
       if (e.tipo === "skills.actualizadas") return { ...s, revisiones: { ...s.revisiones, skills: s.revisiones.skills + 1 } };
-      const pendientes = e.tipo === "turno.fin" ? s.pendientes.filter((p) => p.sesionId !== e.sesionId) : s.pendientes;
-      const c = s.conversaciones[e.sesionId];
-      if (!c) return pendientes === s.pendientes ? s : { ...s, pendientes };
-      return { ...s, pendientes, conversaciones: { ...s.conversaciones, [e.sesionId]: aplicarEvento(c, e, a.ahora) } };
+      if (e.tipo === "aprendizaje.actualizado") return subir(s, "aprendizaje");
+      if (e.tipo === "cron.ejecucion" || e.tipo === "cron.actualizado") return subir(s, "cron");
+      if (e.tipo === "canales.actualizados") return subir(s, "canales");
+      if (e.tipo === "mcp.actualizado") return subir(s, "mcp");
+      if (e.tipo === "kanban.actualizado") return subir(s, "kanban");
+      if (e.tipo === "plugins.actualizados") return subir(s, "plugins");
+      if (e.tipo === "objetivo.evaluado") {
+        const sesion = s.sesiones[e.sesionId];
+        return sesion ? { ...s, sesiones: { ...s.sesiones, [e.sesionId]: { ...sesion, objetivo: e.objetivo } } } : s;
+      }
+      // `notificacion` se atiende al recibirla (ver conectar); el resto sin sesión no toca nada.
+      if (e.tipo === "notificacion" || !esDeSesion(e)) return s;
+      // Una revisión que acaba deja propuestas (o cambios aplicados) nuevos.
+      const t = conSubagentes(e.tipo === "aprendizaje.revision" && e.estado === "fin" ? subir(s, "aprendizaje") : s, e);
+      const pendientes = e.tipo === "turno.fin" ? t.pendientes.filter((p) => p.sesionId !== e.sesionId) : t.pendientes;
+      const c = t.conversaciones[e.sesionId];
+      if (!c) return pendientes === t.pendientes ? t : { ...t, pendientes };
+      return { ...t, pendientes, conversaciones: { ...t.conversaciones, [e.sesionId]: aplicarEvento(c, e, a.ahora) } };
     }
     case "usuario":
       return conConversacion(s, a.sesionId, (c) => anadirUsuario(c, a.texto, a.ahora, a.steer));
@@ -124,6 +176,13 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
       });
     case "pendiente":
       return { ...s, pendientes: [...s.pendientes, a.pendiente] };
+    case "notificacion":
+      // Las cinco más recientes; las viejas se van solas.
+      return { ...s, notificaciones: [...s.notificaciones, a.notificacion].slice(-5) };
+    case "notificacion.cerrada":
+      return { ...s, notificaciones: s.notificaciones.filter((n) => n.id !== a.id) };
+    case "voz":
+      return { ...s, voz: a.voz };
     case "pendiente.resuelto": {
       const p = s.pendientes.find((x) => x.id === a.id);
       const sin = { ...s, pendientes: s.pendientes.filter((x) => x.id !== a.id) };
@@ -142,7 +201,12 @@ export interface Acciones {
   abrirSesion: (sesionId: string) => void;
   nuevaSesion: () => void;
   abrirHabilidades: () => void;
-  abrirMemoria: () => void;
+  abrirMemoria: (pestana?: PestanaMemoria) => void;
+  abrirAutomatizaciones: () => void;
+  abrirKanban: () => void;
+  abrirEstadisticas: () => void;
+  /** Antes de algo que reinicia el núcleo (cambiar de perfil, núcleo remoto…): esperar y reconectar sin dar error. */
+  prepararReinicio: (motivo?: string) => void;
   abrirAjustes: () => void;
   empezar: (p: { texto: string; proveedor?: string; modelo?: string; modoAprobacion?: ModoAprobacion }) => Promise<void>;
   enviar: (sesionId: string, texto: string) => Promise<void>;
@@ -151,17 +215,34 @@ export interface Acciones {
   renombrar: (sesionId: string, titulo: string) => Promise<void>;
   borrar: (sesionId: string) => Promise<void>;
   refrescarProveedores: () => Promise<void>;
-  guardarAjustes: (cambios: Partial<Ajustes>) => Promise<Ajustes>;
+  guardarAjustes: (cambios: Params<"ajustes.guardar">) => Promise<Ajustes>;
   guardarClave: (proveedor: string, clave: string) => Promise<void>;
   borrarClave: (proveedor: string) => Promise<void>;
+  /** Con las archivadas: la vista las separa con su chip. */
   listarSkills: (cwd?: string) => Promise<InfoSkill[]>;
   leerSkill: (nombre: string, cwd?: string) => Promise<Resultados["skills.leer"]>;
-  ajustarSkill: (nombre: string, activa: boolean) => Promise<InfoSkill>;
+  ajustarSkill: (nombre: string, activa: boolean, cwd?: string) => Promise<InfoSkill>;
+  fijarSkill: (nombre: string, fijada: boolean) => Promise<InfoSkill>;
+  archivarSkill: (nombre: string) => Promise<InfoSkill>;
+  restaurarSkill: (nombre: string) => Promise<InfoSkill>;
+  versionesSkill: (nombre: string) => Promise<VersionSkill[]>;
+  restaurarVersionSkill: (nombre: string, version: string) => Promise<InfoSkill>;
   leerMemoria: (cwd?: string) => Promise<Resultados["memoria.leer"]>;
   /** Sustituye todas las entradas del destino; el núcleo valida y, si las rechaza, lanza su error. */
   guardarMemoria: (destino: DestinoMemoria, entradas: string[], cwd?: string) => Promise<BloqueMemoria>;
   guardarAlma: (texto: string) => Promise<string>;
   buscarSesiones: (consulta: string) => Promise<ResultadoBusqueda[]>;
+  /** Propuestas pendientes de lo aprendido. */
+  listarPropuestas: () => Promise<Propuesta[]>;
+  decidirPropuesta: (id: string, decision: "aceptar" | "descartar") => Promise<Propuesta>;
+  historialAprendizaje: () => Promise<EntradaAprendizaje[]>;
+  /** Cualquier método del núcleo, tipado por el protocolo (cron, canales, mcp, voz…). */
+  llamar: <M extends NombreMetodo>(metodo: M, params: Params<M>) => Promise<Resultados[M]>;
+  /** Steer a una sesión cualquiera (p. ej. un subagente), sin pasar por su conversación. */
+  reconducir: (sesionId: string, texto: string) => Promise<void>;
+  cerrarNotificacion: (id: number) => void;
+  /** Pone (o quita, con null) el objetivo de una sesión; la sesión se actualiza con lo que devuelve el núcleo. */
+  ponerObjetivo: (sesionId: string, objetivo: string | null, maxIntentos?: number) => Promise<void>;
 }
 
 const ContextoEstado = createContext<EstadoApp | null>(null);
@@ -175,7 +256,10 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
   estadoRef.current = estado;
   const cliente = useRef<ClienteRpc | undefined>(undefined);
   const intento = useRef(0);
+  /** Espera a que el núcleo vuelva tras un reinicio y reconecta (definida más abajo: usa `conectar`). */
+  const reiniciar = useRef<(motivo?: string) => void>(() => {});
   const siguientePendiente = useRef(0);
+  const siguienteNotificacion = useRef(0);
 
   const rpc = useCallback((): ClienteRpc => {
     if (!cliente.current) throw new Error("Sin conexión con el núcleo");
@@ -208,7 +292,21 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       const c = await ClienteRpc.conectar(url, token);
       if (!vigente()) return c.cerrar();
       cliente.current = c;
-      c.alEvento((evento) => despachar({ tipo: "evento", evento, ahora: Date.now() }));
+      c.alEvento((evento) => {
+        if (evento.tipo === "nucleo.reinicio") {
+          reiniciar.current(evento.motivo);
+          return;
+        }
+        if (evento.tipo === "notificacion") {
+          const { titulo, texto, sesionId } = evento;
+          // En la app de escritorio, notificación del sistema; en el navegador (o sin permiso), aviso dentro de la app.
+          void notificarSistema({ titulo, texto, sesionId }).then(
+            (enviada) => enviada || despachar({ tipo: "notificacion", notificacion: { id: ++siguienteNotificacion.current, titulo, texto, ...(sesionId ? { sesionId } : {}) } }),
+          );
+          return;
+        }
+        despachar({ tipo: "evento", evento, ahora: Date.now() });
+      });
       c.atender(
         "aprobacion.pedir",
         (params) =>
@@ -238,6 +336,11 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       const activa = estadoRef.current.activa;
       if (activa && sesiones.some((x) => x.sesionId === activa)) void cargar(activa);
       // Puede tardar (agy lista sus modelos lanzando un proceso): no bloquea el arranque.
+      // Sin voz (o con un núcleo que aún no la tiene) no hay botones de voz.
+      c.llamar("voz.estado", {}).then(
+        (voz) => vigente() && despachar({ tipo: "voz", voz }),
+        () => vigente() && despachar({ tipo: "voz", voz: undefined }),
+      );
       c.llamar("proveedores.listar", {}).then(
         ({ proveedores }) => vigente() && despachar({ tipo: "proveedores", proveedores }),
         () => {},
@@ -255,6 +358,34 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       cliente.current = undefined;
     };
   }, [conectar]);
+
+  // Reinicio a propósito: se suelta la conexión vieja (su cierre ya no cuenta como caída) y se espera al núcleo nuevo.
+  // En la app avisa Tauri con «nucleo-reiniciado»; en el navegador se reintenta hasta que vuelva a responder.
+  reiniciar.current = (motivo) => {
+    const n = ++intento.current;
+    cliente.current?.cerrar();
+    cliente.current = undefined;
+    despachar({ tipo: "conexion", estado: "reiniciando", error: motivo });
+    if (enTauri()) {
+      setTimeout(() => n === intento.current && void conectar(), 30_000);
+      return;
+    }
+    const probar = async (vez: number) => {
+      if (n !== intento.current) return;
+      try {
+        const { url, token } = await datosConexion();
+        (await ClienteRpc.conectar(url, token)).cerrar();
+        if (n === intento.current) void conectar();
+      } catch {
+        if (vez < 40) setTimeout(() => void probar(vez + 1), 1000);
+        else if (n === intento.current) despachar({ tipo: "conexion", estado: "caida", error: "El núcleo no ha vuelto tras reiniciarse" });
+      }
+    };
+    // El núcleo viejo tarda un poco en cerrarse: no hay que volver a conectarse a él.
+    setTimeout(() => void probar(0), 1500);
+  };
+
+  useEffect(() => alReiniciarNucleo(() => void conectar()), [conectar]);
 
   const acciones = useMemo<Acciones>(() => {
     const enviar = async (sesionId: string, texto: string) => {
@@ -283,7 +414,11 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       },
       nuevaSesion: () => despachar({ tipo: "vista", vista: "inicio" }),
       abrirHabilidades: () => despachar({ tipo: "vista", vista: "habilidades" }),
-      abrirMemoria: () => despachar({ tipo: "vista", vista: "memoria" }),
+      abrirMemoria: (pestana) => despachar({ tipo: "vista", vista: "memoria", pestanaMemoria: pestana }),
+      abrirAutomatizaciones: () => despachar({ tipo: "vista", vista: "automatizaciones" }),
+      abrirKanban: () => despachar({ tipo: "vista", vista: "kanban" }),
+      abrirEstadisticas: () => despachar({ tipo: "vista", vista: "estadisticas" }),
+      prepararReinicio: (motivo) => reiniciar.current(motivo),
       abrirAjustes: () => despachar({ tipo: "vista", vista: "ajustes" }),
       empezar: async ({ texto, ...opciones }) => {
         const sesion = await rpc().llamar("sesion.crear", opciones);
@@ -323,15 +458,34 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
         await rpc().llamar("ajustes.clave", { proveedor, clave: "" });
       },
       // async: rpc() lanza si no hay conexión y así llega como promesa rechazada.
-      listarSkills: async (cwd) => (await rpc().llamar("skills.listar", { cwd })).skills,
+      listarSkills: async (cwd) => (await rpc().llamar("skills.listar", { cwd, archivadas: true })).skills,
       leerSkill: async (nombre, cwd) => rpc().llamar("skills.leer", { nombre, cwd }),
-      ajustarSkill: async (nombre, activa) => rpc().llamar("skills.ajustar", { nombre, activa }),
+      ajustarSkill: async (nombre, activa, cwd) => rpc().llamar("skills.ajustar", { nombre, activa, cwd }),
+      fijarSkill: async (nombre, fijada) => rpc().llamar("skills.fijar", { nombre, fijada }),
+      archivarSkill: async (nombre) => rpc().llamar("skills.archivar", { nombre }),
+      restaurarSkill: async (nombre) => rpc().llamar("skills.restaurar", { nombre }),
+      versionesSkill: async (nombre) => (await rpc().llamar("skills.versiones", { nombre })).versiones,
+      restaurarVersionSkill: async (nombre, version) => rpc().llamar("skills.restaurarVersion", { nombre, version }),
       leerMemoria: async (cwd) => rpc().llamar("memoria.leer", { cwd }),
       guardarMemoria: async (destino, entradas, cwd) => rpc().llamar("memoria.guardar", { destino, entradas, cwd }),
       guardarAlma: async (texto) => (await rpc().llamar("memoria.alma", { texto })).texto,
       buscarSesiones: async (consulta) => (await rpc().llamar("buscar.sesiones", { consulta, limite: 30 })).resultados,
+      listarPropuestas: async () => (await rpc().llamar("aprendizaje.listar", {})).propuestas,
+      decidirPropuesta: async (id, decision) => rpc().llamar("aprendizaje.decidir", { id, decision }),
+      historialAprendizaje: async () => (await rpc().llamar("aprendizaje.historial", { limite: 200 })).entradas,
+      llamar: async (metodo, params) => rpc().llamar(metodo, params),
+      reconducir: async (sesionId, texto) => {
+        await rpc().llamar("prompt.steer", { sesionId, texto });
+      },
+      cerrarNotificacion: (id) => despachar({ tipo: "notificacion.cerrada", id }),
+      ponerObjetivo: async (sesionId, objetivo, maxIntentos) => {
+        despachar({ tipo: "sesion", sesion: await rpc().llamar("sesion.objetivo", { sesionId, objetivo, ...(maxIntentos ? { maxIntentos } : {}) }) });
+      },
     };
   }, [cargar, conectar, refrescarProveedores, rpc]);
+
+  // La entrada rápida (otra ventana) crea una sesión y pide abrirla en esta.
+  useEffect(() => alAbrirSesion((sesionId) => acciones.abrirSesion(sesionId)), [acciones]);
 
   return (
     <ContextoAcciones.Provider value={acciones}>

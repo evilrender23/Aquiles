@@ -8,7 +8,17 @@ export function AvisoConexion() {
   // Tras una caída, el aviso sigue a la vista mientras se reintenta.
   const caida = useRef(false);
   if (conexion === "caida") caida.current = true;
-  if (conexion === "conectada") caida.current = false;
+  if (conexion === "conectada" || conexion === "reiniciando") caida.current = false;
+
+  // Un reinicio pedido (perfil, copia, núcleo remoto) no es un error: aviso neutro hasta que vuelve.
+  if (conexion === "reiniciando") {
+    return (
+      <div className="aviso-conexion aviso-conexion--reinicio" role="status">
+        <i className="nx-punto nx-pulso" aria-hidden="true" />
+        <span className="aviso-conexion__texto">{errorConexion ? `Reiniciando el núcleo · ${errorConexion}` : "Reiniciando el núcleo"}</span>
+      </div>
+    );
+  }
   if (!caida.current) return null;
   const reintentando = conexion === "conectando";
   return (

@@ -6,7 +6,7 @@ export { Etiqueta, Titular, type PropsEtiqueta, type PropsTitular } from "./comp
 export { Tarjeta, BloqueCodigo, Chip, Medidor, type PropsTarjeta, type PropsBloqueCodigo, type PropsChip, type PropsMedidor } from "./componentes/Tarjeta";
 export { Campo, Selector, type OpcionSelector, type PropsCampo, type PropsSelector } from "./componentes/Formulario";
 export { Desplegable, Opcion, GrupoOpciones, type PropsDesplegable, type PropsDisparador, type PropsOpcion } from "./componentes/Desplegable";
-export { Interruptor, type PropsInterruptor } from "./componentes/Interruptor";
+export { CampoInterruptor, Interruptor, type PropsCampoInterruptor, type PropsInterruptor } from "./componentes/Interruptor";
 export { Pestanas, idPestana, type Pestana, type PropsPestanas } from "./componentes/Pestanas";
 export { CampoBusqueda, type PropsCampoBusqueda } from "./componentes/Busqueda";
 

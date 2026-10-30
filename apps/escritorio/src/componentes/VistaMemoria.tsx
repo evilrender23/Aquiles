@@ -2,9 +2,10 @@ import type { BloqueMemoria, DestinoMemoria } from "@aquiles/protocolo";
 import { Boton, BotonIcono, Medidor, Pestanas, Titular, idPestana, type Pestana } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { cwdActiva, useAcciones, useEstado } from "../estado/almacen";
+import { usePropuestas } from "../estado/aprendizaje";
 import { useCarga } from "../estado/carga";
-
-type IdPestana = DestinoMemoria | "alma";
+import type { PestanaMemoria } from "../estado/tipos";
+import { PanelAprendido, PanelPropuestas } from "./Aprendizaje";
 
 const PANEL = "memoria-panel";
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -15,51 +16,57 @@ export function VistaMemoria() {
   const { leerMemoria } = useAcciones();
   const cwd = cwdActiva(estado);
   const memoria = useCarga(`memoria:${cwd ?? ""}`, estado.revisiones.memoria, () => leerMemoria(cwd));
-  const [elegida, setElegida] = useState<IdPestana>("usuario");
+  const propuestas = usePropuestas();
+  const [elegida, setElegida] = useState<PestanaMemoria>(estado.pestanaMemoria ?? "usuario");
   const m = memoria.datos;
+  const pendientes = propuestas.datos?.length ?? 0;
 
-  const pestanas: Pestana<IdPestana>[] = [
+  // Desde el aviso de una revisión se llega con la pestaña ya elegida.
+  useEffect(() => {
+    if (estado.pestanaMemoria) setElegida(estado.pestanaMemoria);
+  }, [estado.pestanaMemoria]);
+
+  const pestanas: Pestana<PestanaMemoria>[] = [
     { id: "usuario", texto: "Tú" },
     { id: "agente", texto: "Agente" },
     ...(m?.proyecto ? [{ id: "proyecto" as const, texto: "Proyecto", titulo: m.proyecto.cwd }] : []),
     { id: "alma", texto: "Personalidad" },
+    { id: "propuestas", texto: pendientes ? `Propuestas · ${pendientes}` : "Propuestas" },
+    { id: "aprendido", texto: "Aprendido" },
   ];
   const activa = pestanas.some((p) => p.id === elegida) ? elegida : "usuario";
 
   const guardado = (destino: DestinoMemoria) => (b: BloqueMemoria) =>
     memoria.fijar((d) => (destino === "proyecto" ? (d.proyecto ? { ...d, proyecto: { ...b, cwd: d.proyecto.cwd } } : d) : { ...d, [destino]: b }));
 
-  const bloque = activa === "alma" || !m ? undefined : activa === "proyecto" ? m.proyecto : m[activa];
+  const destino = activa === "usuario" || activa === "agente" || activa === "proyecto" ? activa : undefined;
+  const bloque = !destino || !m ? undefined : destino === "proyecto" ? m.proyecto : m[destino];
+  const deMemoria = activa !== "propuestas" && activa !== "aprendido";
 
   return (
     <div className="memoria">
       <div className="memoria__pagina">
         <Titular texto="Memoria" tamano="l" />
-        {memoria.error && (
-          <p className="memoria__error" role="alert">
-            {memoria.error}
-          </p>
-        )}
-        {m && (
-          <>
-            <Pestanas etiqueta="Memoria" pestanas={pestanas} activa={activa} alElegir={setElegida} idPanel={PANEL} />
-            <div role="tabpanel" id={PANEL} aria-labelledby={idPestana(PANEL, activa)} className="memoria__panel">
-              {activa === "alma" ? (
-                <EditorAlma texto={m.alma} alGuardado={(alma) => memoria.fijar((d) => ({ ...d, alma }))} />
-              ) : (
-                bloque && (
-                  <BloqueEditable
-                    key={activa}
-                    destino={activa}
-                    bloque={bloque}
-                    cwd={activa === "proyecto" ? m.proyecto?.cwd : undefined}
-                    alGuardado={guardado(activa)}
-                  />
-                )
-              )}
-            </div>
-          </>
-        )}
+        <Pestanas etiqueta="Memoria" pestanas={pestanas} activa={activa} alElegir={setElegida} idPanel={PANEL} />
+        <div role="tabpanel" id={PANEL} aria-labelledby={idPestana(PANEL, activa)} className="memoria__panel">
+          {deMemoria && memoria.error && (
+            <p className="memoria__error" role="alert">
+              {memoria.error}
+            </p>
+          )}
+          {activa === "propuestas" ? (
+            <PanelPropuestas propuestas={propuestas} />
+          ) : activa === "aprendido" ? (
+            <PanelAprendido />
+          ) : activa === "alma" ? (
+            m && <EditorAlma texto={m.alma} alGuardado={(alma) => memoria.fijar((d) => ({ ...d, alma }))} />
+          ) : (
+            destino &&
+            bloque && (
+              <BloqueEditable key={destino} destino={destino} bloque={bloque} cwd={destino === "proyecto" ? m?.proyecto?.cwd : undefined} alGuardado={guardado(destino)} />
+            )
+          )}
+        </div>
       </div>
     </div>
   );

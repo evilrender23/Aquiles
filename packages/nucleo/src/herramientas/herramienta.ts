@@ -48,6 +48,8 @@ export interface Herramienta<A = unknown> {
   descripcion: string;
   nivel: Nivel;
   parametros: z.ZodType<A>;
+  /** JSON Schema tal cual para el modelo, cuando no sale de `parametros` (p. ej. herramientas MCP). */
+  esquema?: Record<string, unknown>;
   ejecutar(args: A, ctx: ContextoHerramienta): Promise<string>;
   /** Una línea para la tarjeta de la interfaz y la petición de permiso (p. ej. el comando). */
   resumen?(args: A): string;
@@ -62,7 +64,7 @@ export function definir<A>(h: Herramienta<A>): Herramienta<A> {
 }
 
 export function especDe(h: Herramienta<unknown>): EspecHerramienta {
-  const { $schema: _omitido, ...esquema } = z.toJSONSchema(h.parametros) as Record<string, unknown>;
+  const { $schema: _omitido, ...esquema } = h.esquema ?? (z.toJSONSchema(h.parametros) as Record<string, unknown>);
   return { nombre: h.nombre, descripcion: h.descripcion, esquema };
 }
 

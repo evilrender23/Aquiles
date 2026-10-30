@@ -39,6 +39,12 @@ export function fechaCorta(iso: string, ahora = Date.now()): string {
   return d.getFullYear() === hoy.getFullYear() ? base : `${base} ${d.getFullYear()}`;
 }
 
+/** Como fechaRelativa, con la hora también en días pasados: «hace 5 min», «hoy 08:00», «ayer 21:10», «27 oct 09:30». */
+export function fechaConHora(iso: string, ahora = Date.now()): string {
+  const r = fechaRelativa(iso, ahora);
+  return r === "" || r === "ahora" || r.startsWith("hace") || r.startsWith("hoy") ? r : `${r} ${hora(iso)}`;
+}
+
 /** Fecha y hora completas, para el title. */
 export function fechaCompleta(iso: string): string {
   const d = new Date(iso);
@@ -77,4 +83,26 @@ export function nombreModelo(proveedor: string, modelo: string | undefined, prov
   if (modelo) return modelo;
   const p = proveedores.find((x) => x.id === proveedor);
   return p?.modeloPorDefecto ?? p?.nombre ?? proveedor;
+}
+
+/** Fechas que vienen (próxima ejecución): «hoy 09:00», «mañana 09:00», «lun 3 nov 09:00». */
+const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+export function fechaProxima(iso: string, ahora = Date.now()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const hoy = new Date(ahora);
+  const manana = new Date(ahora);
+  manana.setDate(manana.getDate() + 1);
+  const mismoDia = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (mismoDia(d, hoy)) return `hoy ${hora(d)}`;
+  if (mismoDia(d, manana)) return `mañana ${hora(d)}`;
+  const base = `${DIAS[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]}`;
+  return `${d.getFullYear() === hoy.getFullYear() ? base : `${base} ${d.getFullYear()}`} ${hora(d)}`;
+}
+
+/** Duración entre dos fechas ISO («41,0 s», «1 min 12 s»); vacío si falta el fin. */
+export function duracionEntre(inicio: string, fin?: string): string {
+  if (!fin) return "";
+  const ms = new Date(fin).getTime() - new Date(inicio).getTime();
+  return Number.isFinite(ms) && ms >= 0 ? duracion(ms) : "";
 }

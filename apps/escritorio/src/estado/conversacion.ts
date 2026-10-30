@@ -58,6 +58,28 @@ export function anadirAviso(c: Conversacion, nivel: "aviso" | "error", texto: st
   return { ...c, elementos: [...c.elementos, { tipo: "aviso", id: nuevoId(), nivel, texto }] };
 }
 
+/**
+ * Aviso de la revisión de lo aprendido. Va antes del texto que esté llegando (para no partirlo en dos),
+ * y el de «fin» o «error» sustituye al último «inicio».
+ */
+function avisoAprendizaje(c: Conversacion, e: Extract<EventoSesion, { tipo: "aprendizaje.revision" }>): Conversacion {
+  const nuevo: Elemento = {
+    tipo: "aprendizaje",
+    id: nuevoId(),
+    estado: e.estado,
+    ...(e.propuestas !== undefined ? { propuestas: e.propuestas } : {}),
+    ...(e.aplicadas !== undefined ? { aplicadas: e.aplicadas } : {}),
+    ...(e.error !== undefined ? { error: e.error } : {}),
+  };
+  if (e.estado !== "inicio") {
+    const i = c.elementos.findLastIndex((x) => x.tipo === "aprendizaje" && x.estado === "inicio");
+    if (i >= 0) return { ...c, elementos: c.elementos.with(i, { ...nuevo, id: c.elementos[i]!.id }) };
+  }
+  const ultimo = c.elementos.at(-1);
+  if (ultimo?.tipo === "asistente" && ultimo.abierto) return { ...c, elementos: [...c.elementos.slice(0, -1), nuevo, ultimo] };
+  return { ...c, elementos: [...c.elementos, nuevo] };
+}
+
 /** Eventos de una sesión concreta (los demás no tocan la conversación). */
 export type EventoSesion = Extract<Evento, { sesionId: string }>;
 
@@ -109,6 +131,8 @@ export function aplicarEvento(c: Conversacion, e: EventoSesion, ahora: number): 
       return { ...c, contexto: { tokens: e.tokens, ...(e.ventana ? { ventana: e.ventana } : {}) } };
     case "contexto.compactado":
       return anadirAviso(c, "aviso", `Contexto compactado (${e.metodo}): ${tokens(e.antes)} → ${tokens(e.despues)} tokens`);
+    case "aprendizaje.revision":
+      return avisoAprendizaje(c, e);
     case "turno.reintento":
       return anadirAviso(cerrar(c), "aviso", `Reintento ${e.intento} en ${duracion(e.esperaMs)}: ${e.motivo}`);
     case "turno.fin": {
@@ -119,6 +143,9 @@ export function aplicarEvento(c: Conversacion, e: EventoSesion, ahora: number): 
       if (e.motivo === "parado") return anadirAviso(fin, "aviso", "Detenido");
       return fin;
     }
+    default:
+      // Eventos de fases que esta interfaz aún no pinta (subagentes…): la conversación no cambia.
+      return c;
   }
 }
 

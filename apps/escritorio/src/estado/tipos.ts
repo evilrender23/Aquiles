@@ -1,4 +1,4 @@
-import type { Ajustes, Diff, InfoProveedor, InfoSesion, PeticionesCliente, TareaVisible } from "@aquiles/protocolo";
+import type { Ajustes, Diff, EstadoVoz, InfoProveedor, InfoSesion, MotivoFin, PeticionesCliente, TareaVisible } from "@aquiles/protocolo";
 
 /** Lo que se pinta en una conversación, en orden. */
 export type Elemento =
@@ -18,7 +18,9 @@ export type Elemento =
   | { tipo: "pensamiento"; id: string; ms: number }
   | { tipo: "tareas"; id: string; tareas: TareaVisible[] }
   | { tipo: "resumen"; id: string; texto: string }
-  | { tipo: "aviso"; id: string; nivel: "aviso" | "error"; texto: string };
+  | { tipo: "aviso"; id: string; nivel: "aviso" | "error"; texto: string }
+  /** Revisión de lo aprendido en segundo plano (aprendizaje.revision); la de «inicio» se sustituye al acabar. */
+  | { tipo: "aprendizaje"; id: string; estado: "inicio" | "fin" | "error"; propuestas?: number; aplicadas?: number; error?: string };
 
 export interface Conversacion {
   elementos: Elemento[];
@@ -46,8 +48,29 @@ export type Pendiente =
       responder: (r: string) => void;
     };
 
-export type Vista = "inicio" | "conversacion" | "habilidades" | "memoria" | "ajustes";
-export type EstadoConexion = "conectando" | "conectada" | "caida";
+export type Vista = "inicio" | "conversacion" | "kanban" | "habilidades" | "memoria" | "automatizaciones" | "estadisticas" | "ajustes";
+
+/** Subagente lanzado con `delegar`: lo que se sabe por sus eventos (subagente.inicio/fin y sus mensaje.delta). */
+export interface Subagente {
+  subId: string;
+  padre: string;
+  tarea: string;
+  estado: "en-curso" | MotivoFin;
+  /** Final del texto que va escribiendo. */
+  texto: string;
+  error?: string;
+}
+
+/** Aviso del núcleo (`notificacion`) mostrado dentro de la app. */
+export interface Notificacion {
+  id: number;
+  titulo: string;
+  texto: string;
+  sesionId?: string;
+}
+export type PestanaMemoria = "usuario" | "agente" | "proyecto" | "alma" | "propuestas" | "aprendido";
+/** reiniciando: el núcleo se reinicia a propósito (perfil, copia, remoto); no es un error. */
+export type EstadoConexion = "conectando" | "conectada" | "caida" | "reiniciando";
 
 export interface EstadoApp {
   conexion: EstadoConexion;
@@ -60,5 +83,12 @@ export interface EstadoApp {
   proveedores: InfoProveedor[];
   ajustes?: Ajustes;
   /** Suben con memoria.actualizada y skills.actualizadas (y al reconectar): las vistas que las muestran vuelven a pedirlas. */
-  revisiones: { memoria: number; skills: number };
+  revisiones: { memoria: number; skills: number; aprendizaje: number; cron: number; canales: number; mcp: number; kanban: number; plugins: number };
+  /** Por subId; los hijos de una sesión se buscan por `padre`. */
+  subagentes: Record<string, Subagente>;
+  notificaciones: Notificacion[];
+  /** Dictado y lectura disponibles (voz.estado al conectar); sin él, no hay botones de voz. */
+  voz?: EstadoVoz;
+  /** Pestaña con la que se abre Memoria (p. ej. Propuestas desde el aviso de una revisión). */
+  pestanaMemoria?: PestanaMemoria;
 }

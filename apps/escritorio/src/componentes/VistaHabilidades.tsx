@@ -1,14 +1,14 @@
-import type { InfoSkill } from "@aquiles/protocolo";
-import { CampoBusqueda, Etiqueta, Icono, Interruptor, Titular, clases } from "@aquiles/ui";
-import { useRef, useState } from "react";
+import type { InfoSkill, VersionSkill } from "@aquiles/protocolo";
+import { Boton, CampoBusqueda, CampoInterruptor, Etiqueta, Icono, Titular, clases } from "@aquiles/ui";
+import { useEffect, useRef, useState } from "react";
 import { cwdActiva, useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
-import { fechaCompleta, fechaCorta, fechaRelativa } from "../estado/formato";
+import { fechaCompleta, fechaConHora, fechaCorta, fechaRelativa } from "../estado/formato";
 import { useReloj } from "../estado/reloj";
 import { Markdown } from "./Markdown";
 
 type Origen = InfoSkill["origen"];
-type Filtro = "todas" | Origen | "desactivadas";
+type Filtro = "todas" | Origen | "desactivadas" | "obsoletas" | "archivadas";
 
 const ORIGEN: Record<Origen, { una: string; varias: string }> = {
   incluida: { una: "Incluida", varias: "Incluidas" },
@@ -16,6 +16,8 @@ const ORIGEN: Record<Origen, { una: string; varias: string }> = {
   aprendida: { una: "Aprendida", varias: "Aprendidas" },
 };
 const UBICACION: Record<InfoSkill["ubicacion"], string | undefined> = { perfil: "Perfil", proyecto: "Proyecto", incluida: undefined };
+const VIGENCIA: Record<InfoSkill["vigencia"], string | undefined> = { vigente: undefined, obsoleta: "Obsoleta", archivada: "Archivada" };
+const MOTIVOS: Record<string, string> = { parchear: "Parche", escribir: "Escritura", propuesta: "Propuesta", restaurar: "Restauración", crear: "Creación" };
 
 /** Sin mayúsculas ni tildes, para buscar. */
 const normalizar = (t: string) =>
@@ -25,13 +27,21 @@ const normalizar = (t: string) =>
     .toLowerCase();
 
 const usos = (n: number) => (n === 1 ? "1 uso" : `${n} usos`);
+const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** La ruta cambia al archivar; el nombre y la ubicación, no. */
+const clave = (s: InfoSkill) => `${s.ubicacion}:${s.nombre}`;
 
 /** El SKILL.md sin la cabecera YAML (nombre y descripción ya se ven arriba). */
 const sinCabecera = (md: string) => md.replace(/^﻿?---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, "");
 
 function pasaFiltro(s: InfoSkill, f: Filtro): boolean {
+  // Las archivadas no se cargan en las sesiones: solo aparecen con su chip.
+  if (f === "archivadas") return s.vigencia === "archivada";
+  if (s.vigencia === "archivada") return false;
   if (f === "todas") return true;
   if (f === "desactivadas") return !s.activa;
+  if (f === "obsoletas") return s.vigencia === "obsoleta";
   return s.origen === f;
 }
 
@@ -49,18 +59,21 @@ export function VistaHabilidades() {
   const skills = lista.datos ?? [];
   const buscado = normalizar(texto.trim());
   const visibles = skills.filter((s) => pasaFiltro(s, filtro) && (!buscado || normalizar(`${s.nombre} ${s.descripcion}`).includes(buscado)));
-  const seleccion = skills.find((s) => s.ruta === elegida) ?? visibles[0];
+  const seleccion = skills.find((s) => clave(s) === elegida) ?? visibles[0];
 
-  const todos: { id: Filtro; texto: string; n: number }[] = [
-    { id: "todas", texto: "Todas", n: skills.length },
-    ...(["incluida", "manual", "aprendida"] as const).map((o) => ({ id: o, texto: ORIGEN[o].varias, n: skills.filter((s) => s.origen === o).length })),
-    { id: "desactivadas", texto: "Desactivadas", n: skills.filter((s) => !s.activa).length },
+  const cuenta = (f: Filtro) => skills.filter((s) => pasaFiltro(s, f)).length;
+  const todos: { id: Filtro; texto: string }[] = [
+    { id: "todas", texto: "Todas" },
+    ...(["incluida", "manual", "aprendida"] as const).map((o) => ({ id: o, texto: ORIGEN[o].varias })),
+    { id: "desactivadas", texto: "Desactivadas" },
+    { id: "obsoletas", texto: "Obsoletas" },
+    { id: "archivadas", texto: "Archivadas" },
   ];
   // Sin chips que no filtrarían nada (salvo el elegido, para poder volver).
-  const filtros = todos.filter((f) => f.id === "todas" || f.n > 0 || f.id === filtro);
+  const filtros = todos.map((f) => ({ ...f, n: cuenta(f.id) })).filter((f) => f.id === "todas" || f.n > 0 || f.id === filtro);
 
   const elegir = (s: InfoSkill) => {
-    setElegida(s.ruta);
+    setElegida(clave(s));
     // En una sola columna el detalle queda debajo de la lista.
     if (window.matchMedia("(max-width: 1239px)").matches) detalle.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
@@ -95,7 +108,7 @@ export function VistaHabilidades() {
         {visibles.length > 0 && (
           <div className="habilidades__rejilla">
             {visibles.map((s) => (
-              <TarjetaHabilidad key={s.ruta} skill={s} numero={skills.indexOf(s) + 1} actual={s.ruta === seleccion?.ruta} ahora={ahora} alElegir={() => elegir(s)} />
+              <TarjetaHabilidad key={clave(s)} skill={s} numero={skills.indexOf(s) + 1} actual={clave(s) === (seleccion && clave(seleccion))} ahora={ahora} alElegir={() => elegir(s)} />
             ))}
           </div>
         )}
@@ -104,10 +117,10 @@ export function VistaHabilidades() {
       {seleccion && (
         <aside ref={detalle} className="habilidades__detalle" aria-label="Detalle de la habilidad">
           <DetalleHabilidad
-            key={seleccion.ruta}
+            key={clave(seleccion)}
             skill={seleccion}
             cwd={cwd}
-            alCambiar={(nueva) => lista.fijar((l) => l.map((x) => (x.ruta === nueva.ruta ? nueva : x)))}
+            alCambiar={(nueva) => lista.fijar((l) => l.map((x) => (clave(x) === clave(nueva) ? nueva : x)))}
           />
         </aside>
       )}
@@ -117,10 +130,20 @@ export function VistaHabilidades() {
 
 function TarjetaHabilidad({ skill: s, numero, actual, ahora, alElegir }: { skill: InfoSkill; numero: number; actual: boolean; ahora: number; alElegir: () => void }) {
   const meta = [s.activa ? undefined : "Desactivada", ORIGEN[s.origen].una, usos(s.usos), s.ultimoUso && fechaRelativa(s.ultimoUso, ahora)].filter(Boolean).join(" · ");
+  const vigencia = VIGENCIA[s.vigencia];
   return (
-    <button type="button" className={clases("habilidad", !s.activa && "habilidad--inactiva")} aria-pressed={actual} onClick={alElegir}>
+    <button
+      type="button"
+      className={clases("habilidad", (!s.activa || s.vigencia === "archivada") && "habilidad--inactiva", s.vigencia === "archivada" && "habilidad--archivada")}
+      aria-pressed={actual}
+      onClick={alElegir}
+    >
       <span className="habilidad__arriba">
         <span className="habilidad__numero">{String(numero).padStart(2, "0")}</span>
+        <span className="habilidad__marcas">
+          {vigencia && <span className="habilidad__marca">{vigencia}</span>}
+          {s.fijada && <span className="habilidad__marca habilidad__marca--fijada">Fijada</span>}
+        </span>
         <Icono nombre="flecha-diagonal" tamano={18} />
       </span>
       <span className="habilidad__cuerpo">
@@ -136,19 +159,23 @@ function TarjetaHabilidad({ skill: s, numero, actual, ahora, alElegir }: { skill
 
 function DetalleHabilidad({ skill: s, cwd, alCambiar }: { skill: InfoSkill; cwd?: string; alCambiar: (s: InfoSkill) => void }) {
   const { revisiones } = useEstado();
-  const { leerSkill, ajustarSkill } = useAcciones();
+  const { leerSkill, ajustarSkill, fijarSkill, archivarSkill, restaurarSkill } = useAcciones();
   const doc = useCarga(`skill:${s.ruta}`, revisiones.skills, () => leerSkill(s.nombre, cwd));
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState<string>();
+  const [verVersiones, setVerVersiones] = useState(false);
   const ubicacion = UBICACION[s.ubicacion];
+  // El curador (fijar, archivar) y las copias solo existen para las del perfil.
+  const delPerfil = s.ubicacion === "perfil";
+  const archivada = s.vigencia === "archivada";
 
-  const alternar = async (activa: boolean) => {
+  const cambiar = async (f: () => Promise<InfoSkill>) => {
     setCambiando(true);
     try {
-      alCambiar(await ajustarSkill(s.nombre, activa));
+      alCambiar(await f());
       setError(undefined);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(mensaje(e));
     } finally {
       setCambiando(false);
     }
@@ -156,17 +183,21 @@ function DetalleHabilidad({ skill: s, cwd, alCambiar }: { skill: InfoSkill; cwd?
 
   return (
     <div className="habilidad-detalle">
-      <div className="habilidad-detalle__cabecera">
-        <Etiqueta>{ubicacion ? `${ORIGEN[s.origen].una} · ${ubicacion}` : ORIGEN[s.origen].una}</Etiqueta>
-        <Interruptor activo={s.activa} alCambiar={(a) => void alternar(a)} disabled={cambiando} aria-label="Activa" />
-      </div>
+      <Etiqueta>{[ORIGEN[s.origen].una, ubicacion, VIGENCIA[s.vigencia]].filter(Boolean).join(" · ")}</Etiqueta>
+      <h2 className="habilidad-detalle__nombre">{s.nombre}</h2>
+      {s.descripcion && <p className="habilidad-detalle__descripcion">{s.descripcion}</p>}
+
+      {!archivada && (
+        <div className="habilidad-detalle__ajustes">
+          <CampoInterruptor etiqueta="Activa" activo={s.activa} disabled={cambiando} alCambiar={(a) => void cambiar(() => ajustarSkill(s.nombre, a, cwd))} />
+          {delPerfil && <CampoInterruptor etiqueta="Fijada" activo={s.fijada} disabled={cambiando} alCambiar={(f) => void cambiar(() => fijarSkill(s.nombre, f))} />}
+        </div>
+      )}
       {error && (
         <p className="habilidad-detalle__error" role="alert">
           {error}
         </p>
       )}
-      <h2 className="habilidad-detalle__nombre">{s.nombre}</h2>
-      {s.descripcion && <p className="habilidad-detalle__descripcion">{s.descripcion}</p>}
 
       <div className="habilidad-detalle__cifras">
         <div className="cifra">
@@ -205,6 +236,109 @@ function DetalleHabilidad({ skill: s, cwd, alCambiar }: { skill: InfoSkill; cwd?
           </ul>
         </div>
       )}
+
+      {delPerfil && (
+        <>
+          <div className="habilidad-detalle__botones">
+            <Boton variante="secundario" iconoFinal="chevron-abajo" aria-expanded={verVersiones} className={clases(verVersiones && "boton--abierto")} onClick={() => setVerVersiones((v) => !v)}>
+              Versiones
+            </Boton>
+            {archivada ? (
+              <Boton variante="secundario" disabled={cambiando} onClick={() => void cambiar(() => restaurarSkill(s.nombre))}>
+                Restaurar
+              </Boton>
+            ) : (
+              <Boton variante="secundario" disabled={cambiando} onClick={() => void cambiar(() => archivarSkill(s.nombre))}>
+                Archivar
+              </Boton>
+            )}
+          </div>
+          {verVersiones && <Versiones nombre={s.nombre} alRestaurar={alCambiar} />}
+        </>
+      )}
     </div>
+  );
+}
+
+/** Copias guardadas antes de cada cambio; restaurar una pide confirmación. */
+function Versiones({ nombre, alRestaurar }: { nombre: string; alRestaurar: (s: InfoSkill) => void }) {
+  const { revisiones } = useEstado();
+  const { versionesSkill, restaurarVersionSkill } = useAcciones();
+  const versiones = useCarga(`versiones:${nombre}`, revisiones.skills, () => versionesSkill(nombre));
+  const [confirmando, setConfirmando] = useState<string>();
+  const [restaurando, setRestaurando] = useState(false);
+  const [error, setError] = useState<string>();
+  const ahora = useReloj(60_000);
+
+  const restaurar = async (v: VersionSkill) => {
+    setRestaurando(true);
+    try {
+      alRestaurar(await restaurarVersionSkill(nombre, v.id));
+      setConfirmando(undefined);
+      setError(undefined);
+    } catch (e) {
+      setError(mensaje(e));
+    } finally {
+      setRestaurando(false);
+    }
+  };
+
+  return (
+    <section className="versiones" aria-label="Versiones">
+      {versiones.error && (
+        <p className="habilidad-detalle__error" role="alert">
+          {versiones.error}
+        </p>
+      )}
+      {versiones.datos?.length === 0 && <p className="habilidades__vacio">Sin versiones</p>}
+      {versiones.datos && versiones.datos.length > 0 && (
+        <ol className="versiones__lista">
+          {versiones.datos.map((v) => (
+            <li key={v.id} className="version">
+              <div className="version__datos" title={v.ficheros.join("\n")}>
+                <time className="version__fecha" dateTime={v.fecha} title={fechaCompleta(v.fecha)}>
+                  {fechaConHora(v.fecha, ahora)}
+                </time>
+                <span className="version__motivo">{MOTIVOS[v.motivo] ?? v.motivo}</span>
+              </div>
+              {confirmando === v.id ? (
+                <ConfirmarRestaurar restaurando={restaurando} alRestaurar={() => void restaurar(v)} alCancelar={() => setConfirmando(undefined)} />
+              ) : (
+                <Boton
+                  variante="fantasma"
+                  tamano="pequeno"
+                  onClick={() => {
+                    setError(undefined);
+                    setConfirmando(v.id);
+                  }}
+                >
+                  Restaurar
+                </Boton>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+      {error && (
+        <p className="habilidad-detalle__error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function ConfirmarRestaurar({ restaurando, alRestaurar, alCancelar }: { restaurando: boolean; alRestaurar: () => void; alCancelar: () => void }) {
+  const cancelar = useRef<HTMLButtonElement>(null);
+  useEffect(() => cancelar.current?.focus(), []);
+  return (
+    <span className="version__confirmar">
+      <Boton variante="acento" tamano="pequeno" disabled={restaurando} onClick={alRestaurar}>
+        Restaurar
+      </Boton>
+      <Boton variante="fantasma" tamano="pequeno" ref={cancelar} onClick={alCancelar} onKeyDown={(e) => e.key === "Escape" && alCancelar()}>
+        Cancelar
+      </Boton>
+    </span>
   );
 }

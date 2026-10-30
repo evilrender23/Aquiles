@@ -33,9 +33,11 @@ export const procesos = definir({
     }
 
     if (!p.enMarcha) return `${p.id} ya había terminado (${situacion(p)}).`;
-    await p.parar();
+    const fallo = await p.parar();
     const resto = p.nueva().replace(/\n+$/, "");
-    return `${resto ? `${resto}\n` : ""}[${p.id} parado]`;
+    // En Docker o SSH el kill va aparte y puede fallar: entonces el proceso quizá siga vivo allí.
+    const aviso = fallo ? `; no se pudo confirmar que muriera en ${estado.remoto?.nombre}: ${fallo}` : "";
+    return `${resto ? `${resto}\n` : ""}[${p.id} parado${aviso}]`;
   },
 });
 

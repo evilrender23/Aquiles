@@ -2,11 +2,14 @@
  * Shell persistente por sesión y procesos en segundo plano para `terminal` y `procesos`.
  * Cada comando se escribe en stdin seguido de un marcador único que imprime el código de salida
  * y la carpeta actual; la salida del comando es todo lo que llega antes del marcador.
+ * El shell corre en este equipo o, según el ajuste de la sesión, en Docker o por SSH (entornos.ts).
  */
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { Subprocess } from "bun";
+import { type AjusteEntorno, CLAVE_ENTORNO, cancelado, crearRemoto, type Remoto } from "./entornos";
 import { WINDOWS } from "./ficheros";
+import type { ContextoHerramienta } from "./herramienta";
 
 export type TipoShell = "bash" | "powershell";
 
@@ -198,10 +201,25 @@ const INICIO_POWERSHELL =
   "[Console]::OutputEncoding = [Text.Encoding]::UTF8; $OutputEncoding = [Text.Encoding]::UTF8; " +
   "$ProgressPreference = 'SilentlyContinue'; $ErrorActionPreference = 'Continue'\n";
 
-/** El marcador se escribe partido para que no aparezca literal en la entrada (por si el shell la repite). */
-function lineaBash(comando: string, marca: string): string {
-  const cita = `'${comando.replace(/\r\n?/g, "\n").replace(/'/g, `'\\''`)}'`;
-  return `eval ${cita} </dev/null; __aqc=$?; printf '%s%s:%s:' '${marca.slice(0, 4)}' '${marca.slice(4)}' "$__aqc"; pwd -W 2>/dev/null || pwd\n`;
+const cita = (texto: string) => `'${texto.replace(/\r\n?/g, "\n").replace(/'/g, `'\\''`)}'`;
+
+/**
+ * El marcador se escribe partido para que no aparezca literal en la entrada (por si el shell la repite).
+ * En remoto la carpeta va tal cual (`/trabajo/sub`); en Git Bash, `pwd -W` la da con letra de unidad.
+ */
+function lineaBash(comando: string, marca: string, remoto: boolean): string {
+  const carpeta = remoto ? "pwd" : "pwd -W 2>/dev/null || pwd";
+  return `eval ${cita(comando)} </dev/null; __aqc=$?; printf '%s%s:%s:' '${marca.slice(0, 4)}' '${marca.slice(4)}' "$__aqc"; ${carpeta}\n`;
+}
+
+// En local las pone entornoShell(); al otro lado hay que exportarlas en el propio shell.
+const VARIABLES_REMOTAS = "export NO_COLOR=1 TERM=dumb PAGER=cat GIT_PAGER=cat GIT_TERMINAL_PROMPT=0; unset FORCE_COLOR";
+/** pid y grupo de procesos del shell: el grupo sale de /proc o, si no lo hay (macOS), de ps. */
+const PID_Y_GRUPO = `"$$" "$(cut -d' ' -f5 /proc/$$/stat 2>/dev/null || ps -o pgid= -p $$ 2>/dev/null)"`;
+
+/** A quién mandar el kill remoto: al grupo entero si se conoce; si no, al menos al shell. */
+function objetivoKill(pid: string, grupo: string | undefined): string {
+  return grupo && grupo !== "0" ? `-${grupo}` : pid;
 }
 
 function lineaPowershell(comando: string, marca: string): string {
@@ -223,21 +241,28 @@ function argumentosShell(def: DefShell): string[] {
 
 export class ShellPersistente {
   readonly proc: Subprocess<"pipe", "pipe", "pipe">;
-  /** Carpeta actual del shell según el último comando. */
+  /** Carpeta actual del shell según el último comando (en remoto, la ruta de allí). */
   cwd: string;
   vivo = true;
+  /** En remoto: a quién mandar el kill para cortar (ver abrir). */
+  private objetivo?: string;
+  /** Bash o sh: en remoto siempre; en local, salvo PowerShell. */
+  private readonly bash: boolean;
   private acumulado = new Acumulador();
   private alTrozo?: (t: string) => void;
   private alSalir?: () => void;
   private readonly lecturas: Promise<void>;
 
+  /** `def` es el shell local; con `remoto`, el shell es el de allí y `cwd` solo sirve para lanzar el cliente. */
   constructor(
     readonly def: DefShell,
     cwd: string,
+    readonly remoto?: Remoto,
   ) {
-    this.cwd = cwd;
+    this.bash = !!remoto || def.tipo === "bash";
+    this.cwd = remoto ? (remoto.carpeta ?? "~") : cwd;
     this.proc = Bun.spawn({
-      cmd: argumentosShell(def),
+      cmd: remoto ? remoto.argsShell() : argumentosShell(def),
       cwd,
       env: entornoShell(),
       stdin: "pipe",
@@ -256,7 +281,25 @@ export class ShellPersistente {
       this.vivo = false;
       this.alSalir?.();
     });
-    this.escribir(def.tipo === "bash" ? "exec 2>&1\n" : INICIO_POWERSHELL);
+    this.escribir(this.bash ? "exec 2>&1\n" : INICIO_POWERSHELL);
+  }
+
+  /**
+   * En remoto, antes del primer comando: comprueba que el shell contesta (si no, el error es lo que dijo
+   * docker o ssh) y apunta su pid y su grupo de procesos, que es lo que hay que matar allí para cortar.
+   */
+  async abrir(senal: AbortSignal): Promise<void> {
+    const remoto = this.remoto;
+    if (!remoto) return;
+    const r = await this.ejecutar(`${VARIABLES_REMOTAS}; printf '%s:%s' ${PID_Y_GRUPO}`, { timeoutMs: 60_000, senal, progreso: () => {} });
+    const m = /(\d+):\s*(\d*)\s*$/.exec(r.salida);
+    if (!r.motivo && m?.[1]) {
+      this.objetivo = objetivoKill(m[1], m[2]);
+      return;
+    }
+    await this.cerrar();
+    if (r.motivo === "cancelado") throw cancelado();
+    throw remoto.error(r.motivo === "tiempo" ? "no contestó en 60 s" : r.salida.trim().slice(-500) || "el shell terminó sin decir nada");
   }
 
   private escribir(texto: string): boolean {
@@ -275,7 +318,7 @@ export class ShellPersistente {
     this.acumulado = new Acumulador();
     const salida = (hasta?: number) => {
       const s = formatearSalida(this.acumulado.texto.slice(0, hasta), this.acumulado.descartados);
-      return this.def.tipo === "powershell" ? s.replace(/[ \t]+$/gm, "").replace(/^\n+/, "") : s;
+      return this.bash ? s : s.replace(/[ \t]+$/gm, "").replace(/^\n+/, "");
     };
 
     return new Promise<ResultadoComando>((resolver) => {
@@ -322,7 +365,8 @@ export class ShellPersistente {
         const m = fin.exec(texto.slice(i));
         if (!m) return;
         const cwd = m[2]?.trim();
-        if (cwd && isAbsolute(cwd)) this.cwd = resolve(cwd);
+        if (cwd && this.remoto) this.cwd = cwd;
+        else if (cwd && isAbsolute(cwd)) this.cwd = resolve(cwd);
         terminar({ salida: salida(i), codigo: Number(m[1]) });
       };
 
@@ -330,7 +374,7 @@ export class ShellPersistente {
         if (hecho || cortando) return;
         cortando = true;
         this.vivo = false;
-        await matarArbol(this.proc);
+        await this.matar();
         await esperarHasta(this.lecturas, 500);
         terminar({ salida: salida(), motivo });
       };
@@ -345,7 +389,7 @@ export class ShellPersistente {
         );
       };
 
-      if (!this.vivo || !this.escribir(this.def.tipo === "bash" ? lineaBash(comando, marca) : lineaPowershell(comando, marca))) {
+      if (!this.vivo || !this.escribir(this.bash ? lineaBash(comando, marca, !!this.remoto) : lineaPowershell(comando, marca))) {
         terminar({ salida: "", codigo: this.proc.exitCode ?? undefined, motivo: "terminado" });
       } else if (o.senal.aborted) {
         alAbortar();
@@ -353,9 +397,19 @@ export class ShellPersistente {
     });
   }
 
+  /** Mata el shell con lo que esté ejecutando. En remoto, matar el cliente local no basta: el kill va al grupo de allí. */
+  private async matar(): Promise<void> {
+    if (this.remoto && this.objetivo) {
+      await this.remoto.matar(this.objetivo);
+      // Muerto el shell remoto, el cliente termina solo; se le da un momento antes de forzarlo.
+      await esperarHasta(this.proc.exited, 2000);
+    }
+    await matarArbol(this.proc);
+  }
+
   async cerrar(): Promise<void> {
     this.vivo = false;
-    await matarArbol(this.proc);
+    await this.matar();
   }
 }
 
@@ -363,50 +417,75 @@ export class ShellPersistente {
 
 const PREAMBULO_POWERSHELL = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; $ProgressPreference = 'SilentlyContinue'\n";
 
+function argumentosFondo(def: DefShell, comando: string): string[] {
+  if (def.tipo === "bash") return [def.ejecutable, "-c", `exec 2>&1\n${comando.replace(/\r\n?/g, "\n")}`];
+  const codificado = Buffer.from(PREAMBULO_POWERSHELL + comando, "utf16le").toString("base64");
+  return [def.ejecutable, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", codificado];
+}
+
+/** Guion del proceso remoto: dice su pid y su grupo tras una marca, entra en la carpeta y ejecuta el comando. */
+function guionFondo(comando: string, cwd: string | undefined, marca: string): string {
+  return (
+    `exec 2>&1; ${VARIABLES_REMOTAS}; printf '%s%s:%s:%s\\n' '${marca.slice(0, 4)}' '${marca.slice(4)}' ${PID_Y_GRUPO}\n` +
+    (cwd ? `cd ${cita(cwd)} || exit 1\n` : "") +
+    `eval ${cita(comando)} </dev/null\n`
+  );
+}
+
 export class ProcesoFondo {
-  readonly proc: Subprocess<"ignore", "pipe", "pipe">;
+  readonly proc: Subprocess<"pipe" | "ignore", "pipe", "pipe">;
   readonly inicio = Date.now();
   fin?: number;
   parado = false;
+  /** En remoto: a quién mandar el kill; lo dice el guion en cuanto corre allí. */
+  objetivo?: string;
+  /** En remoto: se cumple cuando el guion ya corre allí o cuando el cliente termina. */
+  readonly arrancado: Promise<void>;
+  readonly lecturas: Promise<void>;
+  private alArrancar = () => {};
+  private readonly marca?: RegExp;
   private texto = "";
   /** Posición absoluta de `texto[0]` y de lo ya entregado con `nueva()`. */
   private base = 0;
   private leido = 0;
 
+  /** `cwd` es donde corre: una carpeta local o, con `remoto`, una de allí (sin ella, la del usuario remoto). */
   constructor(
     readonly id: string,
     readonly comando: string,
     readonly nombre: string | undefined,
     def: DefShell,
-    readonly cwd: string,
+    readonly cwd: string | undefined,
+    private readonly remoto?: Remoto,
   ) {
-    const cmd =
-      def.tipo === "bash"
-        ? [def.ejecutable, "-c", `exec 2>&1\n${comando.replace(/\r\n?/g, "\n")}`]
-        : [
-            def.ejecutable,
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-EncodedCommand",
-            Buffer.from(PREAMBULO_POWERSHELL + comando, "utf16le").toString("base64"),
-          ];
     this.proc = Bun.spawn({
-      cmd,
-      cwd,
+      cmd: remoto ? remoto.argsShell() : argumentosFondo(def, comando),
+      cwd: remoto ? undefined : cwd,
       env: entornoShell(),
-      stdin: "ignore",
+      // En remoto el guion va por stdin, y al cerrarlo el comando lee de /dev/null.
+      stdin: remoto ? "pipe" : "ignore",
       stdout: "pipe",
       stderr: "pipe",
       windowsHide: true,
       detached: !WINDOWS,
     });
     vigilar(this.proc);
+    this.arrancado = new Promise((listo) => (this.alArrancar = () => listo()));
+    if (remoto) {
+      const marca = `__AQGRUPO_${crypto.randomUUID().replace(/-/g, "")}__`;
+      this.marca = new RegExp(`${marca}:(\\d+):\\s*(\\d*)\\r?\\n`);
+      try {
+        this.proc.stdin?.write(guionFondo(comando, cwd, marca));
+        this.proc.stdin?.end();
+      } catch {
+        // El cliente ya murió; su salida dirá por qué.
+      }
+    }
     const recibir = (t: string) => this.anadir(t);
-    void leerFlujo(this.proc.stdout, recibir);
-    void leerFlujo(this.proc.stderr, recibir);
+    this.lecturas = Promise.all([leerFlujo(this.proc.stdout, recibir), leerFlujo(this.proc.stderr, recibir)]).then(() => {});
     void this.proc.exited.then(() => {
       this.fin = Date.now();
+      this.alArrancar();
     });
   }
 
@@ -420,6 +499,12 @@ export class ProcesoFondo {
 
   private anadir(t: string): void {
     this.texto += t;
+    const m = this.marca && this.objetivo === undefined ? this.marca.exec(this.texto) : null;
+    if (m?.[1]) {
+      this.objetivo = objetivoKill(m[1], m[2]);
+      this.texto = this.texto.slice(0, m.index) + this.texto.slice(m.index + m[0].length);
+      this.alArrancar();
+    }
     if (this.texto.length > MAX_RETENIDO) {
       const quitar = this.texto.length - MAX_RETENIDO / 2;
       this.texto = this.texto.slice(quitar);
@@ -437,10 +522,29 @@ export class ProcesoFondo {
     return perdidos > 0 ? `[… ${perdidos} caracteres anteriores perdidos …]\n${s}` : s;
   }
 
-  async parar(): Promise<void> {
-    if (!this.enMarcha) return;
+  /** Lo mata con sus hijos. En remoto devuelve por qué no se pudo matar allí, si falla. */
+  async parar(): Promise<string | undefined> {
+    if (!this.enMarcha) return undefined;
     this.parado = true;
+    let fallo: string | undefined;
+    if (this.remoto) {
+      // Si aún no ha dicho su grupo, se le da un momento; sin él, matar el cliente corta la conexión antes de empezar.
+      await esperarHasta(this.arrancado, 2000);
+      if (this.objetivo) fallo = await this.remoto.matar(this.objetivo);
+      await esperarHasta(this.proc.exited, 2000);
+    }
     await matarArbol(this.proc);
+    return fallo;
+  }
+}
+
+/** Crea el cliente local; si ni siquiera arranca (no hay docker o ssh), el error lo explica el entorno. */
+function cliente<T>(remoto: Remoto | undefined, crear: () => T): T {
+  if (!remoto) return crear();
+  try {
+    return crear();
+  } catch (e) {
+    throw remoto.error(e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -449,6 +553,10 @@ export class ProcesoFondo {
 export class EstadoTerminal {
   shell?: ShellPersistente;
   readonly procesos = new Map<string, ProcesoFondo>();
+  /** Dónde corre la terminal (undefined = en este equipo); se fija en el primer uso y ya no cambia. */
+  remoto?: Remoto;
+  private fijado = false;
+  private avisado = false;
   private siguiente = 1;
   private cola: Promise<unknown> = Promise.resolve();
 
@@ -459,16 +567,50 @@ export class EstadoTerminal {
     return r;
   }
 
-  /** Shell vivo de la sesión; lo (re)crea en `cwd` si no hay o murió. */
-  shellVivo(cwd: string): ShellPersistente {
-    if (!this.shell?.vivo) this.shell = new ShellPersistente(elegirShell(), cwd);
-    return this.shell;
+  /** Fija el entorno con el ajuste que el servidor dejó en `ctx.estado`; sin ajuste, local. */
+  entorno(ctx: ContextoHerramienta): Remoto | undefined {
+    if (!this.fijado) {
+      this.remoto = crearRemoto(ctx.estado.get(CLAVE_ENTORNO) as AjusteEntorno | undefined, ctx.sesionId, ctx.cwd);
+      this.fijado = true;
+    }
+    return this.remoto;
   }
 
-  lanzar(comando: string, nombre: string | undefined, cwd: string): ProcesoFondo {
-    const p = new ProcesoFondo(`p${this.siguiente++}`, comando, nombre, elegirShell(), cwd);
+  /** Shell vivo de la sesión; lo (re)crea si no hay o murió. */
+  async shellVivo(ctx: ContextoHerramienta): Promise<ShellPersistente> {
+    if (this.shell?.vivo) return this.shell;
+    const remoto = this.entorno(ctx);
+    if (remoto) await remoto.preparar(ctx);
+    const shell = cliente(remoto, () => new ShellPersistente(elegirShell(), ctx.cwd, remoto));
+    await shell.abrir(ctx.senal);
+    this.shell = shell;
+    return shell;
+  }
+
+  /** `cwd` es la carpeta del shell (en remoto, la de allí; sin ella, la del usuario remoto). */
+  async lanzar(comando: string, nombre: string | undefined, cwd: string | undefined, ctx: ContextoHerramienta): Promise<ProcesoFondo> {
+    // El id se reserva antes de esperar, para que dos lanzamientos a la vez no compartan uno.
+    const id = `p${this.siguiente++}`;
+    const remoto = this.entorno(ctx);
+    if (remoto) await remoto.preparar(ctx);
+    const p = cliente(remoto, () => new ProcesoFondo(id, comando, nombre, elegirShell(), cwd, remoto));
+    if (remoto) {
+      // Se espera a que arranque allí para que un fallo de conexión se diga ahora y no al pedir su salida.
+      await esperarHasta(p.arrancado, 30_000);
+      if (p.objetivo === undefined && !p.enMarcha) {
+        await esperarHasta(p.lecturas, 500);
+        throw remoto.error(p.nueva().trim().slice(-500) || `terminó con código ${p.codigo}`);
+      }
+    }
     this.procesos.set(p.id, p);
     return p;
+  }
+
+  /** La línea que explica el entorno remoto, solo para el primer resultado de la sesión. */
+  aviso(): string | undefined {
+    if (!this.remoto || this.avisado) return undefined;
+    this.avisado = true;
+    return this.remoto.aviso;
   }
 
   /** Por id o, si no, por nombre (el más reciente). */
@@ -479,6 +621,8 @@ export class EstadoTerminal {
   async cerrar(): Promise<void> {
     const shell = this.shell;
     this.shell = undefined;
+    // En Docker, `rm -f` ya mata todo lo de dentro; después solo quedan los clientes locales.
+    await this.remoto?.cerrar();
     await Promise.all([shell?.cerrar(), ...[...this.procesos.values()].map((p) => p.parar())]);
   }
 }

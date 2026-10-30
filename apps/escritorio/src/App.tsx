@@ -3,7 +3,11 @@ import { useState } from "react";
 import { AvisoConexion } from "./componentes/AvisoConexion";
 import { BarraLateral } from "./componentes/BarraLateral";
 import { BarraTitulo } from "./componentes/BarraTitulo";
+import { Notificaciones } from "./componentes/Notificaciones";
 import { VistaAjustes } from "./componentes/VistaAjustes";
+import { VistaAutomatizaciones } from "./componentes/VistaAutomatizaciones";
+import { VistaEstadisticas } from "./componentes/VistaEstadisticas";
+import { VistaKanban } from "./componentes/VistaKanban";
 import { VistaConversacion } from "./componentes/VistaConversacion";
 import { VistaHabilidades } from "./componentes/VistaHabilidades";
 import { VistaInicio } from "./componentes/VistaInicio";
@@ -24,7 +28,7 @@ function Marco() {
   const [lateralAbierta, setLateralAbierta] = useState(false);
   const sesion = estado.activa ? estado.sesiones[estado.activa] : undefined;
   // En Habilidades y Memoria, la carpeta de la sesión activa es la del proyecto que se muestra.
-  const ruta = estado.vista === "inicio" ? estado.ajustes?.carpeta : estado.vista === "ajustes" ? undefined : sesion?.cwd;
+  const ruta = estado.vista === "inicio" ? estado.ajustes?.carpeta : estado.vista === "ajustes" || estado.vista === "automatizaciones" || estado.vista === "estadisticas" ? undefined : sesion?.cwd;
 
   return (
     <div className={clases("app", lateralAbierta && "app--lateral-abierta")}>
@@ -40,6 +44,12 @@ function Marco() {
             <VistaHabilidades />
           ) : estado.vista === "memoria" ? (
             <VistaMemoria />
+          ) : estado.vista === "automatizaciones" ? (
+            <VistaAutomatizaciones />
+          ) : estado.vista === "kanban" ? (
+            <VistaKanban />
+          ) : estado.vista === "estadisticas" ? (
+            <VistaEstadisticas />
           ) : estado.vista === "conversacion" && estado.activa ? (
             <VistaConversacion key={estado.activa} sesionId={estado.activa} />
           ) : (
@@ -47,6 +57,7 @@ function Marco() {
           )}
         </main>
       </div>
+      <Notificaciones />
     </div>
   );
 }

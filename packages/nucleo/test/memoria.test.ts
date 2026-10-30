@@ -207,3 +207,32 @@ test("herramienta: las operaciones se aplican todas o ninguna y el límite se mi
   expect(error).toContain("No se ha aplicado ninguna operación.");
   expect(m.leer("agente").entradas).toEqual(["Bun 1.4 instalado con winget."]);
 });
+
+test("alCambiar recibe la sesión y lo hecho en cada destino que cambió", async () => {
+  const m = new Memoria(null);
+  const llamadas: unknown[][] = [];
+  const h = herramientaMemoria(m, (...args) => llamadas.push(args));
+  const ctx = contextoPrueba(proyecto());
+  m.guardar("agente", ["Bun en el PATH de winget."]);
+
+  await h.ejecutar(
+    {
+      operaciones: [
+        { accion: "añadir", destino: "usuario", texto: "Se llama Ana." },
+        { accion: "añadir", destino: "usuario", texto: "Prefiere tablas." },
+        { accion: "quitar", destino: "agente", buscar: "winget" },
+        { accion: "añadir", destino: "proyecto", texto: "Usa Biome." },
+      ],
+    },
+    ctx,
+  );
+  expect(llamadas).toEqual([
+    ["usuario", undefined, { sesionId: "prueba", hechas: ["añadida «Se llama Ana.»", "añadida «Prefiere tablas.»"] }],
+    ["agente", undefined, { sesionId: "prueba", hechas: ["quitada «Bun en el PATH de winget.»"] }],
+    ["proyecto", proyecto(), { sesionId: "prueba", hechas: ["añadida «Usa Biome.»"] }],
+  ]);
+
+  llamadas.length = 0;
+  await h.ejecutar({ accion: "añadir", destino: "usuario", texto: "Se llama Ana." }, ctx);
+  expect(llamadas).toEqual([]);
+});

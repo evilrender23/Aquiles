@@ -1,5 +1,5 @@
 import type { InfoSesion } from "@aquiles/protocolo";
-import { Boton, BotonIcono, clases } from "@aquiles/ui";
+import { Boton, BotonIcono, Icono, clases } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones } from "../estado/almacen";
 import { fechaRelativa } from "../estado/formato";
@@ -89,6 +89,24 @@ export function FilaSesion({
 
   return (
     <div className={clases("fila-sesion", actual && "fila-sesion--actual")} title={error}>
+      {sesion.origen?.tipo === "cron" && (
+        <span className="fila-sesion__origen" title="Tarea programada">
+          <Icono nombre="reloj" tamano={13} />
+          <span className="nx-sr">Tarea programada:</span>
+        </span>
+      )}
+      {sesion.origen?.tipo === "kanban" && (
+        <span className="fila-sesion__origen" title="Tarjeta del kanban">
+          <Icono nombre="columnas" tamano={13} />
+          <span className="nx-sr">Tarjeta del kanban:</span>
+        </span>
+      )}
+      {sesion.origen?.tipo === "canal" && (
+        <span className="fila-sesion__origen" title={`Chat de ${sesion.origen.canal}`}>
+          <Icono nombre="chat" tamano={13} />
+          <span className="nx-sr">Chat de {sesion.origen.canal}:</span>
+        </span>
+      )}
       <button type="button" className="fila-sesion__abrir" title={titulo} onClick={alAbrir}>
         {titulo}
       </button>
@@ -97,6 +115,11 @@ export function FilaSesion({
           <span className="fila-sesion__pendiente">{pendiente === "aprobacion" ? "permiso" : "pregunta"}</span>
         ) : sesion.trabajando ? (
           <i className="nx-punto nx-pulso" role="img" aria-label="Trabajando" />
+        ) : sesion.interrumpida ? (
+          <span className="fila-sesion__interrumpida" title="Interrumpida">
+            <Icono nombre="pausa" tamano={13} />
+            <span className="nx-sr">Interrumpida</span>
+          </span>
         ) : (
           <span className="fila-sesion__fecha">{fechaRelativa(sesion.actualizada, ahora)}</span>
         )}

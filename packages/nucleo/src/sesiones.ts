@@ -1,12 +1,14 @@
 /**
  * Sesiones: estado en memoria + un JSONL por sesión en `<perfil>/sesiones/<id>.jsonl`.
  * Líneas: {"tipo":"inicio",…}, {"tipo":"mensaje","mensaje":…}, {"tipo":"ajuste",…} (proveedor, modelo,
- * permisos o título) y {"tipo":"compactacion","mensajes":[…]} (sustituye el historial entero).
+ * permisos o título), {"tipo":"compactacion","mensajes":[…]} (sustituye el historial entero) y
+ * {"tipo":"turno"} al empezar cada turno y {"tipo":"uso","uso":{…},"fecha":…} al acabarlo: un turno sin su línea
+ * «uso» es uno que se cortó porque el núcleo se cerró (la sesión sale como interrumpida).
  * Una última línea cortada se ignora al cargar.
  */
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { InfoSesion, MensajeHistorial, ModoAprobacion } from "@aquiles/protocolo";
+import type { InfoSesion, MensajeHistorial, ModoAprobacion, Uso } from "@aquiles/protocolo";
 import type { Huella } from "./herramientas/herramienta";
 import type { Mensaje } from "./tipos";
 
@@ -23,21 +25,29 @@ export interface Sesion {
   modelo?: string;
   /** Título puesto a mano; si falta, se usa el primer mensaje. */
   titulo?: string;
+  /** Quién la abrió si no fue la app (tarea programada, chat de un canal, subagente). */
+  origen?: OrigenSesion;
   /** Líneas "mensaje" escritas en el JSONL (incluidas las anteriores a una compactación). */
   lineasMensaje: number;
   /** Claves de "permitir siempre" concedidas en esta sesión. */
   permitidos: Set<string>;
   lecturas: Map<string, Huella>;
   estado: Map<string, unknown>;
+  /** Hay un turno empezado sin terminar en el JSONL (si no está en marcha ahora, se cortó). */
+  turnoAbierto: boolean;
   /** Mensajes escritos por el usuario mientras el turno trabaja; entran en el siguiente paso. */
   steer: string[];
   turno?: AbortController;
 }
 
+export type OrigenSesion = NonNullable<InfoSesion["origen"]>;
+
 export interface OpcionesSesion {
   modoAprobacion?: ModoAprobacion;
   proveedor: string;
   modelo?: string;
+  titulo?: string;
+  origen?: OrigenSesion;
 }
 
 export interface Ajuste {
@@ -61,10 +71,15 @@ export function sistemaBase(cwd: string, fecha = new Date()): string {
 }
 
 type Linea =
-  | { tipo: "inicio"; id: string; cwd: string; sistema: string; creada: string; modoAprobacion: ModoAprobacion; proveedor?: string; modelo?: string }
+  | {
+      tipo: "inicio"; id: string; cwd: string; sistema: string; creada: string; modoAprobacion: ModoAprobacion;
+      proveedor?: string; modelo?: string; titulo?: string; origen?: OrigenSesion;
+    }
   | { tipo: "mensaje"; mensaje: Mensaje; fecha?: string }
   | ({ tipo: "ajuste" } & Ajuste)
-  | { tipo: "compactacion"; mensajes: Mensaje[] };
+  | { tipo: "compactacion"; mensajes: Mensaje[] }
+  | { tipo: "uso"; uso: Uso; motivo: string; fecha: string }
+  | { tipo: "turno"; fecha: string };
 
 export interface GanchosSesiones {
   /** Construye el system prompt de una sesión nueva (se congela para toda la sesión). */
@@ -90,10 +105,15 @@ export class AlmacenSesiones {
     const modo = o.modoAprobacion ?? "preguntar-ejecutar";
     const sistema = this.ganchos.sistema?.(cwd) ?? sistemaBase(cwd);
     const s = nueva(crypto.randomUUID(), cwd, sistema, ahora, modo, o.proveedor, o.modelo);
+    if (o.titulo) s.titulo = o.titulo;
+    if (o.origen) s.origen = o.origen;
     this.enMemoria.set(s.id, s);
     this.escribir(
       s,
-      { tipo: "inicio", id: s.id, cwd, sistema: s.sistema, creada: ahora, modoAprobacion: modo, proveedor: o.proveedor, ...(o.modelo ? { modelo: o.modelo } : {}) },
+      {
+        tipo: "inicio", id: s.id, cwd, sistema: s.sistema, creada: ahora, modoAprobacion: modo, proveedor: o.proveedor,
+        ...(o.modelo ? { modelo: o.modelo } : {}), ...(o.titulo ? { titulo: o.titulo } : {}), ...(o.origen ? { origen: o.origen } : {}),
+      },
       true,
     );
     return s;
@@ -115,6 +135,17 @@ export class AlmacenSesiones {
     this.escribir(s, { tipo: "mensaje", mensaje: m, fecha });
     const ordinal = s.lineasMensaje++;
     this.ganchos.alAnotar?.(s, m, ordinal, fecha);
+  }
+
+  anotarInicioTurno(s: Sesion): void {
+    s.turnoAbierto = true;
+    this.escribir(s, { tipo: "turno", fecha: new Date().toISOString() });
+  }
+
+  /** Tokens gastados en un turno ya terminado; también lo cierra. */
+  anotarUso(s: Sesion, uso: Uso, motivo: string): void {
+    s.turnoAbierto = false;
+    this.escribir(s, { tipo: "uso", uso, motivo, fecha: new Date().toISOString() });
   }
 
   anotarCompactacion(s: Sesion): void {
@@ -176,7 +207,7 @@ function nueva(
 ): Sesion {
   return {
     id, cwd, sistema, mensajes: [], creada, actualizada: creada, modoAprobacion, proveedor, ...(modelo ? { modelo } : {}),
-    permitidos: new Set(), lecturas: new Map(), estado: new Map(), steer: [], lineasMensaje: 0,
+    permitidos: new Set(), lecturas: new Map(), estado: new Map(), steer: [], lineasMensaje: 0, turnoAbierto: false,
   };
 }
 
@@ -199,12 +230,16 @@ function cargar(ruta: string, proveedorPorDefecto: string): Sesion | undefined {
     }
     if (l.tipo === "inicio") {
       s = nueva(l.id, l.cwd, l.sistema, l.creada, l.modoAprobacion ?? "preguntar-ejecutar", l.proveedor ?? proveedorPorDefecto, l.modelo);
+      if (l.titulo) s.titulo = l.titulo;
+      if (l.origen) s.origen = l.origen;
     } else if (s && l.tipo === "mensaje") {
       s.mensajes.push(l.mensaje);
       s.lineasMensaje++;
     }
     else if (s && l.tipo === "compactacion") s.mensajes = l.mensajes;
     else if (s && l.tipo === "ajuste") aplicar(s, l);
+    else if (s && l.tipo === "turno") s.turnoAbierto = true;
+    else if (s && l.tipo === "uso") s.turnoAbierto = false;
   }
   if (s) s.actualizada = statSync(ruta).mtime.toISOString();
   return s;
@@ -222,7 +257,8 @@ export function info(s: Sesion): InfoSesion {
   return {
     sesionId: s.id, cwd: s.cwd, titulo: titulo(s), creada: s.creada, actualizada: s.actualizada,
     mensajes: s.mensajes.length, modoAprobacion: s.modoAprobacion, proveedor: s.proveedor,
-    ...(s.modelo ? { modelo: s.modelo } : {}), trabajando: s.turno !== undefined,
+    ...(s.modelo ? { modelo: s.modelo } : {}), trabajando: s.turno !== undefined, ...(s.origen ? { origen: s.origen } : {}),
+    ...(s.turnoAbierto && !s.turno ? { interrumpida: true } : {}),
   };
 }
 

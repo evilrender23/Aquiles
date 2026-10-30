@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "rapida",
+  "description": "Entrada rápida: conectarse al núcleo, ocultarse y pasar a la ventana principal con la sesión creada.",
+  "windows": ["rapida"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "allow-conexion-nucleo",
+    "allow-mostrar-principal"
+  ]
+}

@@ -460,6 +460,18 @@ label.nx-chip--opcion:has(:focus-visible) {
   opacity: 0.45;
 }
 
+.nx-campo-interruptor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+}
+.nx-campo-interruptor__etiqueta {
+  font: 500 15px/22px var(--font-sans);
+  color: var(--ink);
+}
+
 /* ── Pestañas (chips) ──────────────────────────────── */
 .nx-pestanas {
   display: flex;

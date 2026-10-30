@@ -20,7 +20,7 @@ Los datos (sesiones, salidas largas, memoria, skills, índice de búsqueda) van 
 ## Requisitos (Windows)
 
 - [Bun](https://bun.sh) ≥ 1.4.4.
-- Rust con el toolchain `stable-x86_64-pc-windows-msvc`. `src-tauri/rust-toolchain.toml` lo selecciona solo y necesita Visual Studio Build Tools con C++.
+- Rust con el toolchain `stable-x86_64-pc-windows-msvc`. `apps/escritorio/rust-toolchain.toml` lo selecciona solo y necesita Visual Studio Build Tools con C++.
 - WebView2 (viene con Windows 11).
 - Para hablar con un modelo: el CLI de Google Antigravity (`agy`) o el de Claude Code (`claude`), con la sesión iniciada; o una clave de API.
 

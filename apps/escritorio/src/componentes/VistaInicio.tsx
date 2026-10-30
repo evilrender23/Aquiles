@@ -7,8 +7,8 @@ import { SelectorModelo, SelectorPermisos } from "./Selectores";
 
 /** Nueva sesión: GradientASCII en lima detrás, el orbe y la caja para la primera instrucción. */
 export function VistaInicio() {
-  const { ajustes, proveedores, conexion } = useEstado();
-  const { empezar } = useAcciones();
+  const { ajustes, proveedores, conexion, voz } = useEstado();
+  const { empezar, llamar } = useAcciones();
   // Lo elegido aquí vale solo para la sesión que se va a crear; por defecto, los ajustes.
   const [eleccion, setEleccion] = useState<{ proveedor?: string; modelo?: string; modoAprobacion?: ModoAprobacion }>({});
   const [error, setError] = useState<string>();
@@ -34,6 +34,7 @@ export function VistaInicio() {
           textoEnviar="Empezar"
           filas={3}
           deshabilitado={!listo}
+          dictar={voz?.dictado ? async () => (await llamar("voz.dictar", {})).texto : undefined}
           alEnviar={async (texto) => {
             setError(undefined);
             try {

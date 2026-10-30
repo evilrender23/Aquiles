@@ -276,7 +276,16 @@ interface Trabajo {
   hechas: string[];
 }
 
-export function herramientaMemoria(m: Memoria, alCambiar?: (destino: DestinoMemoria, cwd?: string) => void): Herramienta {
+export interface DetalleCambioMemoria {
+  sesionId: string;
+  /** Lo hecho en ese destino («añadida «…»», «quitada «…»»…), como en el resultado de la herramienta. */
+  hechas: string[];
+}
+
+export function herramientaMemoria(
+  m: Memoria,
+  alCambiar?: (destino: DestinoMemoria, cwd: string | undefined, detalle: DetalleCambioMemoria) => void,
+): Herramienta {
   return definir({
     nombre: "memoria",
     descripcion:
@@ -341,7 +350,7 @@ export function herramientaMemoria(m: Memoria, alCambiar?: (destino: DestinoMemo
       for (const [d, t] of trabajos) {
         const cambia = t.despues.length !== t.antes.length || t.despues.some((e, i) => e !== t.antes[i]);
         const b = cambia ? m.guardar(d, t.despues, ctx.cwd) : bloque(d, t.antes);
-        if (cambia) alCambiar?.(d, d === "proyecto" ? ctx.cwd : undefined);
+        if (cambia) alCambiar?.(d, d === "proyecto" ? ctx.cwd : undefined, { sesionId: ctx.sesionId, hechas: [...t.hechas] });
         lineas.push(`- ${d} [${b.usados}/${b.limite}]: ${t.hechas.join("; ")}`);
       }
       return `Memoria actualizada (se verá desde la próxima sesión):\n${lineas.join("\n")}`;

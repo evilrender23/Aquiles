@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { cancelado } from "./entornos";
 import { definir, ErrorHerramienta } from "./herramienta";
-import { elegirShell, estadoTerminal, type ResultadoComando } from "./shell";
+import { type EstadoTerminal, elegirShell, estadoTerminal, type ResultadoComando } from "./shell";
 
 const TIEMPO_DEFECTO = 120;
 const TIEMPO_MAX = 600;
@@ -10,7 +11,8 @@ const shell = elegirShell();
 export const terminal = definir({
   nombre: "terminal",
   descripcion:
-    `Ejecuta un comando en un shell persistente de la sesión (${shell.nombre}): cd, variables y funciones se mantienen entre llamadas. ` +
+    `Ejecuta un comando en un shell persistente de la sesión (${shell.nombre}, salvo que los ajustes lo lleven a Docker o SSH; ` +
+    "entonces lo dice el primer resultado): cd, variables y funciones se mantienen entre llamadas. " +
     "Devuelve stdout y stderr juntos y termina con '[código de salida N]'. " +
     `Límite: timeout_s (${TIEMPO_DEFECTO} s por defecto, máximo ${TIEMPO_MAX}); al superarlo se mata el proceso y el shell se reinicia. ` +
     "No es interactivo (stdin vacío): usa opciones no interactivas (-y, --no-pager…). " +
@@ -36,29 +38,38 @@ export const terminal = definir({
       if (nombre && estado.buscar(nombre)?.enMarcha) {
         throw new ErrorHerramienta(`Ya hay un proceso en marcha llamado "${nombre}"; páralo con procesos o usa otro nombre.`);
       }
-      const cwd = estado.shell?.vivo ? estado.shell.cwd : ctx.cwd;
-      const p = arrancar(() => estado.lanzar(comando, nombre, cwd));
-      return (
-        `Lanzado en segundo plano con id ${p.id}${nombre ? ` (${nombre})` : ""}, pid ${p.proc.pid}, en ${cwd}. ` +
-        `Mira su salida con procesos (accion "salida", id "${p.id}") y páralo con accion "parar".`
+      const remoto = estado.entorno(ctx);
+      // En remoto, sin shell abierto, arranca donde lo haría el shell (el -w del contenedor o el home remoto).
+      const cwd = estado.shell?.vivo ? estado.shell.cwd : remoto ? undefined : ctx.cwd;
+      const p = await arrancar(() => estado.lanzar(comando, nombre, cwd, ctx));
+      // En remoto el pid local es el del cliente (docker o ssh), que no le sirve de nada al modelo.
+      const donde = remoto
+        ? `en ${cwd ?? remoto.carpeta ?? "la carpeta del usuario"} de ${remoto.nombre}`
+        : `pid ${p.proc.pid}, en ${cwd}`;
+      return conAviso(
+        `Lanzado en segundo plano con id ${p.id}${nombre ? ` (${nombre})` : ""}, ${donde}. ` +
+          `Mira su salida con procesos (accion "salida", id "${p.id}") y páralo con accion "parar".`,
+        estado,
       );
     }
-    if (ctx.senal.aborted) throw new ErrorHerramienta("Cancelado: no se ejecutó el comando.");
+    if (ctx.senal.aborted) throw cancelado();
     return estado.enCola(async () => {
-      const r = await arrancar(() => estado.shellVivo(ctx.cwd)).ejecutar(comando, {
+      const r = await (await arrancar(() => estado.shellVivo(ctx))).ejecutar(comando, {
         timeoutMs: timeout_s * 1000,
         senal: ctx.senal,
         progreso: (t) => ctx.progreso(t),
       });
-      return conPie(r, timeout_s);
+      return conAviso(conPie(r, timeout_s), estado);
     });
   },
 });
 
-function arrancar<T>(f: () => T): T {
+/** Los errores de Docker y SSH ya vienen explicados; los demás son de no poder lanzar el shell local. */
+async function arrancar<T>(f: () => Promise<T>): Promise<T> {
   try {
-    return f();
+    return await f();
   } catch (e) {
+    if (e instanceof ErrorHerramienta) throw e;
     throw new ErrorHerramienta(`No se pudo iniciar ${shell.nombre} (${shell.ejecutable}): ${e instanceof Error ? e.message : String(e)}`);
   }
 }
@@ -75,6 +86,12 @@ function conPie(r: ResultadoComando, timeout: number): string {
           ? `[el shell terminó${r.codigo !== undefined ? ` con código ${r.codigo}` : ""}; ${reinicio}]`
           : `[código de salida ${r.codigo}]`;
   return salida ? `${salida}\n${pie}` : pie;
+}
+
+/** El primer resultado de una sesión en Docker o SSH acaba con una línea que dice dónde corre. */
+function conAviso(texto: string, estado: EstadoTerminal): string {
+  const aviso = estado.aviso();
+  return aviso ? `${texto}\n${aviso}` : texto;
 }
 
 /** Primer token del comando (sin comillas), para "permitir siempre". */

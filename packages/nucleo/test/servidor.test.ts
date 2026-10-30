@@ -83,7 +83,7 @@ test("rechaza token malo y origen ajeno", async () => {
 test("turno completo, persistencia y reanudar", async () => {
   const ws = await conectar();
   const c = rpc(ws);
-  expect((await c.llamar("nucleo.info", {})).result).toMatchObject({ proveedor: "simulado", protocolo: 4 });
+  expect((await c.llamar("nucleo.info", {})).result).toMatchObject({ proveedor: "simulado", protocolo: 7 });
   const { result: s } = await c.llamar("sesion.crear", {});
   expect(s).toMatchObject({ cwd, modoAprobacion: "preguntar-ejecutar" });
   expect((await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "lee hola.txt" })).result).toEqual({ aceptado: true });
@@ -115,7 +115,11 @@ test("el núcleo pide aprobación a la interfaz y respeta la respuesta", async (
 test("ajustes, ajustar, renombrar, borrar y sesion.actualizada", async () => {
   const ws = await conectar();
   const c = rpc(ws);
-  expect((await c.llamar("ajustes.leer", {})).result).toEqual({ proveedor: "simulado", modoAprobacion: "preguntar-ejecutar", carpeta: cwd });
+  expect((await c.llamar("ajustes.leer", {})).result).toEqual({
+    proveedor: "simulado", modoAprobacion: "preguntar-ejecutar", carpeta: cwd,
+    aprendizaje: { activo: true, cadaHerramientas: 10, cadaMensajes: 10, aplicarSinPreguntar: false },
+    herramientas: { navegador: false, terminal: { entorno: "local", imagen: "oven/bun:debian" }, guardian: { activo: false } },
+  });
   const otra = await mkdtemp(join(tmpdir(), "aquiles-otra-"));
   expect((await c.llamar("ajustes.guardar", { carpeta: otra, modoAprobacion: "libre-proyecto" })).result).toMatchObject({ carpeta: otra });
   const { result: s } = await c.llamar("sesion.crear", {});
@@ -178,5 +182,27 @@ test("memoria, skills y búsqueda: lo guardado entra en la sesión siguiente", a
   expect((await c.llamar("skills.leer", { nombre: "no-existe" })).error.code).toBe(-32602);
   await c.llamar("sesion.borrar", { sesionId: s.sesionId });
   expect((await c.llamar("buscar.sesiones", { consulta: "cebolleta" })).result.resultados).toEqual([]);
+  ws.close();
+});
+
+test("aprendizaje: ajustes anidados, /aprender revisa la conversación y la cola empieza vacía", async () => {
+  const ws = await conectar();
+  const c = rpc(ws);
+  const a = (await c.llamar("ajustes.guardar", { aprendizaje: { cadaMensajes: 3 } })).result;
+  expect(a.aprendizaje).toEqual({ activo: true, cadaHerramientas: 10, cadaMensajes: 3, aplicarSinPreguntar: false });
+  expect((await c.llamar("aprendizaje.listar", {})).result).toEqual({ propuestas: [] });
+  const { result: s } = await c.llamar("sesion.crear", {});
+  await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "lee hola.txt" });
+  await c.esperarFin();
+  c.eventos.length = 0;
+  expect((await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "/aprender" })).result).toEqual({ aceptado: true });
+  const fin = await c.esperarFin();
+  expect(fin).toMatchObject({ motivo: "fin" });
+  expect(c.eventos.filter((e) => e.tipo === "aprendizaje.revision").map((e) => (e as { estado: string }).estado)).toEqual(["inicio", "fin"]);
+  const r = (await c.llamar("sesion.reanudar", { sesionId: s.sesionId })).result;
+  expect(r.historial.slice(-2).map((m: any) => m.rol)).toEqual(["usuario", "asistente"]);
+  // Lo que hay viene de las ediciones a mano del test anterior.
+  expect((await c.llamar("aprendizaje.historial", {})).result.entradas.every((e: any) => e.origen.tipo === "manual")).toBe(true);
+  await c.llamar("ajustes.guardar", { aprendizaje: { cadaMensajes: 10 } });
   ws.close();
 });

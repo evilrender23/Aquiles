@@ -18,18 +18,53 @@
         "height": 760,
         "minWidth": 520,
         "minHeight": 400,
-        "decorations": false
+        "decorations": false,
+        "visible": false,
+        "focus": false
+      },
+      {
+        "label": "rapida",
+        "title": "Entrada rápida",
+        "url": "index.html?vista=rapida",
+        "width": 640,
+        "height": 140,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://127.0.0.1:* ws://localhost:1420; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     }
   },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "externalBin": ["binaries/aquiles-nucleo"],
     "resources": { "../../../skills/": "skills/" },
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "windows": {
+      "signCommand": {
+        "cmd": "powershell",
+        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "firmar.ps1", "%1"]
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Spanish"],
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgyNjkyRDM4NzkyM0EzRkQKUldUOW95TjVPQzFwZ2tPZ0RHTHlpUDMyeVZNWWpRdW1lVXB1RXpWRUtrNU1UTGh1M3F2dDZRd0kK",
+      "endpoints": ["https://github.com/evilrender23/Aquiles/releases/latest/download/latest.json"]
+    }
   }
 }

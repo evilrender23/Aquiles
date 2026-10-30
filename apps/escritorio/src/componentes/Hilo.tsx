@@ -1,6 +1,7 @@
 import type { TareaVisible } from "@aquiles/protocolo";
-import { CrystalizedBall, Etiqueta, Icono, Tarjeta, ThoughtLine, clases } from "@aquiles/ui";
+import { BotonIcono, CrystalizedBall, Etiqueta, Icono, Tarjeta, ThoughtLine, clases } from "@aquiles/ui";
 import { useState, type ReactNode } from "react";
+import { useAcciones, useEstado } from "../estado/almacen";
 import { hora } from "../estado/formato";
 import type { Conversacion, Elemento } from "../estado/tipos";
 import { TextoAsistente } from "./Markdown";
@@ -65,7 +66,12 @@ export function Hilo({ conversacion, trabajando, despues }: { conversacion: Conv
 function ElementoAquiles({ e }: { e: Elemento }) {
   switch (e.tipo) {
     case "asistente":
-      return <TextoAsistente texto={e.texto} abierto={e.abierto} />;
+      return (
+        <div className="asistente">
+          <TextoAsistente texto={e.texto} abierto={e.abierto} />
+          {!e.abierto && <BotonLeer texto={e.texto} />}
+        </div>
+      );
     case "herramienta":
       return <TarjetaHerramienta h={e} />;
     case "pensamiento":
@@ -86,9 +92,99 @@ function ElementoAquiles({ e }: { e: Elemento }) {
           {e.texto}
         </p>
       );
+    case "aprendizaje":
+      return <AvisoAprendizaje e={e} />;
     case "usuario":
       return null;
   }
+}
+
+/** El texto de una respuesta sin la sintaxis de Markdown, para leerlo en voz alta. */
+function paraLeer(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, "")
+    .replace(/[*_~]{1,3}([^*_~]+)[*_~]{1,3}/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 20_000);
+}
+
+/** Altavoz de una respuesta (voz.leer); mientras lee, para (voz.parar). Solo si el núcleo tiene lectura. */
+function BotonLeer({ texto }: { texto: string }) {
+  const { voz } = useEstado();
+  const { llamar } = useAcciones();
+  const [leyendo, setLeyendo] = useState(false);
+  if (!voz?.lectura) return null;
+  const leer = async () => {
+    const t = paraLeer(texto);
+    if (!t) return;
+    setLeyendo(true);
+    try {
+      await llamar("voz.leer", { texto: t });
+    } catch {
+      // Si no puede leer (o se paró), el botón vuelve a su estado.
+    } finally {
+      setLeyendo(false);
+    }
+  };
+  return (
+    <BotonIcono
+      variante="pequeno"
+      className="asistente__leer"
+      etiqueta={leyendo ? "Parar la lectura" : "Leer en voz alta"}
+      icono={leyendo ? "detener" : "altavoz"}
+      tamanoIcono={15}
+      onClick={() => (leyendo ? void llamar("voz.parar", {}).catch(() => {}) : void leer())}
+    />
+  );
+}
+
+const plural = (n: number, una: string, varias: string) => `${n} ${n === 1 ? una : varias}`;
+
+/** Revisión de lo aprendido en segundo plano: discreta, como los avisos de compactación o reintento. */
+function AvisoAprendizaje({ e }: { e: Extract<Elemento, { tipo: "aprendizaje" }> }) {
+  const { abrirMemoria } = useAcciones();
+  if (e.estado === "inicio") {
+    return (
+      <p className="aviso" aria-live="polite">
+        <i className="nx-punto nx-pulso" aria-hidden="true" />
+        Revisando lo aprendido
+      </p>
+    );
+  }
+  if (e.estado === "error") {
+    return (
+      <p className="aviso" aria-live="polite">
+        <i className="aviso__punto" aria-hidden="true" />
+        Revisión de lo aprendido: {e.error ?? "error"}
+      </p>
+    );
+  }
+  const propuestas = e.propuestas ?? 0;
+  const aplicadas = e.aplicadas ?? 0;
+  return (
+    <p className="aviso" aria-live="polite">
+      <i className="aviso__punto" aria-hidden="true" />
+      <span>
+        Revisión de lo aprendido:{" "}
+        {propuestas === 0 && aplicadas === 0 && "sin cambios"}
+        {propuestas > 0 && (
+          <button type="button" className="aviso__enlace" onClick={() => abrirMemoria("propuestas")}>
+            {plural(propuestas, "propuesta", "propuestas")}
+          </button>
+        )}
+        {propuestas > 0 && aplicadas > 0 && " · "}
+        {aplicadas > 0 && (
+          <button type="button" className="aviso__enlace" onClick={() => abrirMemoria("aprendido")}>
+            {plural(aplicadas, "aplicada", "aplicadas")}
+          </button>
+        )}
+      </span>
+    </p>
+  );
 }
 
 function ListaTareas({ tareas }: { tareas: TareaVisible[] }) {

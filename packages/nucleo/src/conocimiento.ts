@@ -1,10 +1,11 @@
 /**
- * Lo que Aquiles sabe de un perfil: memoria, skills e índice de búsqueda de sesiones.
- * Reúne sus herramientas y los ganchos que los conectan a las sesiones: el system prompt
- * de una sesión nueva lleva la memoria y el índice de skills, y cada mensaje guardado se indexa.
+ * Lo que Aquiles sabe de un perfil: memoria, skills, índice de búsqueda de sesiones y registro de lo aprendido.
+ * Reúne sus herramientas y los ganchos que los conectan a las sesiones: el system prompt de una sesión nueva lleva
+ * la memoria y el índice de skills, cada mensaje guardado se indexa y lo que el agente guarda queda anotado con su origen.
  */
 import { join } from "node:path";
-import type { Evento } from "@aquiles/protocolo";
+import type { Evento, OrigenAprendizaje } from "@aquiles/protocolo";
+import { RegistroAprendizaje } from "./aprendizaje";
 import { herramientaBuscarSesiones, IndiceSesiones } from "./busqueda";
 import type { Herramienta } from "./herramientas/herramienta";
 import { herramientaMemoria, Memoria } from "./memoria";
@@ -15,6 +16,7 @@ export interface Conocimiento {
   memoria: Memoria;
   skills: AlmacenSkills;
   indice: IndiceSesiones;
+  registro: RegistroAprendizaje;
   /** memoria, ver_skill, gestionar_skill y buscar_sesiones. */
   herramientas: Herramienta<any>[];
   ganchos: GanchosSesiones;
@@ -28,26 +30,43 @@ export interface OpcionesConocimiento {
   incluidas?: string | null;
   emitir?: (e: Evento) => void;
   log?: (mensaje: string) => void;
+  /** Origen de lo que guarda el agente en una sesión (por defecto, la propia sesión). */
+  origen?: (sesionId: string) => OrigenAprendizaje;
 }
 
 export function abrirConocimiento(o: OpcionesConocimiento): Conocimiento {
   const emitir = o.emitir ?? (() => {});
   const log = o.log ?? (() => {});
+  const origen = o.origen ?? ((sesionId: string): OrigenAprendizaje => ({ tipo: "sesion", sesionId }));
   const memoria = new Memoria(o.perfil);
   const skills = new AlmacenSkills({ perfil: o.perfil, incluidas: o.incluidas ?? null });
   const indice = new IndiceSesiones(o.perfil ? join(o.perfil, "busqueda.db") : null);
+  const registro = new RegistroAprendizaje(o.perfil ? join(o.perfil, "aprendizaje") : null);
   if (o.perfil) {
     const n = indice.sincronizar(join(o.perfil, "sesiones"));
     if (n) log(`índice de búsqueda: ${n} mensajes nuevos`);
   }
+  const anotar = (e: Parameters<RegistroAprendizaje["anotar"]>[0]) => {
+    registro.anotar(e);
+    emitir({ tipo: "aprendizaje.actualizado" });
+  };
 
   return {
     memoria,
     skills,
     indice,
+    registro,
     herramientas: [
-      herramientaMemoria(memoria, (destino, cwd) => emitir({ tipo: "memoria.actualizada", destino, ...(cwd ? { cwd } : {}) })),
-      ...herramientasSkills(skills, () => emitir({ tipo: "skills.actualizadas" })),
+      herramientaMemoria(memoria, (destino, cwd, detalle) => {
+        emitir({ tipo: "memoria.actualizada", destino, ...(cwd ? { cwd } : {}) });
+        if (detalle) anotar({ origen: origen(detalle.sesionId), tipo: "memoria", resumen: `Memoria de ${destino}: ${detalle.hechas.join("; ")}` });
+      }),
+      ...herramientasSkills(skills, (detalle) => {
+        emitir({ tipo: "skills.actualizadas" });
+        if (!detalle) return;
+        const que = detalle.accion === "crear" ? "Skill nueva" : detalle.accion === "parchear" ? "Skill corregida" : "Fichero de skill";
+        anotar({ origen: origen(detalle.sesionId), tipo: "skill", resumen: `${que} «${detalle.nombre}»${detalle.accion === "crear" ? "" : ` (${detalle.fichero})`}` });
+      }),
       herramientaBuscarSesiones(indice),
     ],
     ganchos: {
