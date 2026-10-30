@@ -1,0 +1,18 @@
+import { expect, test } from "bun:test";
+import { calcularImpuesto, totalesFactura } from "../src/index";
+
+test("calcularImpuesto con el tipo general por defecto", () => {
+  expect(calcularImpuesto(100)).toBe(21);
+});
+
+test("calcularImpuesto redondea a céntimos", () => {
+  expect(calcularImpuesto(19.99, "reducido")).toBe(2);
+});
+
+test("totales de una factura", () => {
+  expect(totalesFactura([{ concepto: "a", precio: 10, unidades: 2, tipo: "general" }])).toEqual({
+    base: 20,
+    cuota: 4.2,
+    total: 24.2,
+  });
+});

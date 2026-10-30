@@ -1,0 +1,1 @@
+En `src/informes.ts` hay tres funciones que son casi el mismo código copiado y pegado. Refactorízalo para quitar la duplicación (extrae lo común), pero sin cambiar ni un carácter de lo que devuelven: hay otros sistemas que leen estos informes. Las tres funciones tienen que seguir exportándose con el mismo nombre y los mismos parámetros.

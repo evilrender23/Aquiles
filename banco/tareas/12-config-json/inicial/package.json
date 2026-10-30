@@ -1,0 +1,9 @@
+{
+  "name": "tienda-online",
+  "version": "2.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "inicio": "bun src/main.ts"
+  }
+}

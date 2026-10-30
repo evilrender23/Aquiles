@@ -1,0 +1,5 @@
+{
+  "servicios": {
+    "pagos": { "replicas": 6 }
+  }
+}

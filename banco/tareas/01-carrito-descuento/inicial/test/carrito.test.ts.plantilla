@@ -1,0 +1,22 @@
+import { describe, expect, test } from "bun:test";
+import { subtotal, total } from "../src/carrito";
+
+const auriculares = [{ producto: "Auriculares", precio: 100, cantidad: 2 }];
+
+describe("carrito", () => {
+  test("subtotal", () => {
+    expect(subtotal(auriculares)).toBe(200);
+  });
+
+  test("sin descuento", () => {
+    expect(total(auriculares)).toBe(200);
+  });
+
+  test("aplica el descuento en porcentaje", () => {
+    expect(total(auriculares, 10)).toBe(180);
+  });
+
+  test("cobra el envío en pedidos pequeños", () => {
+    expect(total([{ producto: "Cable", precio: 9.99, cantidad: 1 }])).toBe(14.94);
+  });
+});

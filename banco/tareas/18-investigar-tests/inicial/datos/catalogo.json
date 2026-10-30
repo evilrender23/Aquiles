@@ -1,0 +1,19 @@
+{
+  "exportado": "2026-10-01T08:00:00Z",
+  "origen": "ERP v7",
+  "version_formato": 2,
+  "productos": [
+    { "sku": "CAF-001", "nombre": "Café en grano 1 kg", "precio_centimos": 1490, "categorias": "alimentación|café", "activo": "sí" },
+    { "sku": "CAF-002", "nombre": "Café molido 250 g", "precio_centimos": 450, "categorias": "alimentación|café", "activo": "sí" },
+    { "sku": "CAF-003", "nombre": "Café descafeinado 250 g", "precio_centimos": 520, "categorias": "alimentación|café", "activo": "no" },
+    { "sku": "CAF-M01", "nombre": "Cafetera italiana 6 tazas", "precio_centimos": 3295, "categorias": "menaje|café", "activo": "sí" },
+    { "sku": "CAF-M02", "nombre": "Cafetera de émbolo", "precio_centimos": 3990, "categorias": "menaje|café", "activo": "sí" },
+    { "sku": "TAZ-001", "nombre": "Taza de cerámica", "precio_centimos": 675, "categorias": "menaje", "activo": "sí" },
+    { "sku": "TAZ-002", "nombre": "Taza térmica", "precio_centimos": 1800, "categorias": "menaje", "activo": "no" },
+    { "sku": "TAZ-003", "nombre": "Juego de 4 tazas", "precio_centimos": 2400, "categorias": "menaje", "activo": "sí" },
+    { "sku": "TE-001", "nombre": "Té verde 100 g", "precio_centimos": 390, "categorias": "alimentación|té", "activo": "sí" },
+    { "sku": "TE-002", "nombre": "Té rojo 100 g", "precio_centimos": 420, "categorias": "alimentación|té", "activo": "sí" },
+    { "sku": "MOL-001", "nombre": "Molinillo manual", "precio_centimos": 2750, "categorias": "menaje|café", "activo": "no" },
+    { "sku": "GAL-001", "nombre": "Galletas de mantequilla", "precio_centimos": 275, "categorias": "alimentación", "activo": "sí" }
+  ]
+}

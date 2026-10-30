@@ -63,5 +63,7 @@ export function renderizarMensaje(m: Mensaje): string {
       return `<resultado herramienta="${m.nombre}" id="${m.id}"${m.error ? ' error="si"' : ""}>\n${m.resultado}\n</resultado>`;
     case "asistente":
       return m.texto;
+    case "resumen":
+      return `[Resumen de la conversación anterior]\n${m.texto}`;
   }
 }

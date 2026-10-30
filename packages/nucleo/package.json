@@ -9,7 +9,9 @@
     "cli": "bun src/main.ts --cli"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
     "@aquiles/protocolo": "workspace:*",
+    "openai": "7.34.0",
     "zod": "4.1.12"
   }
 }

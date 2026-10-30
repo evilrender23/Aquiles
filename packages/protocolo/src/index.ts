@@ -2,10 +2,13 @@
  * Protocolo entre la interfaz (o cualquier cliente) y el núcleo de Aquiles:
  * JSON-RPC 2.0 sobre WebSocket. Los esquemas de parámetros son la única fuente
  * de verdad y se validan en el núcleo; los tipos se comparten con la interfaz.
+ *
+ * Además de responder, el núcleo hace peticiones al cliente (aprobaciones y preguntas)
+ * con ids de texto que empiezan por "n"; el cliente contesta con el mismo id.
  */
 import { z } from "zod";
 
-export const VERSION_PROTOCOLO = 1;
+export const VERSION_PROTOCOLO = 2;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -13,22 +16,58 @@ export const LINEA_LISTO = "AQUILES_READY";
 /** Ruta del WebSocket; el token va en `?token=`. */
 export const RUTA_RPC = "/rpc";
 
+export const MODOS_APROBACION = ["preguntar-siempre", "preguntar-ejecutar", "libre-proyecto"] as const;
+export type ModoAprobacion = (typeof MODOS_APROBACION)[number];
+
 export const metodos = {
   "nucleo.info": z.object({}),
-  "sesion.crear": z.object({ cwd: z.string().min(1).optional() }),
+  "sesion.crear": z.object({ cwd: z.string().min(1).optional(), modoAprobacion: z.enum(MODOS_APROBACION).optional() }),
+  "sesion.listar": z.object({}),
+  "sesion.reanudar": z.object({ sesionId: z.string().min(1) }),
   "prompt.enviar": z.object({ sesionId: z.string().min(1), texto: z.string().min(1) }),
+  "prompt.steer": z.object({ sesionId: z.string().min(1), texto: z.string().min(1) }),
   "prompt.parar": z.object({ sesionId: z.string().min(1) }),
 };
 
 export type NombreMetodo = keyof typeof metodos;
 export type Params<M extends NombreMetodo> = z.infer<(typeof metodos)[M]>;
 
+export interface InfoSesion {
+  sesionId: string;
+  cwd: string;
+  titulo?: string;
+  creada: string;
+  actualizada: string;
+  mensajes: number;
+  modoAprobacion: ModoAprobacion;
+}
+
+export type MensajeHistorial =
+  | { rol: "usuario" | "asistente" | "resumen"; texto: string }
+  | { rol: "herramienta"; nombre: string; resultado: string; error: boolean };
+
 export interface Resultados {
-  "nucleo.info": { version: string; protocolo: number; proveedor: string };
-  "sesion.crear": { sesionId: string; cwd: string };
+  "nucleo.info": { version: string; protocolo: number; proveedor: string; modelo?: string };
+  "sesion.crear": InfoSesion;
+  "sesion.listar": { sesiones: InfoSesion[] };
+  "sesion.reanudar": InfoSesion & { historial: MensajeHistorial[] };
   "prompt.enviar": { aceptado: true };
+  "prompt.steer": { encolado: true };
   "prompt.parar": { parado: boolean };
 }
+
+/** Peticiones del núcleo al cliente. */
+export interface PeticionesCliente {
+  "aprobacion.pedir": {
+    params: { sesionId: string; id: string; herramienta: string; nivel: string; resumen: string; argumentos: unknown; motivo: string };
+    resultado: { decision: "permitir" | "siempre" | "denegar" };
+  };
+  "pregunta.hacer": {
+    params: { sesionId: string; texto: string; opciones?: string[]; multiple?: boolean };
+    resultado: { respuesta: string };
+  };
+}
+export type NombrePeticionCliente = keyof PeticionesCliente;
 
 export interface Uso {
   entrada: number;
@@ -38,10 +77,20 @@ export interface Uso {
 
 export type MotivoFin = "fin" | "parado" | "limite" | "error";
 
+export interface TareaVisible {
+  texto: string;
+  estado: "pendiente" | "en-curso" | "hecha";
+}
+
 export type Evento =
   | { tipo: "mensaje.delta"; sesionId: string; texto: string }
-  | { tipo: "herramienta.inicio"; sesionId: string; id: string; nombre: string; argumentos: unknown }
+  | { tipo: "herramienta.inicio"; sesionId: string; id: string; nombre: string; argumentos: unknown; resumen?: string }
+  | { tipo: "herramienta.progreso"; sesionId: string; id: string; texto: string }
   | { tipo: "herramienta.fin"; sesionId: string; id: string; nombre: string; resultado: string; error: boolean }
+  | { tipo: "tareas"; sesionId: string; tareas: TareaVisible[] }
+  | { tipo: "contexto.uso"; sesionId: string; tokens: number; ventana?: number }
+  | { tipo: "contexto.compactado"; sesionId: string; metodo: "poda" | "resumen"; antes: number; despues: number }
+  | { tipo: "turno.reintento"; sesionId: string; intento: number; esperaMs: number; motivo: string }
   | { tipo: "turno.fin"; sesionId: string; motivo: MotivoFin; texto: string; uso?: Uso; error?: string };
 
 export interface PeticionRpc {
@@ -79,4 +128,5 @@ export const codigosError = {
   interno: -32603,
   sesionNoExiste: 1001,
   sesionOcupada: 1002,
+  sinTurno: 1003,
 } as const;

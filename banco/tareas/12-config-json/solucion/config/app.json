@@ -1,0 +1,21 @@
+{
+  "nombre": "tienda-online",
+  "version": 4,
+  "servidor": {
+    "host": "0.0.0.0",
+    "puerto": 8080,
+    "tiempoEsperaMs": 30000
+  },
+  "idiomas": {
+    "porDefecto": "es",
+    "admitidos": ["es", "en", "ca", "fr"]
+  },
+  "entornos": {
+    "desarrollo": { "depuracion": true, "registro": "debug" },
+    "produccion": { "depuracion": false, "registro": "warn" }
+  },
+  "funciones": {
+    "carritoNuevo": true,
+    "pagoBizum": true
+  }
+}

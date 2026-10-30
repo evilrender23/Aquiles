@@ -1,4 +1,4 @@
-import type { Evento } from "@aquiles/protocolo";
+import type { Evento, PeticionesCliente, TareaVisible } from "@aquiles/protocolo";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { datosConexion } from "./conexion";
 import { ClienteRpc } from "./rpc";
@@ -6,10 +6,17 @@ import { ClienteRpc } from "./rpc";
 type Elemento =
   | { tipo: "usuario"; texto: string }
   | { tipo: "asistente"; texto: string; abierto: boolean }
-  | { tipo: "herramienta"; id: string; nombre: string; argumentos: unknown; estado: "en-curso" | "ok" | "fallo"; resultado?: string }
+  | { tipo: "herramienta"; id: string; nombre: string; resumen: string; estado: "en-curso" | "ok" | "fallo"; resultado?: string }
+  | { tipo: "tareas"; tareas: TareaVisible[] }
   | { tipo: "aviso"; nivel: "AVISO" | "FALLO"; texto: string };
 
 type Accion = { tipo: "usuario"; texto: string } | { tipo: "evento"; evento: Evento } | { tipo: "aviso"; nivel: "AVISO" | "FALLO"; texto: string };
+
+type Pendiente =
+  | { tipo: "aprobacion"; params: PeticionesCliente["aprobacion.pedir"]["params"]; responder: (d: "permitir" | "siempre" | "denegar") => void }
+  | { tipo: "pregunta"; params: PeticionesCliente["pregunta.hacer"]["params"]; responder: (r: string) => void };
+
+const MARCA_TAREA = { hecha: "[x]", "en-curso": "[>]", pendiente: "[ ]" } as const;
 
 function reducir(lista: Elemento[], a: Accion): Elemento[] {
   if (a.tipo === "usuario") return [...lista, { tipo: "usuario", texto: a.texto }];
@@ -23,9 +30,21 @@ function reducir(lista: Elemento[], a: Accion): Elemento[] {
       return [...lista, { tipo: "asistente", texto: e.texto, abierto: true }];
     }
     case "herramienta.inicio":
-      return [...cerrar(lista), { tipo: "herramienta", id: e.id, nombre: e.nombre, argumentos: e.argumentos, estado: "en-curso" }];
+      return [...cerrar(lista), { tipo: "herramienta", id: e.id, nombre: e.nombre, resumen: e.resumen ?? resumenArgs(e.argumentos), estado: "en-curso" }];
+    case "herramienta.progreso":
+      return lista.map((x) => (x.tipo === "herramienta" && x.id === e.id ? { ...x, resultado: ((x.resultado ?? "") + e.texto).slice(-4000) } : x));
     case "herramienta.fin":
       return lista.map((x) => (x.tipo === "herramienta" && x.id === e.id ? { ...x, estado: e.error ? "fallo" : "ok", resultado: e.resultado } : x));
+    case "tareas": {
+      const sinViejas = lista.filter((x) => x.tipo !== "tareas");
+      return [...cerrar(sinViejas), { tipo: "tareas", tareas: e.tareas }];
+    }
+    case "turno.reintento":
+      return [...cerrar(lista), { tipo: "aviso", nivel: "AVISO", texto: `reintento ${e.intento} en ${Math.round(e.esperaMs / 1000)} s: ${e.motivo}` }];
+    case "contexto.compactado":
+      return [...lista, { tipo: "aviso", nivel: "AVISO", texto: `contexto compactado (${e.metodo})` }];
+    case "contexto.uso":
+      return lista;
     case "turno.fin": {
       const l = cerrar(lista);
       if (e.motivo === "error") return [...l, { tipo: "aviso", nivel: "FALLO", texto: e.error ?? "error desconocido" }];
@@ -46,6 +65,7 @@ export function App() {
   const [cliente, setCliente] = useState<ClienteRpc>();
   const [sesionId, setSesionId] = useState<string>();
   const [trabajando, setTrabajando] = useState(false);
+  const [pendiente, setPendiente] = useState<Pendiente>();
   const [texto, setTexto] = useState("");
   const final = useRef<HTMLDivElement>(null);
 
@@ -59,8 +79,13 @@ export function App() {
         if (!vivo) return c.cerrar();
         c.alEvento((evento) => {
           despachar({ tipo: "evento", evento });
-          if (evento.tipo === "turno.fin") setTrabajando(false);
+          if (evento.tipo === "turno.fin") {
+            setTrabajando(false);
+            setPendiente(undefined);
+          }
         });
+        c.atender("aprobacion.pedir", (params) => new Promise((ok) => setPendiente({ tipo: "aprobacion", params, responder: (decision) => ok({ decision }) })));
+        c.atender("pregunta.hacer", (params) => new Promise((ok) => setPendiente({ tipo: "pregunta", params, responder: (respuesta) => ok({ respuesta }) })));
         c.alCerrar(() => vivo && despachar({ tipo: "aviso", nivel: "FALLO", texto: "se perdió la conexión con el núcleo" }));
         const s = await c.llamar("sesion.crear", {});
         setCliente(c);
@@ -78,16 +103,25 @@ export function App() {
   useEffect(() => {
     // Sin devolver nada: en Chromium reciente scrollIntoView devuelve una promesa y React la tomaría por limpieza.
     final.current?.scrollIntoView({ block: "end" });
-  }, [elementos]);
+  }, [elementos, pendiente]);
+
+  const resolver = (f: () => void) => {
+    f();
+    setPendiente(undefined);
+  };
 
   const enviar = async () => {
     const t = texto.trim();
-    if (!t || !cliente || !sesionId || trabajando) return;
+    if (!t || !cliente || !sesionId) return;
     setTexto("");
-    setTrabajando(true);
+    if (pendiente?.tipo === "pregunta") return resolver(() => pendiente.responder(t));
     despachar({ tipo: "usuario", texto: t });
     try {
-      await cliente.llamar("prompt.enviar", { sesionId, texto: t });
+      if (trabajando) await cliente.llamar("prompt.steer", { sesionId, texto: t });
+      else {
+        setTrabajando(true);
+        await cliente.llamar("prompt.enviar", { sesionId, texto: t });
+      }
     } catch (e) {
       setTrabajando(false);
       despachar({ tipo: "aviso", nivel: "FALLO", texto: e instanceof Error ? e.message : String(e) });
@@ -103,16 +137,59 @@ export function App() {
           if (x.tipo === "usuario") return <p key={i} className="usuario">{x.texto}</p>;
           if (x.tipo === "asistente") return <p key={i} className="asistente">{x.texto}</p>;
           if (x.tipo === "aviso") return <p key={i} className="aviso">[{x.nivel}] {x.texto}</p>;
+          if (x.tipo === "tareas")
+            return (
+              <ul key={i} className="tareas">
+                {x.tareas.map((t, j) => (
+                  <li key={j} className={t.estado}>
+                    {MARCA_TAREA[t.estado]} {t.texto}
+                  </li>
+                ))}
+              </ul>
+            );
           return (
-            <details key={i} className={`herramienta ${x.estado}`}>
+            <details key={i} className={`herramienta ${x.estado}`} open={x.estado === "en-curso" && !!x.resultado}>
               <summary>
                 <span className="estado">{x.estado === "en-curso" ? "[…]" : x.estado === "ok" ? "[ok]" : "[FALLO]"}</span> {x.nombre}{" "}
-                <span className="args">{resumenArgs(x.argumentos)}</span>
+                <span className="args">{x.resumen}</span>
               </summary>
               {x.resultado && <pre>{x.resultado}</pre>}
             </details>
           );
         })}
+        {pendiente?.tipo === "aprobacion" && (
+          <div className="permiso">
+            <p>
+              ¿Permitir {pendiente.params.herramienta}? <span className="args">{pendiente.params.motivo}</span>
+            </p>
+            <pre>{pendiente.params.resumen || JSON.stringify(pendiente.params.argumentos, null, 2)}</pre>
+            <div className="botones">
+              <button type="button" onClick={() => resolver(() => pendiente.responder("permitir"))}>
+                Permitir
+              </button>
+              <button type="button" onClick={() => resolver(() => pendiente.responder("siempre"))}>
+                Siempre
+              </button>
+              <button type="button" className="negar" onClick={() => resolver(() => pendiente.responder("denegar"))}>
+                Denegar
+              </button>
+            </div>
+          </div>
+        )}
+        {pendiente?.tipo === "pregunta" && (
+          <div className="permiso">
+            <p>{pendiente.params.texto}</p>
+            {pendiente.params.opciones && (
+              <div className="botones">
+                {pendiente.params.opciones.map((op) => (
+                  <button key={op} type="button" onClick={() => resolver(() => pendiente.responder(op))}>
+                    {op}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div ref={final} />
       </section>
       <form
@@ -135,7 +212,7 @@ export function App() {
             }
           }}
         />
-        {trabajando ? (
+        {trabajando && !texto.trim() ? (
           <button type="button" onClick={parar}>
             Parar
           </button>

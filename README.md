@@ -2,15 +2,19 @@
 
 Agente personal con app de escritorio. Código propio: núcleo en TypeScript sobre Bun y app en Tauri 2 + React.
 
-Estado: **fase 0** (pruebas técnicas). El plan completo está en la wiki del proyecto (`../wiki/plan-aquiles.md`).
+Estado: **fase 1** (el motor). El plan completo está en la wiki del proyecto (`../wiki/plan-aquiles.md`).
 
 ## Estructura
 
 ```
 apps/escritorio/        app Tauri 2: src-tauri/ (Rust) + src/ (React)
-packages/nucleo/        el agente: bucle, proveedores, herramientas, servidor JSON-RPC, CLI
+packages/nucleo/        el agente: bucle, proveedores, herramientas, permisos, sesiones, servidor JSON-RPC, CLI
 packages/protocolo/     esquemas y tipos compartidos entre la app y el núcleo
+banco/                  20 tareas con comprobación automática para medir el motor
 ```
+
+Proveedores: `agy` (CLI de Google Antigravity, por defecto), `anthropic` (`ANTHROPIC_API_KEY`), `ollama`, `lmstudio`, `openrouter`, `openai` (estos cuatro con `--modelo`) y `simulado`.
+Los datos (sesiones, salidas largas) van a `%APPDATA%\Aquiles\perfiles\<perfil>\`, o a `AQUILES_HOME`.
 
 ## Requisitos (Windows)
 
@@ -26,6 +30,10 @@ bun install
 bun test                                        # tests del núcleo
 bun run cli                                     # chat por terminal (proveedor agy)
 bun run cli -- --proveedor simulado             # sin modelo real
+bun run cli -- --continuar                      # reanuda la última sesión (o --reanudar <id>)
+bun run cli -- --modo-aprobacion libre-proyecto # sin preguntar dentro de la carpeta
+bun banco/ejecutar.ts --validar                 # comprueba las tareas del banco (sin modelo)
+bun banco/ejecutar.ts --proveedor agy           # mide el motor con un modelo real (tarda)
 bun packages/nucleo/scripts/probar-agy.ts       # prueba de humo con un modelo real (gasta cuota)
 bun run compilar:nucleo                         # núcleo → .exe único (sidecar de la app)
 bun packages/nucleo/scripts/medir-arranque.ts   # arranque del .exe y FTS5

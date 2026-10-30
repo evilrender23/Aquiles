@@ -1,0 +1,34 @@
+import { describe, expect, test } from "bun:test";
+import { cargarCatalogo, masCaros, precioMedio, productosActivos } from "../src/catalogo";
+
+const catalogo = cargarCatalogo();
+
+describe("catálogo", () => {
+  test("carga todos los productos", () => {
+    expect(catalogo).toHaveLength(12);
+    expect(catalogo[0]).toEqual({
+      sku: "CAF-001",
+      nombre: "Café en grano 1 kg",
+      precio: 14.9,
+      categorias: ["alimentación", "café"],
+      activo: true,
+    });
+  });
+
+  test("solo lista productos activos", () => {
+    const activos = productosActivos(catalogo).map((p) => p.sku);
+    expect(activos).toHaveLength(9);
+    expect(activos).not.toContain("CAF-003");
+    expect(activos).not.toContain("TAZ-002");
+  });
+
+  test("precio medio por categoría", () => {
+    expect(precioMedio(catalogo, "café")).toBe(23.06);
+    expect(precioMedio(catalogo, "menaje")).toBe(25.9);
+    expect(precioMedio(catalogo, "juguetes")).toBe(0);
+  });
+
+  test("los más caros", () => {
+    expect(masCaros(catalogo, 3).map((p) => p.sku)).toEqual(["CAF-M02", "CAF-M01", "TAZ-003"]);
+  });
+});

@@ -1,0 +1,8 @@
+{
+  "servicios": {
+    "catalogo": { "puerto": 9100, "replicas": 2 },
+    "pagos": { "puerto": 9000, "replicas": 3, "proveedor": "redsys" },
+    "avisos": { "puerto": 9200, "replicas": 1 }
+  },
+  "registro": "info"
+}

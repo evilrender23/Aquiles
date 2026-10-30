@@ -1,0 +1,68 @@
+import { describe, expect, test } from "bun:test";
+import { normalizarTelefono, validarDocumento } from "../src/validador";
+
+describe("validarDocumento", () => {
+  test("DNI válidos", () => {
+    expect(validarDocumento("12345678Z")).toBe(true);
+    expect(validarDocumento("00000000T")).toBe(true);
+    expect(validarDocumento("87654321X")).toBe(true);
+  });
+
+  test("letra de control incorrecta", () => {
+    expect(validarDocumento("12345678A")).toBe(false);
+    expect(validarDocumento("00000000R")).toBe(false);
+  });
+
+  test("minúsculas, espacios y guiones", () => {
+    expect(validarDocumento("12345678z")).toBe(true);
+    expect(validarDocumento(" 12345678-Z ")).toBe(true);
+    expect(validarDocumento("1234 5678 z")).toBe(true);
+  });
+
+  test("NIE con X, Y y Z", () => {
+    expect(validarDocumento("X1234567L")).toBe(true);
+    expect(validarDocumento("Y1234567X")).toBe(true);
+    expect(validarDocumento("Z1234567R")).toBe(true);
+    expect(validarDocumento("x-1234567-l")).toBe(true);
+    expect(validarDocumento("X1234567T")).toBe(false);
+  });
+
+  test("formatos incorrectos", () => {
+    expect(validarDocumento("")).toBe(false);
+    expect(validarDocumento("1234567Z")).toBe(false);
+    expect(validarDocumento("123456789Z")).toBe(false);
+    expect(validarDocumento("1234567AZ")).toBe(false);
+    expect(validarDocumento("W1234567L")).toBe(false);
+    expect(validarDocumento("X12345678L")).toBe(false);
+    expect(validarDocumento("123456780")).toBe(false);
+  });
+});
+
+describe("normalizarTelefono", () => {
+  test("sin prefijo", () => {
+    expect(normalizarTelefono("612345678")).toBe("+34612345678");
+    expect(normalizarTelefono("912345678")).toBe("+34912345678");
+  });
+
+  test("con prefijo +34 y 0034", () => {
+    expect(normalizarTelefono("+34612345678")).toBe("+34612345678");
+    expect(normalizarTelefono("0034 712 345 678")).toBe("+34712345678");
+    expect(normalizarTelefono("+34 812-34-56-78")).toBe("+34812345678");
+  });
+
+  test("separadores", () => {
+    expect(normalizarTelefono("612 34 56 78")).toBe("+34612345678");
+    expect(normalizarTelefono("612.345.678")).toBe("+34612345678");
+    expect(normalizarTelefono("612-345-678")).toBe("+34612345678");
+  });
+
+  test("inválidos", () => {
+    expect(normalizarTelefono("512345678")).toBeNull();
+    expect(normalizarTelefono("012345678")).toBeNull();
+    expect(normalizarTelefono("61234567")).toBeNull();
+    expect(normalizarTelefono("6123456789")).toBeNull();
+    expect(normalizarTelefono("+33612345678")).toBeNull();
+    expect(normalizarTelefono("61234567a")).toBeNull();
+    expect(normalizarTelefono("")).toBeNull();
+  });
+});

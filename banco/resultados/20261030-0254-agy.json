@@ -1,0 +1,386 @@
+{
+  "fecha": "2026-10-30T01:54:23.758Z",
+  "proveedor": "agy",
+  "modelo": null,
+  "maxIteraciones": 40,
+  "paralelo": 3,
+  "tiempoMaxSegundos": 900,
+  "resumen": {
+    "aprobadas": 1,
+    "total": 20,
+    "puntuacion": "1/20",
+    "porcentaje": 5,
+    "tokens": {
+      "entrada": 341426,
+      "salida": 104717,
+      "razonamiento": 102264,
+      "total": 548407
+    },
+    "llamadas": 12,
+    "segundosAgente": 897.3,
+    "segundosTotal": 326.28,
+    "interrumpido": false
+  },
+  "tareas": [
+    {
+      "id": "01-carrito-descuento",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 152.84,
+      "segundosComprobar": 0.05,
+      "tokens": {
+        "entrada": 51948,
+        "salida": 18822,
+        "razonamiento": 17729,
+        "total": 88499
+      },
+      "llamadas": 12,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\01-carrito-descuento.log"
+    },
+    {
+      "id": "02-paginacion",
+      "ok": false,
+      "motivo": "25 elementos, página 1: se esperaba { elementos: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ], pagina: 1, totalPaginas: 3, hayAnterior: false, haySiguiente: true, } y se obtuvo { elementos: [ 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ], pagina: 1, totalPaginas: 2, hayAnterior: false, haySiguiente: false, }",
+      "fin": "fin",
+      "segundos": 13.9,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 9562,
+        "salida": 1243,
+        "razonamiento": 1208,
+        "total": 12013
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\02-paginacion",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\02-paginacion.log"
+    },
+    {
+      "id": "03-renombrar-funcion",
+      "ok": false,
+      "motivo": "sigue apareciendo calcImp:\nREADME.md:5: - `calcImp(base, tipo)` devuelve la cuota de IVA de una base imponible (tipos `general`, `reducido` y `superreducido`).\nREADME.md:6: - `totalesFactura(lineas)` suma bases y cuotas. Usa `calcImp` línea a línea.\nsrc/factura.ts:1: import { calcImp, type TipoIva } from \"./impuestos\";\nsrc/factura.ts:21: cuota += calcImp(importe, l.tipo);\nsrc/impuestos.ts:7: export function calcImp(base: number, tipo: TipoIva = \"general\"): number {\nsrc/index.ts:1: export { calcImp, TIPOS_IVA, type TipoIva } from \"./impuestos\";\nsrc/informe.ts:1: import { calcImp, TIPOS_IVA, type TipoIva } from \"./impuestos\";\nsrc/informe.ts:8: // calcImp redondea cada línea, igual que en la factura",
+      "fin": "fin",
+      "segundos": 30.73,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 23980,
+        "salida": 3142,
+        "razonamiento": 3010,
+        "total": 30132
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\03-renombrar-funcion",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\03-renombrar-funcion.log"
+    },
+    {
+      "id": "04-parametro-moneda",
+      "ok": false,
+      "motivo": "formatearPrecio(1234.5, \"USD\"): se esperaba \"$1,234.50\" y se obtuvo \"1.234,50 €\"",
+      "fin": "fin",
+      "segundos": 54.02,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 9661,
+        "salida": 7183,
+        "razonamiento": 7148,
+        "total": 23992
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\04-parametro-moneda",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\04-parametro-moneda.log"
+    },
+    {
+      "id": "05-versiones-semver",
+      "ok": false,
+      "motivo": "error al comprobar: Sin implementar",
+      "fin": "fin",
+      "segundos": 71.49,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 10013,
+        "salida": 8687,
+        "razonamiento": 8645,
+        "total": 27345
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\05-versiones-semver",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\05-versiones-semver.log"
+    },
+    {
+      "id": "06-errores-tipos",
+      "ok": false,
+      "motivo": "tsc da errores:\nsrc/informe.ts(5,83): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.\nsrc/inventario.ts(10,3): error TS2322: Type 'Producto | undefined' is not assignable to type 'Producto'.\n  Type 'undefined' is not assignable to type 'Producto'.\nsrc/inventario.ts(14,3): error TS2322: Type 'Producto' is not assignable to type 'number'.\nsrc/inventario.ts(14,41): error TS2365: Operator '+' cannot be applied to types 'Producto' and 'number'.\nsrc/inventario.ts(18,10): error TS18048: 'p.etiquetas' is possibly 'undefined'.\nsrc/inventario.ts(18,10): error TS2532: Object is possibly 'undefined'.\nsrc/inventario.ts(25,7): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.\nsrc/inventario.ts(25,19): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.\nsrc/inventario.ts(26,7): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.\nsrc/inventario.ts(33,53): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.\nsrc/inventario.ts(36,43): error TS2366: Function lacks ending return statement and return type does not include 'undefined'.",
+      "fin": "fin",
+      "segundos": 62.18,
+      "segundosComprobar": 0.16,
+      "tokens": {
+        "entrada": 9621,
+        "salida": 7867,
+        "razonamiento": 7827,
+        "total": 25315
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\06-errores-tipos",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\06-errores-tipos.log"
+    },
+    {
+      "id": "07-csv-comillas",
+      "ok": false,
+      "motivo": "parsearCsv(\"a,b\\r\\n1,2\\r\\n\"): se esperaba [ [ \"a\", \"b\" ], [ \"1\", \"2\" ] ] y se obtuvo [ [ \"a\", \"b\\r\" ], [ \"1\", \"2\\r\" ] ]",
+      "fin": "fin",
+      "segundos": 32.73,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 9590,
+        "salida": 3821,
+        "razonamiento": 3786,
+        "total": 17197
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\07-csv-comillas",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\07-csv-comillas.log"
+    },
+    {
+      "id": "08-agenda-husos",
+      "ok": false,
+      "motivo": "diaLocal(2026-03-28T23:30:00Z, Europe/Madrid): se esperaba \"2026-03-29\" y se obtuvo \"2026-03-28\"",
+      "fin": "fin",
+      "segundos": 27.58,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 9624,
+        "salida": 3005,
+        "razonamiento": 2965,
+        "total": 15594
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\08-agenda-husos",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\08-agenda-husos.log"
+    },
+    {
+      "id": "09-regex-matriculas",
+      "ok": false,
+      "motivo": "extraerMatriculas(\"El coche 1234 BCD y la moto 5678-FGH.\"): se esperaba [ \"1234BCD\", \"5678FGH\" ] y se obtuvo []",
+      "fin": "fin",
+      "segundos": 24.07,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 21901,
+        "salida": 2501,
+        "razonamiento": 2391,
+        "total": 26793
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\09-regex-matriculas",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\09-regex-matriculas.log"
+    },
+    {
+      "id": "10-texto-espanol",
+      "ok": false,
+      "motivo": "slugificar(\"Año Nuevo en Cádiz\"): se esperaba \"ano-nuevo-en-cadiz\" y se obtuvo \"a-o-nuevo-en-c-diz\"",
+      "fin": "fin",
+      "segundos": 58.5,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 28139,
+        "salida": 6555,
+        "razonamiento": 6435,
+        "total": 41129
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\10-texto-espanol",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\10-texto-espanol.log"
+    },
+    {
+      "id": "11-refactor-duplicado",
+      "ok": false,
+      "motivo": "sigue habiendo código duplicado (cabecera ×3, recorte del nombre ×3, pie ×3)",
+      "fin": "fin",
+      "segundos": 33.3,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 24061,
+        "salida": 3764,
+        "razonamiento": 3658,
+        "total": 31483
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\11-refactor-duplicado",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\11-refactor-duplicado.log"
+    },
+    {
+      "id": "12-config-json",
+      "ok": false,
+      "motivo": "idiomas admitidos: se esperaba [ \"ca\", \"en\", \"es\", \"fr\" ] y se obtuvo [ \"ca\", \"en\", \"es\" ]",
+      "fin": "fin",
+      "segundos": 27.62,
+      "segundosComprobar": 0.02,
+      "tokens": {
+        "entrada": 9606,
+        "salida": 3134,
+        "razonamiento": 3094,
+        "total": 15834
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\12-config-json",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\12-config-json.log"
+    },
+    {
+      "id": "13-buscar-dato",
+      "ok": false,
+      "motivo": "no existe RESPUESTA.md",
+      "fin": "fin",
+      "segundos": 25.85,
+      "segundosComprobar": 0.02,
+      "tokens": {
+        "entrada": 9583,
+        "salida": 2827,
+        "razonamiento": 2754,
+        "total": 15164
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\13-buscar-dato",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\13-buscar-dato.log"
+    },
+    {
+      "id": "14-cli-subcomando",
+      "ok": false,
+      "motivo": "`hecha 2` termina con código 2:\nUso: bun src/cli.ts <orden> [argumentos]\nÓrdenes:\n  agregar <texto>   añade una nota\n  listar            muestra todas las notas",
+      "fin": "fin",
+      "segundos": 34.74,
+      "segundosComprobar": 0.14,
+      "tokens": {
+        "entrada": 25015,
+        "salida": 3841,
+        "razonamiento": 3721,
+        "total": 32577
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\14-cli-subcomando",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\14-cli-subcomando.log"
+    },
+    {
+      "id": "15-async-sin-await",
+      "ok": false,
+      "motivo": "reintentar tras dos fallos: rechaza con \"fallo 1\" y debía resolverse",
+      "fin": "fin",
+      "segundos": 28.36,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 9575,
+        "salida": 3068,
+        "razonamiento": 2986,
+        "total": 15629
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\15-async-sin-await",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\15-async-sin-await.log"
+    },
+    {
+      "id": "16-codigo-muerto",
+      "ok": false,
+      "motivo": "sigue existiendo src/legacy/exportador.ts, que no se usa",
+      "fin": "fin",
+      "segundos": 62.83,
+      "segundosComprobar": 0.04,
+      "tokens": {
+        "entrada": 9552,
+        "salida": 6878,
+        "razonamiento": 6836,
+        "total": 23266
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\16-codigo-muerto",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\16-codigo-muerto.log"
+    },
+    {
+      "id": "17-escribir-tests",
+      "ok": false,
+      "motivo": "no hay ningún fichero de tests (*.test.ts)",
+      "fin": "fin",
+      "segundos": 17.42,
+      "segundosComprobar": 0.02,
+      "tokens": {
+        "entrada": 9694,
+        "salida": 1910,
+        "razonamiento": 1875,
+        "total": 13479
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\17-escribir-tests",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\17-escribir-tests.log"
+    },
+    {
+      "id": "18-investigar-tests",
+      "ok": false,
+      "motivo": "bun test no pasa:\n+   \"CAF-001\",\n+   \"CAF-002\",\n+   \"CAF-003\",\n  ]\n- Expected  - 3\n+ Received  + 3\n      at <anonymous> (C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\18-investigar-tests\\test\\catalogo.test.ts:32:53)\n(fail) catálogo > los más caros [0.12ms]\n 0 pass\n 4 fail\n 5 expect() calls\nRan 4 tests across 1 file. [17.00ms]",
+      "fin": "fin",
+      "segundos": 27.21,
+      "segundosComprobar": 0.05,
+      "tokens": {
+        "entrada": 24054,
+        "salida": 3060,
+        "razonamiento": 2943,
+        "total": 30057
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\18-investigar-tests",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\18-investigar-tests.log"
+    },
+    {
+      "id": "19-cache-lru",
+      "ok": false,
+      "motivo": "new CacheLRU({ capacidad: 0 }) debe lanzar RangeError",
+      "fin": "fin",
+      "segundos": 56.83,
+      "segundosComprobar": 0.04,
+      "tokens": {
+        "entrada": 26709,
+        "salida": 6775,
+        "razonamiento": 6657,
+        "total": 40141
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\19-cache-lru",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\19-cache-lru.log"
+    },
+    {
+      "id": "20-rendimiento",
+      "ok": false,
+      "motivo": "con 200.000 contactos no termina en 4 s",
+      "fin": "fin",
+      "segundos": 55.13,
+      "segundosComprobar": 4.05,
+      "tokens": {
+        "entrada": 9538,
+        "salida": 6634,
+        "razonamiento": 6596,
+        "total": 22768
+      },
+      "llamadas": 0,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\20-rendimiento",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0254-39292\\20-rendimiento.log"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 /**
  * Punto de entrada del núcleo.
  *
- *   aquiles-nucleo [--puerto N] [--proveedor agy|simulado] [--modelo ID] [--cwd RUTA] [--token T]
- *   aquiles-nucleo --cli ...
+ *   aquiles-nucleo [--puerto N] [--proveedor NOMBRE] [--modelo ID] [--cwd RUTA] [--perfil NOMBRE] [--token T]
+ *   aquiles-nucleo --cli [--continuar | --reanudar ID] [--modo-aprobacion MODO] ...
  *
  * En modo servidor, stdout solo lleva la línea `AQUILES_READY port=N` (la lee la app);
  * los registros van a stderr. El token llega en AQUILES_TOKEN (o --token para desarrollo).
@@ -10,40 +10,46 @@
  */
 import { randomBytes } from "node:crypto";
 import { parseArgs } from "node:util";
-import { LINEA_LISTO } from "@aquiles/protocolo";
+import { LINEA_LISTO, MODOS_APROBACION, type ModoAprobacion } from "@aquiles/protocolo";
 import paquete from "../package.json";
 import { ejecutarCli } from "./cli";
-import { leer } from "./herramientas/leer";
-import { ProveedorAgy } from "./proveedores/agy";
-import { guionDemo, ProveedorSimulado } from "./proveedores/simulado";
+import { herramientasPorDefecto } from "./herramientas/index";
+import { crearProveedor } from "./proveedores/index";
+import { directorioPerfil } from "./rutas";
 import { iniciarServidor, ORIGENES_APP } from "./servidor";
-import type { Proveedor } from "./tipos";
 
 const { values: op } = parseArgs({
   args: process.argv.slice(2),
   options: {
     cli: { type: "boolean", default: false },
+    continuar: { type: "boolean", default: false },
+    reanudar: { type: "string" },
     puerto: { type: "string", default: "0" },
     proveedor: { type: "string", default: process.env.AQUILES_PROVEEDOR ?? "agy" },
     modelo: { type: "string", default: process.env.AQUILES_MODELO },
     cwd: { type: "string", default: process.env.AQUILES_CWD ?? process.cwd() },
+    perfil: { type: "string", default: process.env.AQUILES_PERFIL ?? "principal" },
+    "modo-aprobacion": { type: "string", default: "preguntar-ejecutar" },
     token: { type: "string" },
   },
 });
 
 const log = (m: string) => console.error(`[núcleo] ${m}`);
-
-function crearProveedor(nombre: string): Proveedor {
-  if (nombre === "agy") return new ProveedorAgy({ modelo: op.modelo });
-  if (nombre === "simulado") return new ProveedorSimulado(guionDemo(), 15);
-  throw new Error(`Proveedor desconocido: ${nombre} (disponibles: agy, simulado)`);
+const modo = op["modo-aprobacion"] as ModoAprobacion;
+if (!MODOS_APROBACION.includes(modo)) {
+  console.error(`Modo de aprobación desconocido: ${modo} (${MODOS_APROBACION.join(", ")})`);
+  process.exit(2);
 }
 
-const proveedor = crearProveedor(op.proveedor!);
-const herramientas = [leer];
+const proveedor = crearProveedor(op.proveedor!, { modelo: op.modelo });
+const herramientas = herramientasPorDefecto();
+const perfil = directorioPerfil(op.perfil);
 
 if (op.cli) {
-  await ejecutarCli(proveedor, herramientas, op.cwd!);
+  await ejecutarCli({
+    proveedor, herramientas, cwd: op.cwd!, perfil, modoAprobacion: modo,
+    reanudar: op.continuar ? "ultima" : op.reanudar,
+  });
   process.exit(0);
 }
 
@@ -62,10 +68,11 @@ const servidor = iniciarServidor({
   herramientas,
   cwdPorDefecto: op.cwd!,
   version: paquete.version,
+  perfil,
   origenesPermitidos: [...ORIGENES_APP, ...extra],
   log,
 });
-log(`v${paquete.version}, proveedor ${proveedor.nombre}, carpeta ${op.cwd}`);
+log(`v${paquete.version}, proveedor ${proveedor.nombre}${proveedor.modelo ? ` (${proveedor.modelo})` : ""}, carpeta ${op.cwd}, perfil ${perfil}`);
 console.log(`${LINEA_LISTO} port=${servidor.puerto}`);
 
 const salir = async () => {

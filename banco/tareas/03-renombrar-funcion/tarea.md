@@ -1,0 +1,1 @@
+El nombre `calcImp` no lo entiende nadie. Renombra esa función a `calcularImpuesto` en todo el proyecto: código, tests y documentación. No dejes un alias con el nombre viejo. Todo tiene que seguir funcionando igual (`bun test` y `bun src/main.ts`).

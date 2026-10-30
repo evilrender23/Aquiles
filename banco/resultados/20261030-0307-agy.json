@@ -1,0 +1,386 @@
+{
+  "fecha": "2026-10-30T02:07:11.942Z",
+  "proveedor": "agy",
+  "modelo": null,
+  "maxIteraciones": 40,
+  "paralelo": 3,
+  "tiempoMaxSegundos": 900,
+  "resumen": {
+    "aprobadas": 15,
+    "total": 20,
+    "puntuacion": "15/20",
+    "porcentaje": 75,
+    "tokens": {
+      "entrada": 1504536,
+      "salida": 342841,
+      "razonamiento": 290322,
+      "total": 2137699
+    },
+    "llamadas": 352,
+    "segundosAgente": 3259.9,
+    "segundosTotal": 1530.64,
+    "interrumpido": false
+  },
+  "tareas": [
+    {
+      "id": "01-carrito-descuento",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 187.14,
+      "segundosComprobar": 0.05,
+      "tokens": {
+        "entrada": 51845,
+        "salida": 23246,
+        "razonamiento": 22404,
+        "total": 97495
+      },
+      "llamadas": 10,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\01-carrito-descuento.log"
+    },
+    {
+      "id": "02-paginacion",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 117.49,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 57037,
+        "salida": 14187,
+        "razonamiento": 12032,
+        "total": 83256
+      },
+      "llamadas": 19,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\02-paginacion.log"
+    },
+    {
+      "id": "03-renombrar-funcion",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 100.54,
+      "segundosComprobar": 0.08,
+      "tokens": {
+        "entrada": 78960,
+        "salida": 12470,
+        "razonamiento": 10560,
+        "total": 101990
+      },
+      "llamadas": 26,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\03-renombrar-funcion.log"
+    },
+    {
+      "id": "04-parametro-moneda",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 202.63,
+      "segundosComprobar": 0.09,
+      "tokens": {
+        "entrada": 66487,
+        "salida": 20804,
+        "razonamiento": 17800,
+        "total": 105091
+      },
+      "llamadas": 27,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\04-parametro-moneda.log"
+    },
+    {
+      "id": "05-versiones-semver",
+      "ok": false,
+      "motivo": "error del banco",
+      "fin": null,
+      "segundos": 0,
+      "segundosComprobar": 0,
+      "tokens": {
+        "entrada": 0,
+        "salida": 0,
+        "razonamiento": 0,
+        "total": 0
+      },
+      "llamadas": 0,
+      "error": "EBUSY: resource busy or locked, rm 'C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\05-versiones-semver'",
+      "carpeta": null,
+      "registro": null
+    },
+    {
+      "id": "06-errores-tipos",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 93.53,
+      "segundosComprobar": 0.17,
+      "tokens": {
+        "entrada": 112082,
+        "salida": 9699,
+        "razonamiento": 7829,
+        "total": 129610
+      },
+      "llamadas": 18,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\06-errores-tipos.log"
+    },
+    {
+      "id": "07-csv-comillas",
+      "ok": false,
+      "motivo": "error del banco",
+      "fin": null,
+      "segundos": 0,
+      "segundosComprobar": 0,
+      "tokens": {
+        "entrada": 0,
+        "salida": 0,
+        "razonamiento": 0,
+        "total": 0
+      },
+      "llamadas": 0,
+      "error": "EBUSY: resource busy or locked, rm 'C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\07-csv-comillas'",
+      "carpeta": null,
+      "registro": null
+    },
+    {
+      "id": "08-agenda-husos",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "limite",
+      "segundos": 457.33,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 129349,
+        "salida": 33643,
+        "razonamiento": 26500,
+        "total": 189492
+      },
+      "llamadas": 43,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\08-agenda-husos.log"
+    },
+    {
+      "id": "09-regex-matriculas",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 208.11,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 169082,
+        "salida": 13143,
+        "razonamiento": 10006,
+        "total": 192231
+      },
+      "llamadas": 28,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\09-regex-matriculas.log"
+    },
+    {
+      "id": "10-texto-espanol",
+      "ok": false,
+      "motivo": "error del banco",
+      "fin": null,
+      "segundos": 0,
+      "segundosComprobar": 0,
+      "tokens": {
+        "entrada": 0,
+        "salida": 0,
+        "razonamiento": 0,
+        "total": 0
+      },
+      "llamadas": 0,
+      "error": "EBUSY: resource busy or locked, rm 'C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\10-texto-espanol'",
+      "carpeta": null,
+      "registro": null
+    },
+    {
+      "id": "11-refactor-duplicado",
+      "ok": false,
+      "motivo": "sigue habiendo código duplicado (cabecera ×3, recorte del nombre ×3, pie ×3)",
+      "fin": "fin",
+      "segundos": 235.82,
+      "segundosComprobar": 0.03,
+      "tokens": {
+        "entrada": 99774,
+        "salida": 27378,
+        "razonamiento": 21418,
+        "total": 148570
+      },
+      "llamadas": 19,
+      "error": null,
+      "carpeta": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\11-refactor-duplicado",
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\11-refactor-duplicado.log"
+    },
+    {
+      "id": "12-config-json",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 118.63,
+      "segundosComprobar": 0.06,
+      "tokens": {
+        "entrada": 93220,
+        "salida": 12574,
+        "razonamiento": 10721,
+        "total": 116515
+      },
+      "llamadas": 27,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\12-config-json.log"
+    },
+    {
+      "id": "13-buscar-dato",
+      "ok": false,
+      "motivo": "error del banco",
+      "fin": null,
+      "segundos": 0,
+      "segundosComprobar": 0,
+      "tokens": {
+        "entrada": 0,
+        "salida": 0,
+        "razonamiento": 0,
+        "total": 0
+      },
+      "llamadas": 0,
+      "error": "EBUSY: resource busy or locked, rm 'C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\13-buscar-dato'",
+      "carpeta": null,
+      "registro": null
+    },
+    {
+      "id": "14-cli-subcomando",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 199.31,
+      "segundosComprobar": 0.32,
+      "tokens": {
+        "entrada": 134310,
+        "salida": 20916,
+        "razonamiento": 18820,
+        "total": 174046
+      },
+      "llamadas": 21,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\14-cli-subcomando.log"
+    },
+    {
+      "id": "15-async-sin-await",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 179.53,
+      "segundosComprobar": 0.38,
+      "tokens": {
+        "entrada": 119955,
+        "salida": 16245,
+        "razonamiento": 11947,
+        "total": 148147
+      },
+      "llamadas": 23,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\15-async-sin-await.log"
+    },
+    {
+      "id": "16-codigo-muerto",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 218.36,
+      "segundosComprobar": 0.07,
+      "tokens": {
+        "entrada": 115541,
+        "salida": 15962,
+        "razonamiento": 13604,
+        "total": 145107
+      },
+      "llamadas": 37,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\16-codigo-muerto.log"
+    },
+    {
+      "id": "17-escribir-tests",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 268.7,
+      "segundosComprobar": 0.34,
+      "tokens": {
+        "entrada": 83383,
+        "salida": 35418,
+        "razonamiento": 28255,
+        "total": 147056
+      },
+      "llamadas": 15,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\17-escribir-tests.log"
+    },
+    {
+      "id": "18-investigar-tests",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 120.53,
+      "segundosComprobar": 0.06,
+      "tokens": {
+        "entrada": 49228,
+        "salida": 13531,
+        "razonamiento": 12480,
+        "total": 75239
+      },
+      "llamadas": 13,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\18-investigar-tests.log"
+    },
+    {
+      "id": "19-cache-lru",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 348.71,
+      "segundosComprobar": 0.04,
+      "tokens": {
+        "entrada": 88080,
+        "salida": 46716,
+        "razonamiento": 42135,
+        "total": 176931
+      },
+      "llamadas": 12,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\19-cache-lru.log"
+    },
+    {
+      "id": "20-rendimiento",
+      "ok": true,
+      "motivo": "OK",
+      "fin": "fin",
+      "segundos": 203.5,
+      "segundosComprobar": 0.17,
+      "tokens": {
+        "entrada": 56203,
+        "salida": 26909,
+        "razonamiento": 23811,
+        "total": 106923
+      },
+      "llamadas": 14,
+      "error": null,
+      "carpeta": null,
+      "registro": "C:\\Users\\Ozx\\AppData\\Local\\Temp\\aquiles-banco\\20261030-0307-31752\\20-rendimiento.log"
+    }
+  ]
+}

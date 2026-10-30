@@ -1,0 +1,8 @@
+{
+  "servicios": {
+    "catalogo": { "puerto": 8100, "replicas": 1 },
+    "pagos": { "puerto": 8443, "replicas": 1, "proveedor": "redsys-pruebas" },
+    "avisos": { "puerto": 8200 }
+  },
+  "registro": "debug"
+}

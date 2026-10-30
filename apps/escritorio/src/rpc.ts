@@ -1,4 +1,4 @@
-import type { Evento, NombreMetodo, Params, RespuestaRpc, Resultados } from "@aquiles/protocolo";
+import type { Evento, NombreMetodo, NombrePeticionCliente, Params, PeticionesCliente, RespuestaRpc, Resultados } from "@aquiles/protocolo";
 import { RUTA_RPC } from "@aquiles/protocolo";
 
 export class ErrorNucleo extends Error {
@@ -12,6 +12,7 @@ export class ClienteRpc {
   private siguiente = 0;
   private pendientes = new Map<number, { ok: (v: unknown) => void; mal: (e: Error) => void }>();
   private oyentes = new Set<(e: Evento) => void>();
+  private atendedores = new Map<string, (params: any) => Promise<unknown>>();
 
   private constructor(private ws: WebSocket) {
     ws.onmessage = (m) => this.recibir(String(m.data));
@@ -42,6 +43,14 @@ export class ClienteRpc {
     return () => this.oyentes.delete(f);
   }
 
+  /** Atiende las peticiones que hace el núcleo (aprobaciones, preguntas). */
+  atender<M extends NombrePeticionCliente>(
+    metodo: M,
+    f: (params: PeticionesCliente[M]["params"]) => Promise<PeticionesCliente[M]["resultado"]>,
+  ): void {
+    this.atendedores.set(metodo, f);
+  }
+
   alCerrar(f: () => void): void {
     this.ws.addEventListener("close", f);
   }
@@ -54,6 +63,17 @@ export class ClienteRpc {
     const datos = JSON.parse(texto) as RespuestaRpc & { method?: string; params?: Evento };
     if (datos.method === "evento" && datos.params) {
       for (const f of this.oyentes) f(datos.params);
+      return;
+    }
+    if (datos.method && typeof datos.id === "string") {
+      const id = datos.id;
+      const f = this.atendedores.get(datos.method);
+      const enviar = (r: object) => this.ws.send(JSON.stringify({ jsonrpc: "2.0", id, ...r }));
+      if (!f) return enviar({ error: { code: -32601, message: `La interfaz no atiende ${datos.method}` } });
+      f(datos.params as unknown).then(
+        (result) => enviar({ result }),
+        (e: unknown) => enviar({ error: { code: -32603, message: e instanceof Error ? e.message : String(e) } }),
+      );
       return;
     }
     const p = typeof datos.id === "number" ? this.pendientes.get(datos.id) : undefined;

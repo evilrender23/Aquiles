@@ -1,0 +1,22 @@
+import { expect, test } from "bun:test";
+import { aplicarDescuento, capitalizar, formatearFecha, precioConIva, resumenPedido } from "../src/index";
+
+test("formatearFecha", () => {
+  expect(formatearFecha("2026-03-07")).toBe("7 mar 2026");
+});
+
+test("capitalizar", () => {
+  expect(capitalizar("  ana   garcía ")).toBe("Ana García");
+});
+
+test("precios", () => {
+  expect(precioConIva(100)).toBe(121);
+  expect(aplicarDescuento(121, 10)).toBe(108.9);
+  expect(aplicarDescuento(50, 150)).toBe(0);
+});
+
+test("resumenPedido", () => {
+  expect(resumenPedido({ cliente: "luis pérez", fecha: "2026-12-24", base: 10, descuento: 50 })).toBe(
+    "Luis Pérez · 24 dic 2026 · 6.05 €",
+  );
+});

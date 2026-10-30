@@ -1,0 +1,1 @@
+Este paquete arrastra mucho código muerto. Límpialo: quita las funciones, constantes, imports, ramas y ficheros que no se usan. La API pública es exactamente lo que exporta `src/index.ts` y no puede cambiar, ni en nombres ni en comportamiento. Los tests (`bun test`) tienen que seguir pasando sin tocarlos.

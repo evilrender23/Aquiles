@@ -1,0 +1,1 @@
+La importación de contactos se queda colgada con ficheros grandes (de 100.000 contactos para arriba). El problema está en `src/contactos.ts`: `deduplicar` y `contarPorDominio` tardan muchísimo. Haz que sean rápidas sin cambiar en nada sus resultados.
