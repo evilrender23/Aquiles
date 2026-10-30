@@ -535,3 +535,112 @@ label.nx-chip--opcion:has(:focus-visible) {
   width: 30px;
   height: 30px;
 }
+
+/* ── Menú contextual ───────────────────────────────── */
+.nx-menus {
+  display: contents;
+}
+.nx-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 210px;
+  max-width: min(340px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--surface-raised);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: nx-fold 0.14s var(--ease) both;
+}
+.nx-menu__opcion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font: 500 14px/1.2 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.nx-menu__opcion:hover:not([aria-disabled="true"]),
+.nx-menu__opcion:focus-visible,
+.nx-menu__opcion:focus,
+.nx-menu__opcion--abierta {
+  background: var(--line);
+  color: var(--ink-strong);
+}
+.nx-menu__opcion[aria-disabled="true"] {
+  color: var(--ink-muted);
+  cursor: default;
+  opacity: 0.5;
+}
+.nx-menu__icono {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--ink-muted);
+}
+.nx-menu__opcion:hover:not([aria-disabled="true"]) .nx-menu__icono,
+.nx-menu__opcion:focus .nx-menu__icono {
+  color: var(--lime-ink);
+}
+.nx-menu__texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nx-menu__atajo {
+  flex: none;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.nx-menu__flecha {
+  flex: none;
+  color: var(--ink-muted);
+}
+.nx-menu__separador {
+  margin: 6px 4px;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+/* Destructivas: en tinta fuerte e invertidas al pasar por encima, como la marca de «Error». */
+.nx-menu__opcion--peligrosa,
+.nx-menu__opcion--peligrosa .nx-menu__icono {
+  color: var(--ink-strong);
+}
+.nx-menu__opcion--peligrosa:hover:not([aria-disabled="true"]),
+.nx-menu__opcion--peligrosa:focus,
+.nx-menu__opcion--confirmar {
+  background: var(--ink-strong);
+  color: var(--surface-base);
+}
+.nx-menu__opcion--peligrosa:hover .nx-menu__icono,
+.nx-menu__opcion--peligrosa:focus .nx-menu__icono,
+.nx-menu__opcion--confirmar .nx-menu__icono {
+  color: var(--surface-base);
+}
+.nx-menu__confirmar {
+  display: flex;
+  gap: 4px;
+}
+.nx-menu__opcion--cancelar {
+  flex: none;
+  width: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nx-menu {
+    animation: none;
+  }
+}

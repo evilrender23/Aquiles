@@ -1,6 +1,6 @@
 /** Ajustes → MCP: servidores, su estado y herramientas, y el formulario para añadir o editar. */
 import type { InfoServidorMcp } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Campo, CampoInterruptor, Etiqueta, clases } from "@aquiles/ui";
+import { Boton, BotonIcono, Campo, CampoInterruptor, Etiqueta, clases, useMenuContextual } from "@aquiles/ui";
 import { useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -96,8 +96,25 @@ function ServidorMcp({ s, alEditar, alCambiar, alBorrar }: { s: InfoServidorMcp;
     }
   };
 
+  const menu = useMenuContextual(() => [
+    { texto: "Reconectar", icono: "recargar", deshabilitado: !s.activo || ocupado, alElegir: () => void accion(async () => alCambiar(await llamar("mcp.reconectar", { nombre: s.nombre }))) },
+    { texto: s.activo ? "Desactivar" : "Activar", alElegir: () => void accion(async () => alCambiar(await llamar("mcp.guardar", { nombre: s.nombre, activo: !s.activo }))) },
+    { texto: "Editar", icono: "lapiz", alElegir: alEditar },
+    { tipo: "separador" },
+    {
+      texto: "Borrar",
+      icono: "papelera",
+      peligrosa: true,
+      alElegir: () =>
+        void accion(async () => {
+          await llamar("mcp.borrar", { nombre: s.nombre });
+          alBorrar();
+        }),
+    },
+  ]);
+
   return (
-    <article className="servidor-mcp">
+    <article className="servidor-mcp" {...menu}>
       <div className="servidor-mcp__cabecera">
         <div className="servidor-mcp__datos">
           <span className="servidor-mcp__nombre">{s.nombre}</span>

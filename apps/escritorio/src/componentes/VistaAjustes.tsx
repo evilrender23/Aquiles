@@ -2,10 +2,15 @@ import type { Ajustes, AjustesAprendizaje, AjustesHerramientas, EntornoTerminal 
 import { Boton, Campo, CampoInterruptor, Chip, Etiqueta, Tarjeta, Titular } from "@aquiles/ui";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
+import { esfuerzoTrasCambio } from "../estado/esfuerzo";
 import { hayClaveLlavero } from "../plataforma/claves";
 import { CampoCarpeta, OpcionesChip, OpcionesPermisos, ProveedorModelo } from "./Campos";
 import { SeccionAplicacion, SeccionPlugins } from "./Aplicacion";
 import { SeccionMcp } from "./Mcp";
+import { SeccionModelos } from "./ModelosLocales";
+
+/** Clave de Hugging Face: no es un proveedor, pero se guarda y se pasa al núcleo igual que las suyas. */
+const HF = { id: "huggingface", nombre: "Clave de Hugging Face" };
 
 type Guardado = { tipo: "guardando" } | { tipo: "ok" } | { tipo: "error"; texto: string };
 
@@ -59,7 +64,7 @@ export function VistaAjustes() {
     if (form && !umbrales) setUmbrales({ herramientas: String(form.aprendizaje.cadaHerramientas), mensajes: String(form.aprendizaje.cadaMensajes) });
   }, [form, umbrales]);
 
-  const idsConClave = conClave.map((p) => p.id).join(",");
+  const idsConClave = [...conClave.map((p) => p.id), HF.id].join(",");
   const leerLlavero = useCallback(async () => {
     const ids = idsConClave.split(",").filter(Boolean);
     const pares = await Promise.all(ids.map(async (id) => [id, await hayClaveLlavero(id).catch(() => undefined)] as const));
@@ -92,6 +97,7 @@ export function VistaAjustes() {
       const nuevos = await guardarAjustes({
         proveedor: form.proveedor,
         modelo: form.modelo ?? "",
+        esfuerzo: form.esfuerzo ?? "",
         modoAprobacion: form.modoAprobacion,
         carpeta: form.carpeta,
         // Proveedor y modelo vacíos = los de la sesión (revisada o vigilada).
@@ -112,6 +118,37 @@ export function VistaAjustes() {
     }
   };
 
+  /** «Usar por defecto» de un modelo descargado: se guarda ya y el formulario lo refleja (sin tocar lo demás que haya sin guardar). */
+  const usarModeloLocal = async (id: string) => {
+    const esfuerzo = esfuerzoTrasCambio(proveedores, "llamacpp", id, ajustes?.esfuerzo);
+    const nuevos = await guardarAjustes({ proveedor: "llamacpp", modelo: id, ...(esfuerzo !== undefined ? { esfuerzo } : {}) });
+    setForm((f) => (f ? { ...f, proveedor: nuevos.proveedor, modelo: nuevos.modelo, esfuerzo: nuevos.esfuerzo } : f));
+  };
+
+  const campoClave = (id: string, nombre: string, guardada: boolean) => (
+    <div key={id} className="ajustes__clave">
+      <Campo
+        etiqueta={nombre}
+        type="password"
+        mono
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={guardada ? "••••••••••••" : undefined}
+        value={claves[id] ?? ""}
+        onChange={(e) => {
+          setClaves({ ...claves, [id]: e.target.value });
+          setGuardado(undefined);
+        }}
+        sufijo={guardada ? <Chip destacado>Guardada</Chip> : undefined}
+      />
+      {guardada && (
+        <Boton variante="fantasma" tamano="pequeno" icono="papelera" onClick={() => void quitarClave(id)}>
+          Borrar
+        </Boton>
+      )}
+    </div>
+  );
+
   const quitarClave = async (proveedor: string) => {
     try {
       await borrarClave(proveedor);
@@ -127,18 +164,34 @@ export function VistaAjustes() {
         <Titular texto="Ajustes" tamano="l" />
 
         <Seccion numero="01" titulo="Modelo">
-          <ProveedorModelo proveedores={proveedores} proveedor={form.proveedor} modelo={form.modelo} alCambiar={(proveedor, modelo) => cambiar({ proveedor, modelo })} />
+          <ProveedorModelo
+            proveedores={proveedores}
+            proveedor={form.proveedor}
+            modelo={form.modelo}
+            alCambiar={(proveedor, modelo) => {
+              const esfuerzo = esfuerzoTrasCambio(proveedores, proveedor, modelo, form.esfuerzo);
+              cambiar({ proveedor, modelo, ...(esfuerzo !== undefined ? { esfuerzo } : {}) });
+            }}
+            esfuerzo={form.esfuerzo}
+            alEsfuerzo={(esfuerzo) => cambiar({ esfuerzo })}
+          />
         </Seccion>
 
-        <Seccion numero="02" titulo="Permisos">
+        <Seccion numero="02" titulo="Modelos locales">
+          <SeccionModelos porDefecto={form.proveedor === "llamacpp" ? form.modelo : undefined} alUsar={usarModeloLocal}>
+            <div className="ajustes__claves">{campoClave(HF.id, HF.nombre, enLlavero[HF.id] ?? false)}</div>
+          </SeccionModelos>
+        </Seccion>
+
+        <Seccion numero="03" titulo="Permisos">
           <OpcionesPermisos leyenda="Modo de permisos por defecto" valor={form.modoAprobacion} alCambiar={(modoAprobacion) => cambiar({ modoAprobacion })} />
         </Seccion>
 
-        <Seccion numero="03" titulo="Carpeta de trabajo">
+        <Seccion numero="04" titulo="Carpeta de trabajo">
           <CampoCarpeta carpeta={form.carpeta} alCambiar={(carpeta) => cambiar({ carpeta })} />
         </Seccion>
 
-        <Seccion numero="04" titulo="Aprendizaje">
+        <Seccion numero="05" titulo="Aprendizaje">
           <div className="ajustes__interruptores">
             <CampoInterruptor etiqueta="Activo" activo={form.aprendizaje.activo} alCambiar={(activo) => cambiarAprendizaje({ activo })} />
             <CampoInterruptor
@@ -184,7 +237,7 @@ export function VistaAjustes() {
           />
         </Seccion>
 
-        <Seccion numero="05" titulo="Herramientas">
+        <Seccion numero="06" titulo="Herramientas">
           <div className="ajustes__interruptores">
             <CampoInterruptor etiqueta="Navegador" activo={herramientas.navegador} alCambiar={(navegador) => cambiarHerramientas({ navegador })} />
           </div>
@@ -236,48 +289,21 @@ export function VistaAjustes() {
           </div>
         </Seccion>
 
-        <Seccion numero="06" titulo="MCP">
+        <Seccion numero="07" titulo="MCP">
           <SeccionMcp />
         </Seccion>
 
-        <Seccion numero="07" titulo="Plugins">
+        <Seccion numero="08" titulo="Plugins">
           <SeccionPlugins />
         </Seccion>
 
-        <Seccion numero="08" titulo="Aplicación">
+        <Seccion numero="09" titulo="Aplicación">
           <SeccionAplicacion />
         </Seccion>
 
         {conClave.length > 0 && (
-          <Seccion numero="09" titulo="Claves de API">
-            <div className="ajustes__claves">
-              {conClave.map((p) => {
-                const guardada = enLlavero[p.id] ?? p.disponible;
-                return (
-                  <div key={p.id} className="ajustes__clave">
-                    <Campo
-                      etiqueta={p.nombre}
-                      type="password"
-                      mono
-                      autoComplete="off"
-                      spellCheck={false}
-                      placeholder={guardada ? "••••••••••••" : undefined}
-                      value={claves[p.id] ?? ""}
-                      onChange={(e) => {
-                        setClaves({ ...claves, [p.id]: e.target.value });
-                        setGuardado(undefined);
-                      }}
-                      sufijo={guardada ? <Chip destacado>Guardada</Chip> : undefined}
-                    />
-                    {guardada && (
-                      <Boton variante="fantasma" tamano="pequeno" icono="papelera" onClick={() => void quitarClave(p.id)}>
-                        Borrar
-                      </Boton>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+          <Seccion numero="10" titulo="Claves de API">
+            <div className="ajustes__claves">{conClave.map((p) => campoClave(p.id, p.nombre, enLlavero[p.id] ?? p.disponible))}</div>
           </Seccion>
         )}
 

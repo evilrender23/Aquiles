@@ -5,6 +5,7 @@
 import type { ReactNode } from "react";
 import { clases } from "../clases";
 import { Icono } from "../componentes/Icono";
+import { type ElementosMenu, useMenuContextual } from "../componentes/MenuContextual";
 
 export interface GrupoRamas<T> {
   id: string;
@@ -22,22 +23,18 @@ export interface PropsBranchedMenu<T> {
   claveHijo: (hijo: T) => string;
   esActual: (hijo: T) => boolean;
   renderHijo: (hijo: T, actual: boolean) => ReactNode;
+  /** Menú contextual de la cabecera de un grupo (se construye al abrirlo). */
+  menuGrupo?: (grupo: GrupoRamas<T>, abierto: boolean) => ElementosMenu;
 }
 
-export function BranchedMenu<T>({ etiqueta, grupos, abiertos, alAlternar, claveHijo, esActual, renderHijo }: PropsBranchedMenu<T>) {
+export function BranchedMenu<T>({ etiqueta, grupos, abiertos, alAlternar, claveHijo, esActual, renderHijo, menuGrupo }: PropsBranchedMenu<T>) {
   return (
     <nav aria-label={etiqueta} className="nx-ramas">
       {grupos.map((g) => {
         const abierto = abiertos.has(g.id);
         return (
           <div key={g.id}>
-            <button type="button" className="nx-ramas__grupo" aria-expanded={abierto} onClick={() => alAlternar(g.id)} title={g.titulo}>
-              <span aria-hidden="true" className={clases("nx-ramas__chevron", abierto && "nx-ramas__chevron--abierto")}>
-                <Icono nombre="chevron-derecha" tamano={16} />
-              </span>
-              <span className="nx-ramas__nombre">{g.etiqueta}</span>
-              <span className="nx-ramas__cuenta">{g.hijos.length}</span>
-            </button>
+            <CabeceraGrupo grupo={g} abierto={abierto} alAlternar={() => alAlternar(g.id)} menu={menuGrupo} />
             {abierto && (
               <div className="nx-fold">
                 {g.hijos.map((h, i) => {
@@ -66,5 +63,18 @@ export function BranchedMenu<T>({ etiqueta, grupos, abiertos, alAlternar, claveH
         );
       })}
     </nav>
+  );
+}
+
+function CabeceraGrupo<T>({ grupo: g, abierto, alAlternar, menu }: { grupo: GrupoRamas<T>; abierto: boolean; alAlternar: () => void; menu?: (g: GrupoRamas<T>, abierto: boolean) => ElementosMenu }) {
+  const { onContextMenu } = useMenuContextual(() => menu?.(g, abierto) ?? []);
+  return (
+    <button type="button" className="nx-ramas__grupo" aria-expanded={abierto} onClick={alAlternar} title={g.titulo} onContextMenu={menu ? onContextMenu : undefined}>
+      <span aria-hidden="true" className={clases("nx-ramas__chevron", abierto && "nx-ramas__chevron--abierto")}>
+        <Icono nombre="chevron-derecha" tamano={16} />
+      </span>
+      <span className="nx-ramas__nombre">{g.etiqueta}</span>
+      <span className="nx-ramas__cuenta">{g.hijos.length}</span>
+    </button>
   );
 }

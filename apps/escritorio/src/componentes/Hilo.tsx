@@ -1,9 +1,11 @@
-import type { TareaVisible } from "@aquiles/protocolo";
-import { BotonIcono, CrystalizedBall, Etiqueta, Icono, Tarjeta, ThoughtLine, clases } from "@aquiles/ui";
+import { type TareaVisible, textoSinArtefactos } from "@aquiles/protocolo";
+import { BotonIcono, CrystalizedBall, Etiqueta, Icono, Tarjeta, ThoughtLine, clases, copiarTexto, type ElementosMenu, useMenuContextual } from "@aquiles/ui";
 import { useState, type ReactNode } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { hora } from "../estado/formato";
-import type { Conversacion, Elemento } from "../estado/tipos";
+import type { AdjuntoVisto, Conversacion, Elemento } from "../estado/tipos";
+import { AdjuntosMensaje } from "./Adjuntos";
+import { TarjetaArtefacto, useArtefactosHilo } from "./Artefactos";
 import { TextoAsistente } from "./Markdown";
 import { TarjetaHerramienta } from "./TarjetaHerramienta";
 
@@ -27,7 +29,19 @@ function agrupar(elementos: Elemento[]): Bloque[] {
   return bloques;
 }
 
-export function Hilo({ conversacion, trabajando, despues }: { conversacion: Conversacion; trabajando: boolean; despues?: ReactNode }) {
+export function Hilo({
+  sesionId,
+  cwd,
+  conversacion,
+  trabajando,
+  despues,
+}: {
+  sesionId: string;
+  cwd: string;
+  conversacion: Conversacion;
+  trabajando: boolean;
+  despues?: ReactNode;
+}) {
   const bloques = agrupar(conversacion.elementos);
   const pensando = trabajando && conversacion.pensandoDesde !== undefined;
   // El turno vivo necesita un bloque de Aquiles al final aunque aún no haya llegado nada.
@@ -38,10 +52,7 @@ export function Hilo({ conversacion, trabajando, despues }: { conversacion: Conv
     <div className="hilo">
       {bloques.map((b, i) =>
         b.tipo === "usuario" ? (
-          <article key={b.e.id} className="mensaje-usuario">
-            <Etiqueta>{b.e.hora ? `Tú · ${hora(b.e.hora)}` : "Tú"}</Etiqueta>
-            <div className="mensaje-usuario__texto">{b.e.texto}</div>
-          </article>
+          <MensajeUsuario key={b.e.id} sesionId={sesionId} texto={b.e.texto} hora={b.e.hora} adjuntos={b.e.adjuntos} />
         ) : (
           // Clave por posición: el bloque «vivo» pasa a tener elementos sin volver a montarse (ni su orbe).
           // biome-ignore lint/suspicious/noArrayIndexKey: los bloques solo se añaden al final.
@@ -52,7 +63,7 @@ export function Hilo({ conversacion, trabajando, despues }: { conversacion: Conv
               <Etiqueta>{b.hora ? `Aquiles · ${hora(b.hora)}` : "Aquiles"}</Etiqueta>
             </div>
             {b.elementos.map((e) => (
-              <ElementoAquiles key={e.id} e={e} />
+              <ElementoAquiles key={e.id} e={e} cwd={cwd} />
             ))}
             {pensando && i === ultimoAquiles && <ThoughtLine trabajando desde={conversacion.pensandoDesde} />}
           </article>
@@ -63,17 +74,12 @@ export function Hilo({ conversacion, trabajando, despues }: { conversacion: Conv
   );
 }
 
-function ElementoAquiles({ e }: { e: Elemento }) {
+function ElementoAquiles({ e, cwd }: { e: Elemento; cwd: string }) {
   switch (e.tipo) {
     case "asistente":
-      return (
-        <div className="asistente">
-          <TextoAsistente texto={e.texto} abierto={e.abierto} />
-          {!e.abierto && <BotonLeer texto={e.texto} />}
-        </div>
-      );
+      return <MensajeAsistente id={e.id} texto={e.texto} abierto={e.abierto} />;
     case "herramienta":
-      return <TarjetaHerramienta h={e} />;
+      return <TarjetaHerramienta h={e} cwd={cwd} />;
     case "pensamiento":
       return <ThoughtLine trabajando={false} ms={e.ms} />;
     case "tareas":
@@ -97,6 +103,93 @@ function ElementoAquiles({ e }: { e: Elemento }) {
     case "usuario":
       return null;
   }
+}
+
+/** «> » delante de cada línea, para citar en la caja. */
+const cita = (texto: string) =>
+  texto
+    .trim()
+    .split("\n")
+    .map((l) => `> ${l}`)
+    .join("\n");
+
+/** Acciones sobre un trozo seleccionado dentro de un mensaje: valen para la selección, no para todo el mensaje. */
+function menuSeleccion(seleccion: string, a: { insertarEnCaja: (t: string) => void; leer?: (t: string) => void; buscar: (t: string) => void }): ElementosMenu {
+  return [
+    { texto: "Copiar", icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
+    { texto: "Citar en la caja", icono: "cita", alElegir: () => a.insertarEnCaja(cita(seleccion)) },
+    a.leer && { texto: "Leer en voz alta", icono: "altavoz", alElegir: () => a.leer?.(seleccion) },
+    { tipo: "separador" },
+    { texto: "Buscar en conversaciones", icono: "buscar", alElegir: () => a.buscar(seleccion) },
+  ];
+}
+
+function MensajeUsuario({ sesionId, texto, hora: h, adjuntos }: { sesionId: string; texto: string; hora?: number; adjuntos?: AdjuntoVisto[] }) {
+  const { voz } = useEstado();
+  const { enviar, insertarEnCaja, buscarEnConversaciones, llamar } = useAcciones();
+  const leer = voz?.lectura ? (t: string) => void llamar("voz.leer", { texto: paraLeer(t) }).catch(() => {}) : undefined;
+  const menu = useMenuContextual(({ seleccion }) =>
+    seleccion.trim()
+      ? menuSeleccion(seleccion, { insertarEnCaja, leer, buscar: buscarEnConversaciones })
+      : [
+          { texto: "Copiar", icono: "copiar", alElegir: () => copiarTexto(texto) },
+          { texto: "Citar en la caja", icono: "cita", alElegir: () => insertarEnCaja(cita(texto)) },
+          { texto: "Volver a enviar", icono: "enviar", alElegir: () => void enviar(sesionId, texto) },
+          leer && { texto: "Leer en voz alta", icono: "altavoz", alElegir: () => leer(texto) },
+        ],
+  );
+  return (
+    <article className="mensaje-usuario" {...menu}>
+      <Etiqueta>{h ? `Tú · ${hora(h)}` : "Tú"}</Etiqueta>
+      {texto.trim() && <div className="mensaje-usuario__texto">{texto}</div>}
+      {adjuntos?.length ? <AdjuntosMensaje sesionId={sesionId} adjuntos={adjuntos} /> : null}
+    </article>
+  );
+}
+
+function MensajeAsistente({ id, texto, abierto }: { id: string; texto: string; abierto: boolean }) {
+  const { voz } = useEstado();
+  const { insertarEnCaja, buscarEnConversaciones, llamar } = useAcciones();
+  const artefactos = useArtefactosHilo();
+  const trozos = artefactos?.porElemento.get(id);
+  // Citar y leer, sin los artefactos (van aparte, en su panel).
+  const prosa = trozos ? textoSinArtefactos(texto) : texto;
+  const leer = voz?.lectura ? (t: string) => void llamar("voz.leer", { texto: paraLeer(t) }).catch(() => {}) : undefined;
+  const menu = useMenuContextual(({ seleccion, objetivo }) => {
+    if (seleccion.trim()) return menuSeleccion(seleccion, { insertarEnCaja, leer, buscar: buscarEnConversaciones });
+    // «Copiar» da el texto tal como se ve; «Copiar como Markdown», el original.
+    const md = [...(objetivo.closest(".asistente")?.querySelectorAll(".md") ?? [])];
+    const visto = md.length ? md.map((x) => x.textContent?.trim() ?? "").join("\n\n") : prosa;
+    return [
+      { texto: "Copiar", icono: "copiar", alElegir: () => copiarTexto(visto.trim()) },
+      { texto: "Copiar como Markdown", alElegir: () => copiarTexto(texto) },
+      { texto: "Citar en la caja", icono: "cita", alElegir: () => insertarEnCaja(cita(prosa)) },
+      leer && !abierto && { texto: "Leer en voz alta", icono: "altavoz", alElegir: () => leer(prosa) },
+    ];
+  });
+  return (
+    <div className="asistente" {...menu}>
+      {trozos ? (
+        trozos.map((t, i) =>
+          t.tipo === "texto" ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: los trozos de un mensaje solo crecen por el final.
+            <TextoAsistente key={i} texto={t.texto} abierto={abierto && i === trozos.length - 1} />
+          ) : (
+            <TarjetaArtefacto
+              key={t.clave}
+              a={t.artefacto}
+              version={t.version}
+              activa={artefactos?.abierto?.id === t.artefacto.id && artefactos.abierto.version === t.version}
+              alAbrir={() => artefactos?.abrir(t.artefacto.id, t.version)}
+            />
+          ),
+        )
+      ) : (
+        <TextoAsistente texto={texto} abierto={abierto} />
+      )}
+      {!abierto && prosa.trim() && <BotonLeer texto={prosa} />}
+    </div>
+  );
 }
 
 /** El texto de una respuesta sin la sintaxis de Markdown, para leerlo en voz alta. */

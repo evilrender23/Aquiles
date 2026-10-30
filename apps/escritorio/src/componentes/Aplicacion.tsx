@@ -1,27 +1,34 @@
 /** Ajustes → Plugins y Aplicación (arranque con Windows, actualizaciones, perfiles, copias y núcleo remoto). */
 import type { InfoCopia } from "@aquiles/protocolo";
-import { Boton, Campo, CampoInterruptor, Chip, Etiqueta, Interruptor, Medidor } from "@aquiles/ui";
-import { useEffect, useState } from "react";
+import { Boton, Campo, CampoInterruptor, Chip, ConMenuContextual, Etiqueta, Interruptor, Medidor, copiarTexto } from "@aquiles/ui";
+import { useCallback, useEffect, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
 import { fechaCompleta, fechaConHora, fechaRelativa } from "../estado/formato";
 import { useReloj } from "../estado/reloj";
 import {
-  type Actualizacion,
+  type EstadoActualizacion,
+  abrirCarpeta,
+  puedeMostrarRutas,
   type EstadoAtajo,
-  type ProgresoActualizacion,
+  type InfoActualizacion,
+  actualizarSolo,
+  alActualizacionLista,
+  alErrorActualizacion,
   alProgresoActualizacion,
+  aplicarActualizacion,
   arranqueActivado,
   atajoActual,
-  cambiarAtajo,
   buscarActualizacion,
+  cambiarActualizarSolo,
   cambiarArranque,
+  cambiarAtajo,
   cambiarPerfil,
   conectarRemoto,
   desconectarRemoto,
+  estadoActualizacion,
   instalarActualizacion,
   remotoActual,
-  versionApp,
 } from "../plataforma/aplicacion";
 import { enTauri } from "../plataforma/tauri";
 import { ConfirmarBorrado } from "./Campos";
@@ -68,7 +75,17 @@ export function SeccionPlugins() {
     <div className="plugins">
       <TextoError texto={error} />
       {plugins.datos.map((p) => (
-        <article key={p.nombre} className="servidor-mcp plugin">
+        <ConMenuContextual
+          key={p.nombre}
+          construir={() => [
+            { texto: p.activo ? "Desactivar" : "Activar", alElegir: () => void activar(p.nombre, !p.activo) },
+            { tipo: "separador" },
+            { texto: "Copiar ruta", icono: "copiar", alElegir: () => copiarTexto(p.ruta) },
+            puedeMostrarRutas() && { texto: "Mostrar carpeta", icono: "carpeta", alElegir: () => abrirCarpeta(p.ruta) },
+          ]}
+        >
+          {(menu) => (
+        <article className="servidor-mcp plugin" {...menu}>
           <div className="servidor-mcp__cabecera">
             <div className="servidor-mcp__datos">
               <span className="servidor-mcp__nombre">{p.nombre}</span>
@@ -93,6 +110,8 @@ export function SeccionPlugins() {
             </ul>
           )}
         </article>
+          )}
+        </ConMenuContextual>
       ))}
     </div>
   );
@@ -192,73 +211,108 @@ function Atajo() {
   );
 }
 
+/**
+ * Actualizaciones: la app se compila desde `main`. Versión = commit; «Actualizar» compila en segundo plano
+ * (por pasos) y, cuando está lista, «Reiniciar para actualizar» cambia las carpetas y vuelve a abrir la app.
+ */
 function Actualizaciones() {
-  const [version, setVersion] = useState<string>();
-  const [busqueda, setBusqueda] = useState<{ tipo: "buscando" } | { tipo: "al-dia" } | { tipo: "hay"; a: Actualizacion }>();
-  const [progreso, setProgreso] = useState<ProgresoActualizacion>();
-  const [instalando, setInstalando] = useState(false);
+  const [info, setInfo] = useState<InfoActualizacion>();
+  const [buscando, setBuscando] = useState(false);
+  const [estado, setEstado] = useState<EstadoActualizacion>({ fase: "inactiva" });
+  const [solo, setSolo] = useState<boolean>();
   const [error, setError] = useState<string>();
+  const ahora = useReloj(60_000);
 
-  useEffect(() => {
-    versionApp().then(setVersion, () => {});
-    return alProgresoActualizacion(setProgreso);
-  }, []);
-
-  const buscar = async () => {
-    setBusqueda({ tipo: "buscando" });
-    setError(undefined);
+  const buscar = useCallback(async () => {
+    setBuscando(true);
     try {
-      const a = await buscarActualizacion();
-      setBusqueda(a ? { tipo: "hay", a } : { tipo: "al-dia" });
-    } catch (e) {
-      setBusqueda(undefined);
-      setError(mensaje(e));
-    }
-  };
-
-  const instalar = async () => {
-    setInstalando(true);
-    setError(undefined);
-    try {
-      // Si va bien, el instalador cierra y relanza la app: esto solo vuelve si falla.
-      await instalarActualizacion();
+      setInfo(await buscarActualizacion());
+      setError(undefined);
     } catch (e) {
       setError(mensaje(e));
     } finally {
-      setInstalando(false);
-      setProgreso(undefined);
+      setBuscando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void buscar();
+    estadoActualizacion().then((e) => e && setEstado(e), () => {});
+    actualizarSolo().then(setSolo, () => {});
+    const soltar = [
+      alProgresoActualizacion((p) => setEstado({ fase: "compilando", ...p })),
+      alActualizacionLista((d) => setEstado({ fase: "lista", commit: d.commit })),
+      alErrorActualizacion((d) => setEstado({ fase: "error", texto: d.texto })),
+    ];
+    return () => {
+      for (const f of soltar) f();
+    };
+  }, [buscar]);
+
+  const actuar = async (f: () => Promise<void>) => {
+    try {
+      await f();
+      setError(undefined);
+    } catch (e) {
+      setError(mensaje(e));
     }
   };
 
-  const fraccion = progreso?.total ? progreso.descargados / progreso.total : undefined;
+  const fecha = info?.fecha && !Number.isNaN(new Date(info.fecha).getTime()) ? fechaRelativa(info.fecha, ahora) : info?.fecha;
+  const compilando = estado.fase === "compilando";
   return (
     <div className="ajustes__grupo">
       <Etiqueta>Actualizaciones</Etiqueta>
       <div className="aplicacion__fila">
-        {version && <span className="aplicacion__dato">Versión {version}</span>}
-        <Boton variante="secundario" tamano="pequeno" disabled={busqueda?.tipo === "buscando" || instalando} onClick={() => void buscar()}>
+        {info && <span className="aplicacion__dato">{info.desarrollo ? "Compilación de desarrollo" : info.actual ? `Versión ${info.actual}` : "Versión desconocida"}</span>}
+        <Boton variante="secundario" tamano="pequeno" disabled={buscando || compilando} onClick={() => void buscar()}>
           Buscar
         </Boton>
-        {busqueda?.tipo === "al-dia" && <span className="ajustes__estado">Al día</span>}
+        {info && !info.hayNueva && !buscando && <span className="ajustes__estado">Al día</span>}
       </div>
-      {busqueda?.tipo === "hay" && (
+      {info?.hayNueva && (
         <div className="aplicacion__actualizacion">
-          <span className="aplicacion__nueva">Versión {busqueda.a.version}</span>
-          {busqueda.a.notas && <p className="aplicacion__notas">{busqueda.a.notas}</p>}
-          {instalando ? (
-            <div className="aplicacion__progreso">
-              {fraccion !== undefined && <Medidor valor={fraccion} etiqueta="Descarga de la actualización" />}
-              <span className="ajustes__estado">
-                {progreso ? (progreso.total ? `${tamano(progreso.descargados)} de ${tamano(progreso.total)}` : tamano(progreso.descargados)) : "Descargando"}
-              </span>
-            </div>
-          ) : (
+          <span className="aplicacion__nueva">
+            {info.ultimo}
+            {fecha && <span className="aplicacion__detalle"> · {fecha}</span>}
+          </span>
+          {info.mensaje && <p className="aplicacion__notas">{info.mensaje}</p>}
+          {estado.fase !== "compilando" && estado.fase !== "lista" && (
             <div>
-              <Boton variante="acento" tamano="pequeno" onClick={() => void instalar()}>
-                Instalar
+              <Boton variante="acento" tamano="pequeno" onClick={() => void actuar(instalarActualizacion)}>
+                Actualizar
               </Boton>
             </div>
           )}
+        </div>
+      )}
+      {estado.fase === "compilando" && (
+        <div className="aplicacion__progreso">
+          {estado.total > 0 && <Medidor valor={estado.paso / estado.total} etiqueta="Compilación de la actualización" />}
+          <span className="ajustes__estado">{estado.total > 0 ? `${estado.texto} · ${estado.paso} de ${estado.total}` : estado.texto}</span>
+        </div>
+      )}
+      {estado.fase === "lista" && (
+        <div className="aplicacion__fila">
+          <span className="aplicacion__dato">Versión {estado.commit}</span>
+          <Boton variante="acento" tamano="pequeno" onClick={() => void actuar(aplicarActualizacion)}>
+            Reiniciar para actualizar
+          </Boton>
+        </div>
+      )}
+      {estado.fase === "error" && <TextoError texto={estado.texto} />}
+      {solo !== undefined && (
+        <div className="ajustes__interruptores">
+          <CampoInterruptor
+            etiqueta="Actualizar solo"
+            activo={solo}
+            alCambiar={(a) =>
+              void actuar(async () => {
+                await cambiarActualizarSolo(a);
+                setSolo(await actualizarSolo());
+              })
+            }
+          />
         </div>
       )}
       <TextoError texto={error} />

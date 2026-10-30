@@ -3,6 +3,7 @@ import { MODOS_APROBACION } from "@aquiles/protocolo";
 import { Boton, Desplegable, GrupoOpciones, Icono, Medidor, Opcion } from "@aquiles/ui";
 import { useState } from "react";
 import { MODOS, nombreModelo, tokens } from "../estado/formato";
+import { esfuerzoDe, nombreEsfuerzo, opcionesEsfuerzo } from "../estado/esfuerzo";
 
 export interface PropsSelectorModelo {
   proveedor: string;
@@ -59,6 +60,55 @@ export function SelectorModelo({ proveedor, modelo, proveedores, alElegir, desha
             </div>
           ))
         )
+      }
+    </Desplegable>
+  );
+}
+
+/** Chip del esfuerzo de razonamiento del modelo elegido. Si el modelo no declara niveles, no hay chip. */
+export function SelectorEsfuerzo({
+  proveedor,
+  modelo,
+  esfuerzo,
+  proveedores,
+  alElegir,
+  deshabilitado,
+  alineacion = "derecha",
+}: {
+  proveedor: string;
+  modelo?: string;
+  esfuerzo?: string;
+  proveedores: InfoProveedor[];
+  alElegir: (esfuerzo: string) => void;
+  deshabilitado?: boolean;
+  alineacion?: "izquierda" | "derecha";
+}) {
+  const e = esfuerzoDe(proveedores, proveedor, modelo);
+  if (!e) return null;
+  const actual = esfuerzo && e.niveles.includes(esfuerzo) ? esfuerzo : "";
+  const visible = actual || e.porDefecto;
+  return (
+    <Desplegable
+      etiqueta="Esfuerzo"
+      alineacion={alineacion}
+      disparador={({ alternar, abierto: _a, ...aria }) => (
+        <Boton variante="chip" icono="esfuerzo" iconoFinal="chevron-abajo" disabled={deshabilitado} onClick={alternar} title="Esfuerzo" {...aria}>
+          {visible ? nombreEsfuerzo(visible) : "Por defecto"}
+        </Boton>
+      )}
+    >
+      {(cerrar) =>
+        opcionesEsfuerzo(e).map((o) => (
+          <Opcion
+            key={o.valor || "-"}
+            texto={o.texto}
+            marcada={o.valor === actual}
+            alElegir={() => {
+              alElegir(o.valor);
+              cerrar();
+            }}
+          />
+        ))
       }
     </Desplegable>
   );

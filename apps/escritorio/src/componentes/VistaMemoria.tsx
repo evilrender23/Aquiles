@@ -1,8 +1,8 @@
 import type { BloqueMemoria, DestinoMemoria } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Medidor, Pestanas, Titular, idPestana, type Pestana } from "@aquiles/ui";
+import { Boton, BotonIcono, ConMenuContextual, Medidor, Pestanas, Titular, copiarTexto, idPestana, type Pestana } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { cwdActiva, useAcciones, useEstado } from "../estado/almacen";
-import { usePropuestas } from "../estado/aprendizaje";
+import { DESTINOS, usePropuestas } from "../estado/aprendizaje";
 import { useCarga } from "../estado/carga";
 import type { PestanaMemoria } from "../estado/tipos";
 import { PanelAprendido, PanelPropuestas } from "./Aprendizaje";
@@ -39,6 +39,20 @@ export function VistaMemoria() {
   const guardado = (destino: DestinoMemoria) => (b: BloqueMemoria) =>
     memoria.fijar((d) => (destino === "proyecto" ? (d.proyecto ? { ...d, proyecto: { ...b, cwd: d.proyecto.cwd } } : d) : { ...d, [destino]: b }));
 
+  /** «Mover a ›» desde el menú de una entrada: primero entra en el otro destino y solo entonces sale de este. */
+  const { guardarMemoria } = useAcciones();
+  const bloqueDe = (d: DestinoMemoria) => (d === "proyecto" ? m?.proyecto : m?.[d]);
+  const cwdDe = (d: DestinoMemoria) => (d === "proyecto" ? m?.proyecto?.cwd : undefined);
+  const mover = async (texto: string, desde: DestinoMemoria, hacia: DestinoMemoria) => {
+    const origen = bloqueDe(desde);
+    const llegada = bloqueDe(hacia);
+    if (!origen || !llegada) return;
+    guardado(hacia)(await guardarMemoria(hacia, [...llegada.entradas, texto], cwdDe(hacia)));
+    const i = origen.entradas.indexOf(texto);
+    if (i >= 0) guardado(desde)(await guardarMemoria(desde, origen.entradas.filter((_, k) => k !== i), cwdDe(desde)));
+  };
+  const destinos = (["usuario", "agente", "proyecto"] as const).filter((d) => d !== "proyecto" || !!m?.proyecto);
+
   const destino = activa === "usuario" || activa === "agente" || activa === "proyecto" ? activa : undefined;
   const bloque = !destino || !m ? undefined : destino === "proyecto" ? m.proyecto : m[destino];
   const deMemoria = activa !== "propuestas" && activa !== "aprendido";
@@ -63,7 +77,15 @@ export function VistaMemoria() {
           ) : (
             destino &&
             bloque && (
-              <BloqueEditable key={destino} destino={destino} bloque={bloque} cwd={destino === "proyecto" ? m?.proyecto?.cwd : undefined} alGuardado={guardado(destino)} />
+              <BloqueEditable
+                key={destino}
+                destino={destino}
+                bloque={bloque}
+                cwd={destino === "proyecto" ? m?.proyecto?.cwd : undefined}
+                alGuardado={guardado(destino)}
+                otrosDestinos={destinos.filter((d) => d !== destino)}
+                alMover={(texto, hacia) => mover(texto, destino, hacia)}
+              />
             )
           )}
         </div>
@@ -84,11 +106,15 @@ function BloqueEditable({
   bloque,
   cwd,
   alGuardado,
+  otrosDestinos,
+  alMover,
 }: {
   destino: DestinoMemoria;
   bloque: BloqueMemoria;
   cwd?: string;
   alGuardado: (b: BloqueMemoria) => void;
+  otrosDestinos: DestinoMemoria[];
+  alMover: (texto: string, hacia: DestinoMemoria) => Promise<void>;
 }) {
   const { guardarMemoria } = useAcciones();
   const [edicion, setEdicion] = useState<Edicion>();
@@ -140,8 +166,33 @@ function BloqueEditable({
           {entradas.map((texto, i) => {
             const esta = edicion && edicion.tipo !== "nueva" && edicion.i === i ? edicion.tipo : undefined;
             return (
-              // biome-ignore lint/suspicious/noArrayIndexKey: dos entradas pueden tener el mismo texto; la posición es su identidad.
-              <li key={i} className="entrada">
+              <ConMenuContextual
+                // biome-ignore lint/suspicious/noArrayIndexKey: dos entradas pueden tener el mismo texto; la posición es su identidad.
+                key={i}
+                construir={() => [
+                  {
+                    texto: "Editar",
+                    icono: "lapiz",
+                    alElegir: () => {
+                      setError(undefined);
+                      setEdicion({ tipo: "editar", i, original: texto });
+                    },
+                  },
+                  { texto: "Copiar", icono: "copiar", alElegir: () => copiarTexto(texto) },
+                  otrosDestinos.length > 0 && {
+                    tipo: "submenu",
+                    texto: "Mover a",
+                    elementos: otrosDestinos.map((d) => ({
+                      texto: DESTINOS[d],
+                      alElegir: () => void alMover(texto, d).catch((e: unknown) => setError(mensaje(e))),
+                    })),
+                  },
+                  { tipo: "separador" },
+                  { texto: "Quitar", icono: "papelera", peligrosa: true, alElegir: () => quitar(i, texto) },
+                ]}
+              >
+                {(menu) => (
+              <li className="entrada" {...menu}>
                 {esta === "editar" ? (
                   <EditorEntrada
                     etiqueta="Entrada"
@@ -183,6 +234,8 @@ function BloqueEditable({
                   </>
                 )}
               </li>
+                )}
+              </ConMenuContextual>
             );
           })}
           {edicion?.tipo === "nueva" && (

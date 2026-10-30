@@ -1,7 +1,7 @@
 /** Canales de Automatizaciones: tarjetas del lienzo y, al configurar uno, su panel. */
 import type { InfoCanal } from "@aquiles/protocolo";
-import { Boton, Campo, Chip, Etiqueta, Tarjeta, clases } from "@aquiles/ui";
-import { useState } from "react";
+import { Boton, Campo, Chip, ConMenuContextual, Etiqueta, Tarjeta, clases } from "@aquiles/ui";
+import { useEffect, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import type { Carga } from "../estado/carga";
 import { fechaCompleta, fechaRelativa, hora } from "../estado/formato";
@@ -42,8 +42,18 @@ function detalleCanal(c: InfoCanal): string | undefined {
   return c.opciones.usuario ?? c.opciones.servidor;
 }
 
+/** Pedidos de Emparejar/Probar desde el menú: numerados en todo el módulo para no repetir uno al volver a abrir un panel. */
+let contadorPedidos = 0;
+let ultimoAtendido = 0;
+
 export function PanelCanales({ canales }: { canales: Carga<InfoCanal[]> }) {
   const [abierto, setAbierto] = useState<string>();
+  /** Emparejar o Probar desde el menú de una tarjeta: se abre su panel y la acción se hace allí (allí se ve el resultado). */
+  const [pedido, setPedido] = useState<{ canal: string; accion: "emparejar" | "probar"; n: number }>();
+  const pedir = (canal: string, accion: "emparejar" | "probar") => {
+    setAbierto(canal);
+    setPedido({ canal, accion, n: ++contadorPedidos });
+  };
   if (canales.error) {
     return (
       <p className="automatizaciones__error" role="alert">
@@ -61,7 +71,16 @@ export function PanelCanales({ canales }: { canales: Carga<InfoCanal[]> }) {
           const estado = estadoCanal(c);
           const detalle = detalleCanal(c);
           return (
-            <Tarjeta key={c.id} como="article" className={clases("canal", abierto === c.id && "canal--abierto")}>
+            <ConMenuContextual
+              key={c.id}
+              construir={() => [
+                { texto: "Configurar", icono: "lapiz", alElegir: () => setAbierto(c.id) },
+                c.conversa && { texto: "Emparejar", icono: "chat", deshabilitado: !c.configurado, alElegir: () => pedir(c.id, "emparejar") },
+                { texto: "Probar", icono: "play", deshabilitado: !c.configurado, alElegir: () => pedir(c.id, "probar") },
+              ]}
+            >
+              {(menu) => (
+            <Tarjeta como="article" className={clases("canal", abierto === c.id && "canal--abierto")} {...menu}>
               <span className="canal__numero">{String(i + 1).padStart(2, "0")}</span>
               <div className="canal__cuerpo">
                 <h3 className="canal__nombre">{c.nombre}</h3>
@@ -77,15 +96,17 @@ export function PanelCanales({ canales }: { canales: Carga<InfoCanal[]> }) {
                 </button>
               </div>
             </Tarjeta>
+              )}
+            </ConMenuContextual>
           );
         })}
       </div>
-      {elegido && <ConfigCanal key={elegido.id} c={elegido} alCambiar={actualizar} />}
+      {elegido && <ConfigCanal key={elegido.id} c={elegido} alCambiar={actualizar} pedido={pedido?.canal === elegido.id ? pedido : undefined} />}
     </>
   );
 }
 
-function ConfigCanal({ c, alCambiar }: { c: InfoCanal; alCambiar: (c: InfoCanal) => void }) {
+function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: InfoCanal) => void; pedido?: { accion: "emparejar" | "probar"; n: number } }) {
   const { sesiones } = useEstado();
   const { llamar, guardarClave, borrarClave, abrirSesion } = useAcciones();
   const [secretos, setSecretos] = useState<Record<string, string>>({});
@@ -152,6 +173,16 @@ function ConfigCanal({ c, alCambiar }: { c: InfoCanal; alCambiar: (c: InfoCanal)
       setEstado({ tipo: "error", texto: mensaje(e) });
     }
   };
+
+  const pedidoN = pedido?.n;
+  const pedidoAccion = pedido?.accion;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: se atiende cada pedido (su `n`) una sola vez; las funciones son de este render.
+  useEffect(() => {
+    if (pedidoN === undefined || pedidoN <= ultimoAtendido) return;
+    ultimoAtendido = pedidoN;
+    if (pedidoAccion === "emparejar") void emparejar();
+    if (pedidoAccion === "probar") void probar();
+  }, [pedidoN]);
 
   return (
     <Tarjeta como="section" className="config-canal" aria-label={c.nombre}>
@@ -274,7 +305,15 @@ function ConfigCanal({ c, alCambiar }: { c: InfoCanal; alCambiar: (c: InfoCanal)
           <Etiqueta>Chats</Etiqueta>
           <ul>
             {c.chats.map((chat) => (
-              <li key={chat.id} className="chat">
+              <ConMenuContextual
+                key={chat.id}
+                construir={() => [
+                  chat.sesionId && sesiones[chat.sesionId] && { texto: "Abrir sesión", icono: "flecha-diagonal", alElegir: () => abrirSesion(chat.sesionId!) },
+                  { texto: "Desemparejar", icono: "cerrar", peligrosa: true, alElegir: () => void desemparejar(chat.id) },
+                ]}
+              >
+                {(menu) => (
+              <li className="chat" {...menu}>
                 <div className="chat__datos">
                   <span className="chat__nombre">{chat.nombre}</span>
                   <time className="chat__fecha" dateTime={chat.emparejado} title={fechaCompleta(chat.emparejado)}>
@@ -296,6 +335,8 @@ function ConfigCanal({ c, alCambiar }: { c: InfoCanal; alCambiar: (c: InfoCanal)
                   )}
                 </span>
               </li>
+                )}
+              </ConMenuContextual>
             ))}
           </ul>
         </div>

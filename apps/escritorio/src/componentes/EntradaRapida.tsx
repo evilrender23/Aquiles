@@ -7,12 +7,16 @@ import { Boton } from "@aquiles/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { datosConexion } from "../conexion";
 import { alReiniciarNucleo, mostrarPrincipal, ocultarVentana } from "../plataforma/aplicacion";
+import { paraEnviar } from "../estado/adjuntos";
 import { ClienteRpc } from "../rpc";
+import { ChipsAdjuntos, ZonaSoltar, useAdjuntos } from "./Adjuntos";
 
 export function EntradaRapida() {
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string>();
+  // Ficheros soltados en la ventana e imágenes pegadas (sin clip: aquí no hay sitio ni permiso para el diálogo).
+  const adj = useAdjuntos();
   const cliente = useRef<ClienteRpc | undefined>(undefined);
   const caja = useRef<HTMLTextAreaElement>(null);
 
@@ -49,14 +53,16 @@ export function EntradaRapida() {
 
   const empezar = async () => {
     const t = texto.trim();
-    if (!t || enviando) return;
+    if ((!t && !adj.adjuntos.length) || enviando) return;
     setEnviando(true);
     setError(undefined);
     try {
       const c = await conexion();
       const sesion = await c.llamar("sesion.crear", {});
-      await c.llamar("prompt.enviar", { sesionId: sesion.sesionId, texto: t });
+      const adjuntos = adj.adjuntos.map(paraEnviar);
+      await c.llamar("prompt.enviar", { sesionId: sesion.sesionId, texto: t, ...(adjuntos.length ? { adjuntos } : {}) });
       setTexto("");
+      adj.vaciar();
       await mostrarPrincipal(sesion.sesionId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -73,14 +79,16 @@ export function EntradaRapida() {
         void empezar();
       }}
     >
+      <ZonaSoltar visible={adj.arrastrando} />
       <div className="rapida__caja">
         <textarea
           ref={caja}
           className="rapida__texto"
           aria-label="Instrucción para Aquiles"
           placeholder="Describe qué quieres que haga"
-          rows={2}
+          rows={adj.adjuntos.length ? 1 : 2}
           value={texto}
+          onPaste={adj.pegar}
           onChange={(e) => {
             setTexto(e.target.value);
             setError(undefined);
@@ -96,13 +104,14 @@ export function EntradaRapida() {
             }
           }}
         />
-        {error && (
+        <ChipsAdjuntos adjuntos={adj.adjuntos} alQuitar={adj.quitar} compacto />
+        {(error || adj.error) && (
           <p className="rapida__error" role="alert">
-            {error}
+            {error ?? adj.error}
           </p>
         )}
       </div>
-      <Boton type="submit" variante="principal" iconoFinal="flecha-diagonal" disabled={!texto.trim() || enviando}>
+      <Boton type="submit" variante="principal" iconoFinal="flecha-diagonal" disabled={(!texto.trim() && !adj.adjuntos.length) || enviando}>
         Empezar
       </Boton>
     </form>

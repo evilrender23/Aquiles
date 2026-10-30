@@ -1,10 +1,11 @@
 import type { InfoSkill, VersionSkill } from "@aquiles/protocolo";
-import { Boton, CampoBusqueda, CampoInterruptor, Etiqueta, Icono, Titular, clases } from "@aquiles/ui";
+import { Boton, CampoBusqueda, CampoInterruptor, Etiqueta, Icono, Titular, clases, copiarTexto, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { cwdActiva, useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
 import { fechaCompleta, fechaConHora, fechaCorta, fechaRelativa } from "../estado/formato";
 import { useReloj } from "../estado/reloj";
+import { abrirCarpeta, puedeMostrarRutas } from "../plataforma/aplicacion";
 import { Markdown } from "./Markdown";
 
 type Origen = InfoSkill["origen"];
@@ -72,6 +73,9 @@ export function VistaHabilidades() {
   // Sin chips que no filtrarían nada (salvo el elegido, para poder volver).
   const filtros = todos.map((f) => ({ ...f, n: cuenta(f.id) })).filter((f) => f.id === "todas" || f.n > 0 || f.id === filtro);
 
+  /** «Versiones» desde el menú de una tarjeta: el detalle abre su sección. */
+  const [pedirVersiones, setPedirVersiones] = useState(0);
+
   const elegir = (s: InfoSkill) => {
     setElegida(clave(s));
     // En una sola columna el detalle queda debajo de la lista.
@@ -108,7 +112,20 @@ export function VistaHabilidades() {
         {visibles.length > 0 && (
           <div className="habilidades__rejilla">
             {visibles.map((s) => (
-              <TarjetaHabilidad key={clave(s)} skill={s} numero={skills.indexOf(s) + 1} actual={clave(s) === (seleccion && clave(seleccion))} ahora={ahora} alElegir={() => elegir(s)} />
+              <TarjetaHabilidad
+                key={clave(s)}
+                skill={s}
+                cwd={cwd}
+                numero={skills.indexOf(s) + 1}
+                actual={clave(s) === (seleccion && clave(seleccion))}
+                ahora={ahora}
+                alElegir={() => elegir(s)}
+                alVersiones={() => {
+                  elegir(s);
+                  setPedirVersiones((n) => n + 1);
+                }}
+                alCambiar={(nueva) => lista.fijar((l) => l.map((x) => (clave(x) === clave(nueva) ? nueva : x)))}
+              />
             ))}
           </div>
         )}
@@ -121,6 +138,7 @@ export function VistaHabilidades() {
             skill={seleccion}
             cwd={cwd}
             alCambiar={(nueva) => lista.fijar((l) => l.map((x) => (clave(x) === clave(nueva) ? nueva : x)))}
+            abrirVersiones={pedirVersiones}
           />
         </aside>
       )}
@@ -128,7 +146,41 @@ export function VistaHabilidades() {
   );
 }
 
-function TarjetaHabilidad({ skill: s, numero, actual, ahora, alElegir }: { skill: InfoSkill; numero: number; actual: boolean; ahora: number; alElegir: () => void }) {
+function TarjetaHabilidad({
+  skill: s,
+  cwd,
+  numero,
+  actual,
+  ahora,
+  alElegir,
+  alVersiones,
+  alCambiar,
+}: {
+  skill: InfoSkill;
+  cwd?: string;
+  numero: number;
+  actual: boolean;
+  ahora: number;
+  alElegir: () => void;
+  alVersiones: () => void;
+  alCambiar: (s: InfoSkill) => void;
+}) {
+  const { ajustarSkill, fijarSkill, archivarSkill, restaurarSkill } = useAcciones();
+  const delPerfil = s.ubicacion === "perfil";
+  const archivada = s.vigencia === "archivada";
+  const cambiar = (f: () => Promise<InfoSkill>) => void f().then(alCambiar, () => {});
+  // Lo que se puede hacer depende de la ubicación y de la vigencia de la skill al abrir el menú.
+  const menu = useMenuContextual(() => [
+    { texto: "Ver", icono: "flecha-diagonal", alElegir },
+    { tipo: "separador" },
+    !archivada && { texto: s.activa ? "Desactivar" : "Activar", alElegir: () => cambiar(() => ajustarSkill(s.nombre, !s.activa, cwd)) },
+    delPerfil && !archivada && { texto: s.fijada ? "Quitar fijación" : "Fijar", alElegir: () => cambiar(() => fijarSkill(s.nombre, !s.fijada)) },
+    delPerfil && (archivada ? { texto: "Restaurar", icono: "recargar", alElegir: () => cambiar(() => restaurarSkill(s.nombre)) } : { texto: "Archivar", alElegir: () => cambiar(() => archivarSkill(s.nombre)) }),
+    delPerfil && { texto: "Versiones", alElegir: alVersiones },
+    { tipo: "separador" },
+    { texto: "Copiar ruta", icono: "copiar", alElegir: () => copiarTexto(s.ruta) },
+    puedeMostrarRutas() && { texto: "Mostrar carpeta", icono: "carpeta", alElegir: () => abrirCarpeta(s.ruta) },
+  ]);
   const meta = [s.activa ? undefined : "Desactivada", ORIGEN[s.origen].una, usos(s.usos), s.ultimoUso && fechaRelativa(s.ultimoUso, ahora)].filter(Boolean).join(" · ");
   const vigencia = VIGENCIA[s.vigencia];
   return (
@@ -137,6 +189,7 @@ function TarjetaHabilidad({ skill: s, numero, actual, ahora, alElegir }: { skill
       className={clases("habilidad", (!s.activa || s.vigencia === "archivada") && "habilidad--inactiva", s.vigencia === "archivada" && "habilidad--archivada")}
       aria-pressed={actual}
       onClick={alElegir}
+      {...menu}
     >
       <span className="habilidad__arriba">
         <span className="habilidad__numero">{String(numero).padStart(2, "0")}</span>
@@ -157,13 +210,16 @@ function TarjetaHabilidad({ skill: s, numero, actual, ahora, alElegir }: { skill
   );
 }
 
-function DetalleHabilidad({ skill: s, cwd, alCambiar }: { skill: InfoSkill; cwd?: string; alCambiar: (s: InfoSkill) => void }) {
+function DetalleHabilidad({ skill: s, cwd, alCambiar, abrirVersiones }: { skill: InfoSkill; cwd?: string; alCambiar: (s: InfoSkill) => void; abrirVersiones: number }) {
   const { revisiones } = useEstado();
   const { leerSkill, ajustarSkill, fijarSkill, archivarSkill, restaurarSkill } = useAcciones();
   const doc = useCarga(`skill:${s.ruta}`, revisiones.skills, () => leerSkill(s.nombre, cwd));
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState<string>();
   const [verVersiones, setVerVersiones] = useState(false);
+  useEffect(() => {
+    if (abrirVersiones) setVerVersiones(true);
+  }, [abrirVersiones]);
   const ubicacion = UBICACION[s.ubicacion];
   // El curador (fijar, archivar) y las copias solo existen para las del perfil.
   const delPerfil = s.ubicacion === "perfil";

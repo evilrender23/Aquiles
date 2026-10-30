@@ -9,6 +9,21 @@ export { Desplegable, Opcion, GrupoOpciones, type PropsDesplegable, type PropsDi
 export { CampoInterruptor, Interruptor, type PropsCampoInterruptor, type PropsInterruptor } from "./componentes/Interruptor";
 export { Pestanas, idPestana, type Pestana, type PropsPestanas } from "./componentes/Pestanas";
 export { CampoBusqueda, type PropsCampoBusqueda } from "./componentes/Busqueda";
+export {
+  ConMenuContextual,
+  ProveedorMenuContextual,
+  useMenuContextual,
+  elementosCampoTexto,
+  campoDeTexto,
+  copiarTexto,
+  type AccionMenu,
+  type AperturaMenu,
+  type ConstructorMenu,
+  type ElementoMenu,
+  type ElementosMenu,
+  type PropsProveedorMenuContextual,
+  type SubmenuMenu,
+} from "./componentes/MenuContextual";
 
 // Efectos de React Bits elegidos por el usuario (adaptados en el lienzo Aquiles · NOX).
 export { LogoAscii } from "./efectos/LogoAscii";

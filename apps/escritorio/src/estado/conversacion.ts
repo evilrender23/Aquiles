@@ -1,6 +1,6 @@
 /** Reducción pura de una conversación: historial guardado + eventos del núcleo → elementos que se pintan. */
 import type { Evento, MensajeHistorial } from "@aquiles/protocolo";
-import type { Conversacion, Elemento } from "./tipos";
+import type { AdjuntoVisto, Conversacion, Elemento } from "./tipos";
 import { duracion, tokens } from "./formato";
 
 let contador = 0;
@@ -31,7 +31,10 @@ export function desdeHistorial(historial: MensajeHistorial[]): Elemento[] {
       };
     }
     if (m.rol === "resumen") return { tipo: "resumen", id: nuevoId(), texto: m.texto };
-    if (m.rol === "usuario") return { tipo: "usuario", id: nuevoId(), texto: m.texto };
+    if (m.rol === "usuario") {
+      const adjuntos = m.adjuntos?.map((a): AdjuntoVisto => ({ id: a.id, nombre: a.nombre, tipo: a.tipo, bytes: a.bytes, clase: a.clase, ruta: a.ruta }));
+      return { tipo: "usuario", id: nuevoId(), texto: m.texto, ...(adjuntos?.length ? { adjuntos } : {}) };
+    }
     return { tipo: "asistente", id: nuevoId(), texto: m.texto, abierto: false };
   });
 }
@@ -48,8 +51,8 @@ function dejarDePensar(c: Conversacion, ahora: number): Conversacion {
   return { ...c, elementos, pensandoDesde: undefined };
 }
 
-export function anadirUsuario(c: Conversacion, texto: string, ahora: number, steer: boolean): Conversacion {
-  const elementos = [...cerrarTexto(c.elementos), { tipo: "usuario" as const, id: nuevoId(), texto, hora: ahora }];
+export function anadirUsuario(c: Conversacion, texto: string, ahora: number, steer: boolean, adjuntos?: AdjuntoVisto[]): Conversacion {
+  const elementos = [...cerrarTexto(c.elementos), { tipo: "usuario" as const, id: nuevoId(), texto, hora: ahora, ...(adjuntos?.length ? { adjuntos } : {}) }];
   if (steer) return { ...c, elementos };
   return { ...c, elementos, trabajando: true, pensandoDesde: ahora };
 }

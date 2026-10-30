@@ -1,7 +1,7 @@
 /** Kanban multiagente: tarjetas en columnas; cada una se puede encargar a un agente, que trabaja en su propia sesión. */
 import type { ColumnaKanban, TarjetaKanban } from "@aquiles/protocolo";
 import { COLUMNAS_KANBAN } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Campo, Etiqueta, Titular, clases } from "@aquiles/ui";
+import { Boton, BotonIcono, Campo, Etiqueta, Titular, clases, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { cwdActiva, useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -132,6 +132,7 @@ export function VistaKanban() {
                           const otra = COLUMNAS_KANBAN[ci + d];
                           if (otra) void mover(t.id, otra, lista.filter((x) => x.columna === otra).length);
                         }}
+                        alMoverA={(otra) => void mover(t.id, otra, lista.filter((x) => x.columna === otra).length)}
                         puedeIzquierda={ci > 0}
                         puedeDerecha={ci < COLUMNAS_KANBAN.length - 1}
                         alCambiar={actualizar}
@@ -154,6 +155,7 @@ function Tarjeta({
   t,
   alArrastrar,
   alMover,
+  alMoverA,
   puedeIzquierda,
   puedeDerecha,
   alCambiar,
@@ -162,13 +164,14 @@ function Tarjeta({
   t: TarjetaKanban;
   alArrastrar: (arrastrando: boolean) => void;
   alMover: (direccion: -1 | 1) => void;
+  alMoverA: (columna: ColumnaKanban) => void;
   puedeIzquierda: boolean;
   puedeDerecha: boolean;
   alCambiar: (t: TarjetaKanban) => void;
   alBorrar: () => void;
 }) {
   const { sesiones } = useEstado();
-  const { llamar, abrirSesion } = useAcciones();
+  const { llamar, abrirSesion, detener } = useAcciones();
   const [editando, setEditando] = useState(false);
   const [encargando, setEncargando] = useState(false);
   const [error, setError] = useState<string>();
@@ -184,6 +187,28 @@ function Tarjeta({
       setEncargando(false);
     }
   };
+
+  // Encargar o Parar según el agente en el momento de abrir el menú.
+  const menu = useMenuContextual(() => [
+    t.agente === "trabajando" && t.sesionId
+      ? { texto: "Parar", icono: "detener", alElegir: () => detener(t.sesionId!) }
+      : { texto: "Encargar", icono: "play", alElegir: () => void encargar() },
+    t.sesionId && sesiones[t.sesionId] && { texto: "Abrir sesión", icono: "flecha-diagonal", alElegir: () => abrirSesion(t.sesionId!) },
+    {
+      tipo: "submenu",
+      texto: "Mover a",
+      elementos: COLUMNAS_KANBAN.filter((c) => c !== t.columna).map((c) => ({ texto: COLUMNAS[c], alElegir: () => alMoverA(c) })),
+    },
+    { tipo: "separador" },
+    { texto: "Editar", icono: "lapiz", alElegir: () => setEditando(true) },
+    {
+      texto: "Borrar",
+      icono: "papelera",
+      peligrosa: true,
+      alElegir: () =>
+        void llamar("kanban.borrar", { id: t.id }).then(alBorrar, (e: unknown) => setError(mensaje(e))),
+    },
+  ]);
 
   if (editando) {
     return (
@@ -203,6 +228,7 @@ function Tarjeta({
     <article
       className={clases("tarjeta-kanban", t.agente && `tarjeta-kanban--${t.agente}`)}
       draggable
+      {...menu}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", t.id);
         e.dataTransfer.effectAllowed = "move";

@@ -1,6 +1,6 @@
 /** Automatizaciones (tablero del lienzo): tareas programadas y canales. */
 import type { EjecucionCron, IdCanal, InfoCanal, ModoAprobacion, TareaProgramada } from "@aquiles/protocolo";
-import { Boton, Campo, Etiqueta, Interruptor, Titular, clases } from "@aquiles/ui";
+import { Boton, Campo, Etiqueta, Interruptor, Titular, clases, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -66,6 +66,11 @@ export function VistaAutomatizaciones() {
               alAlternar={() => setAbierta((a) => (a === t.id ? undefined : t.id))}
               alCambiar={(n) => tareas.fijar((l) => l.map((x) => (x.id === n.id ? n : x)))}
               alBorrar={() => tareas.fijar((l) => l.filter((x) => x.id !== t.id))}
+              alAbrir={() => setAbierta(t.id)}
+              alCrear={(n) => {
+                tareas.fijar((l) => [...l, n]);
+                setAbierta(n.id);
+              }}
             />
           ))}
         </section>
@@ -89,6 +94,8 @@ function FilaTarea({
   alAlternar,
   alCambiar,
   alBorrar,
+  alAbrir,
+  alCrear,
 }: {
   t: TareaProgramada;
   canales?: InfoCanal[];
@@ -97,8 +104,11 @@ function FilaTarea({
   alAlternar: () => void;
   alCambiar: (t: TareaProgramada) => void;
   alBorrar: () => void;
+  alAbrir: () => void;
+  alCrear: (t: TareaProgramada) => void;
 }) {
-  const { llamar } = useAcciones();
+  const { llamar, abrirSesion } = useAcciones();
+  const { sesiones } = useEstado();
   const [editando, setEditando] = useState(false);
   const [error, setError] = useState<string>();
   const u = t.ultima;
@@ -113,8 +123,58 @@ function FilaTarea({
     }
   };
 
+  const accion = (f: () => Promise<unknown>) =>
+    void f().then(
+      () => setError(undefined),
+      (e: unknown) => setError(mensaje(e)),
+    );
+
+  const menu = useMenuContextual(() => [
+    { texto: "Ejecutar ahora", icono: "play", alElegir: () => accion(() => llamar("cron.ejecutar", { id: t.id })) },
+    { texto: t.activa ? "Desactivar" : "Activar", alElegir: () => void activar(!t.activa) },
+    {
+      texto: "Editar",
+      icono: "lapiz",
+      alElegir: () => {
+        alAbrir();
+        setEditando(true);
+      },
+    },
+    {
+      texto: "Duplicar",
+      icono: "copiar",
+      alElegir: () =>
+        accion(async () =>
+          alCrear(
+            await llamar("cron.crear", {
+              nombre: `${t.nombre} (copia)`.slice(0, 120),
+              prompt: t.prompt,
+              cuando: t.cuando,
+              cwd: t.cwd,
+              ...(t.proveedor ? { proveedor: t.proveedor } : {}),
+              ...(t.modelo ? { modelo: t.modelo } : {}),
+              modoAprobacion: t.modoAprobacion,
+              entrega: t.entrega,
+            }),
+          ),
+        ),
+    },
+    u?.sesionId && sesiones[u.sesionId] && { texto: "Abrir última sesión", icono: "flecha-diagonal", alElegir: () => abrirSesion(u.sesionId!) },
+    { tipo: "separador" },
+    {
+      texto: "Borrar",
+      icono: "papelera",
+      peligrosa: true,
+      alElegir: () =>
+        accion(async () => {
+          await llamar("cron.borrar", { id: t.id });
+          alBorrar();
+        }),
+    },
+  ]);
+
   return (
-    <article className={clases("tarea-prog", !t.activa && "tarea-prog--inactiva")}>
+    <article className={clases("tarea-prog", !t.activa && "tarea-prog--inactiva")} {...menu}>
       <div className="tarea-prog__fila">
         <div className="tarea-prog__cuando" title={t.proxima ? fechaCompleta(t.proxima) : undefined}>
           <span className="tarea-prog__hora">{t.proxima ? hora(t.proxima) : "—"}</span>

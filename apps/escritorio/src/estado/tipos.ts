@@ -1,8 +1,19 @@
-import type { Ajustes, Diff, EstadoVoz, InfoProveedor, InfoSesion, MotivoFin, PeticionesCliente, TareaVisible } from "@aquiles/protocolo";
+import type { Ajustes, Diff, EstadoVoz, InfoAdjunto, InfoProveedor, InfoSesion, MotivoFin, PeticionesCliente, ProgresoDescargaModelo, TareaVisible } from "@aquiles/protocolo";
+
+/** Un adjunto en un mensaje del usuario: del historial (con id) o recién enviado (con su miniatura local, si es imagen). */
+export interface AdjuntoVisto {
+  id?: string;
+  nombre: string;
+  tipo?: string;
+  bytes?: number;
+  clase?: InfoAdjunto["clase"];
+  ruta?: string;
+  miniatura?: string;
+}
 
 /** Lo que se pinta en una conversación, en orden. */
 export type Elemento =
-  | { tipo: "usuario"; id: string; texto: string; hora?: number }
+  | { tipo: "usuario"; id: string; texto: string; hora?: number; adjuntos?: AdjuntoVisto[] }
   | { tipo: "asistente"; id: string; texto: string; /** sigue llegando en streaming */ abierto: boolean; hora?: number }
   | {
       tipo: "herramienta";
@@ -83,12 +94,23 @@ export interface EstadoApp {
   proveedores: InfoProveedor[];
   ajustes?: Ajustes;
   /** Suben con memoria.actualizada y skills.actualizadas (y al reconectar): las vistas que las muestran vuelven a pedirlas. */
-  revisiones: { memoria: number; skills: number; aprendizaje: number; cron: number; canales: number; mcp: number; kanban: number; plugins: number };
+  revisiones: { memoria: number; skills: number; aprendizaje: number; cron: number; canales: number; mcp: number; kanban: number; plugins: number; modelos: number };
+  /** Último progreso de cada descarga de modelo (modelos.progreso), por id. */
+  descargasModelos: Record<string, ProgresoDescargaModelo>;
   /** Por subId; los hijos de una sesión se buscan por `padre`. */
   subagentes: Record<string, Subagente>;
   notificaciones: Notificacion[];
   /** Dictado y lectura disponibles (voz.estado al conectar); sin él, no hay botones de voz. */
   voz?: EstadoVoz;
+  /** Pedidos desde un menú contextual a otra parte de la interfaz; `n` distingue dos pedidos iguales seguidos. */
+  pedidos: {
+    /** Texto para añadir a la caja de la conversación abierta (citar, insertar código). */
+    caja?: { texto: string; n: number };
+    /** Abrir el editor del objetivo de esta sesión. */
+    objetivo?: { sesionId: string; n: number };
+    /** Buscar este texto en las conversaciones (barra lateral). */
+    busqueda?: { texto: string; n: number };
+  };
   /** Pestaña con la que se abre Memoria (p. ej. Propuestas desde el aviso de una revisión). */
   pestanaMemoria?: PestanaMemoria;
 }

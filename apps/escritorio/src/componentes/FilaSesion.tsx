@@ -1,7 +1,8 @@
 import type { InfoSesion } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Icono, clases } from "@aquiles/ui";
+import { Boton, BotonIcono, Icono, clases, copiarTexto, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones } from "../estado/almacen";
+import { abrirCarpeta, puedeMostrarRutas } from "../plataforma/aplicacion";
 import { fechaRelativa } from "../estado/formato";
 
 type Modo = "ver" | "renombrar" | "borrar";
@@ -19,7 +20,7 @@ export function FilaSesion({
   ahora: number;
   alAbrir: () => void;
 }) {
-  const { renombrar, borrar } = useAcciones();
+  const { renombrar, borrar, enviar, detener, llamar, editarObjetivo } = useAcciones();
   const [modo, setModo] = useState<Modo>("ver");
   const [error, setError] = useState<string>();
   const resuelto = useRef(false);
@@ -35,6 +36,41 @@ export function FilaSesion({
     if (modo === "borrar") cancelar.current?.focus();
   }, [modo]);
   const titulo = sesion.titulo || "Sin título";
+
+  // Lo que ofrece depende del estado de la sesión al abrir el menú (Parar si trabaja, Continuar si se interrumpió).
+  const menu = useMenuContextual(() => [
+    { texto: "Abrir", icono: "flecha-diagonal", alElegir: alAbrir },
+    {
+      texto: "Renombrar",
+      icono: "lapiz",
+      alElegir: () => {
+        resuelto.current = false;
+        setModo("renombrar");
+      },
+    },
+    { tipo: "separador" },
+    sesion.interrumpida &&
+      !sesion.trabajando && {
+        texto: "Continuar",
+        icono: "play",
+        alElegir: () => {
+          alAbrir();
+          void enviar(sesion.sesionId, "Continúa donde lo dejaste.");
+        },
+      },
+    sesion.trabajando && { texto: "Parar", icono: "detener", alElegir: () => detener(sesion.sesionId) },
+    {
+      texto: "Revisar lo aprendido",
+      icono: "recargar",
+      alElegir: () => void llamar("aprendizaje.revisar", { sesionId: sesion.sesionId }).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e))),
+    },
+    { texto: "Objetivo…", icono: "diana", alElegir: () => editarObjetivo(sesion.sesionId) },
+    { tipo: "separador" },
+    { texto: "Copiar id", icono: "copiar", alElegir: () => copiarTexto(sesion.sesionId) },
+    puedeMostrarRutas() && { texto: "Mostrar carpeta", icono: "carpeta", alElegir: () => abrirCarpeta(sesion.cwd) },
+    { tipo: "separador" },
+    { texto: "Borrar", icono: "papelera", peligrosa: true, alElegir: () => intentar(() => borrar(sesion.sesionId)) },
+  ]);
 
   const intentar = async (f: () => Promise<void>) => {
     try {
@@ -88,7 +124,7 @@ export function FilaSesion({
   }
 
   return (
-    <div className={clases("fila-sesion", actual && "fila-sesion--actual")} title={error}>
+    <div className={clases("fila-sesion", actual && "fila-sesion--actual")} title={error} {...menu}>
       {sesion.origen?.tipo === "cron" && (
         <span className="fila-sesion__origen" title="Tarea programada">
           <Icono nombre="reloj" tamano={13} />

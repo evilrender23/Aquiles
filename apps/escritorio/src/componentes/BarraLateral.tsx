@@ -2,6 +2,7 @@ import type { InfoSesion } from "@aquiles/protocolo";
 import { Boton, BranchedMenu, CampoBusqueda, Etiqueta, LogoAscii, clases, type GrupoRamas } from "@aquiles/ui";
 import { useEffect, useMemo, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
+import { abrirCarpeta, puedeMostrarRutas } from "../plataforma/aplicacion";
 import { usePropuestas } from "../estado/aprendizaje";
 import { nombreCarpeta } from "../estado/formato";
 import { useReloj } from "../estado/reloj";
@@ -21,8 +22,13 @@ function agrupar(sesiones: InfoSesion[]): GrupoRamas<InfoSesion>[] {
 
 export function BarraLateral({ alElegir }: { alElegir: () => void }) {
   const estado = useEstado();
-  const { nuevaSesion, abrirSesion, abrirKanban, abrirHabilidades, abrirMemoria, abrirAutomatizaciones, abrirEstadisticas, abrirAjustes } = useAcciones();
+  const { nuevaSesion, nuevaSesionEn, abrirSesion, abrirKanban, abrirHabilidades, abrirMemoria, abrirAutomatizaciones, abrirEstadisticas, abrirAjustes } = useAcciones();
   const [consulta, setConsulta] = useState("");
+  // «Buscar en conversaciones» desde el menú de una selección.
+  const pedida = estado.pedidos.busqueda;
+  useEffect(() => {
+    if (pedida) setConsulta(pedida.texto);
+  }, [pedida]);
   // Los subagentes no van sueltos: se ven en el panel de su sesión.
   const grupos = useMemo(() => agrupar(Object.values(estado.sesiones).filter((s) => s.origen?.tipo !== "subagente")), [estado.sesiones]);
   const [abiertos, setAbiertos] = useState<ReadonlySet<string>>(new Set());
@@ -108,6 +114,12 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
                 abiertos={abiertos}
                 alAlternar={alternar}
                 claveHijo={(s) => s.sesionId}
+                menuGrupo={(g, abierto) => [
+                  { texto: "Nueva sesión en esta carpeta", icono: "mas", alElegir: () => ir(() => void nuevaSesionEn(g.id))() },
+                  puedeMostrarRutas() && { texto: "Mostrar carpeta", icono: "carpeta", alElegir: () => abrirCarpeta(g.id) },
+                  { tipo: "separador" },
+                  { texto: abierto ? "Plegar" : "Desplegar", icono: abierto ? "chevron-abajo" : "chevron-derecha", alElegir: () => alternar(g.id) },
+                ]}
                 esActual={(s) => estado.vista === "conversacion" && s.sesionId === estado.activa}
                 renderHijo={(s, actual) => (
                   <FilaSesion

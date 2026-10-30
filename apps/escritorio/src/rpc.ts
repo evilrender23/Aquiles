@@ -30,6 +30,12 @@ export class ClienteRpc {
     });
   }
 
+  /** http(s)://host:puerto del núcleo (el de su WebSocket): lo que sirve por HTTP, como las vistas de artefactos. */
+  get origenHttp(): string {
+    const u = new URL(this.ws.url);
+    return `${u.protocol === "wss:" ? "https:" : "http:"}//${u.host}`;
+  }
+
   llamar<M extends NombreMetodo>(metodo: M, params: Params<M>): Promise<Resultados[M]> {
     const id = ++this.siguiente;
     return new Promise((ok, mal) => {

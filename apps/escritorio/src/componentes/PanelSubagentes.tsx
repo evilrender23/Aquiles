@@ -1,6 +1,6 @@
 /** Subagentes de una sesión (herramienta `delegar`): estado, tarea, lo que van escribiendo, y parar, reconducir o abrir. */
 import type { MotivoFin } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Etiqueta, clases } from "@aquiles/ui";
+import { Boton, BotonIcono, Etiqueta, clases, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import type { EstadoApp } from "../estado/tipos";
@@ -83,6 +83,12 @@ function TarjetaSubagente({ h }: { h: Hijo }) {
     if (reconduciendo) entrada.current?.focus();
   }, [reconduciendo]);
 
+  const menu = useMenuContextual(() => [
+    trabajando && { texto: "Parar", icono: "detener", alElegir: () => detener(h.subId) },
+    trabajando && { texto: "Reconducir…", icono: "enviar", alElegir: () => setReconduciendo(true) },
+    { texto: "Abrir", icono: "flecha-diagonal", alElegir: () => abrirSesion(h.subId) },
+  ]);
+
   const enviar = async () => {
     const t = texto.trim();
     if (!t) return;
@@ -97,7 +103,7 @@ function TarjetaSubagente({ h }: { h: Hijo }) {
   };
 
   return (
-    <article className={clases("subagente", h.estado === "error" && "subagente--error")}>
+    <article className={clases("subagente", h.estado === "error" && "subagente--error")} {...menu}>
       <div className="subagente__cabecera">
         <span className="subagente__nombre">{h.nombre}</span>
         {h.estado && (

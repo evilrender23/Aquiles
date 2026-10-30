@@ -39,13 +39,12 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src http: https:"
     }
   },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "createUpdaterArtifacts": true,
     "externalBin": ["binaries/aquiles-nucleo"],
     "resources": { "../../../skills/": "skills/" },
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
@@ -59,12 +58,6 @@
         "languages": ["Spanish"],
         "displayLanguageSelector": false
       }
-    }
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgyNjkyRDM4NzkyM0EzRkQKUldUOW95TjVPQzFwZ2tPZ0RHTHlpUDMyeVZNWWpRdW1lVXB1RXpWRUtrNU1UTGh1M3F2dDZRd0kK",
-      "endpoints": ["https://github.com/evilrender23/Aquiles/releases/latest/download/latest.json"]
     }
   }
 }

@@ -30,7 +30,8 @@ import { anadirAviso, anadirUsuario, aplicarEvento, conversacionVacia, desdeHist
 import { alAbrirSesion, alReiniciarNucleo } from "../plataforma/aplicacion";
 import { notificarSistema } from "../plataforma/notificaciones";
 import { enTauri } from "../plataforma/tauri";
-import type { Conversacion, EstadoApp, EstadoConexion, Notificacion, Pendiente, PestanaMemoria, Subagente, Vista } from "./tipos";
+import { type AdjuntoPendiente, paraEnviar, visto } from "./adjuntos";
+import type { AdjuntoVisto, Conversacion, EstadoApp, EstadoConexion, Notificacion, Pendiente, PestanaMemoria, Subagente, Vista } from "./tipos";
 
 type Accion =
   | { tipo: "conexion"; estado: EstadoConexion; error?: string }
@@ -43,13 +44,14 @@ type Accion =
   | { tipo: "cargando"; sesionId: string }
   | { tipo: "historial"; sesion: InfoSesion; historial: MensajeHistorial[] }
   | { tipo: "evento"; evento: Evento; ahora: number }
-  | { tipo: "usuario"; sesionId: string; texto: string; steer: boolean; ahora: number }
+  | { tipo: "usuario"; sesionId: string; texto: string; steer: boolean; ahora: number; adjuntos?: AdjuntoVisto[] }
   | { tipo: "aviso"; sesionId: string; nivel: "aviso" | "error"; texto: string; fin?: boolean }
   | { tipo: "pendiente"; pendiente: Pendiente }
   | { tipo: "pendiente.resuelto"; id: string; ahora: number }
   | { tipo: "notificacion"; notificacion: Notificacion }
   | { tipo: "notificacion.cerrada"; id: number }
-  | { tipo: "voz"; voz: EstadoApp["voz"] };
+  | { tipo: "voz"; voz: EstadoApp["voz"] }
+  | { tipo: "pedido"; pedido: Partial<{ caja: string; objetivo: string; busqueda: string }> };
 
 const inicial: EstadoApp = {
   conexion: "conectando",
@@ -58,10 +60,14 @@ const inicial: EstadoApp = {
   conversaciones: {},
   pendientes: [],
   proveedores: [],
-  revisiones: { memoria: 0, skills: 0, aprendizaje: 0, cron: 0, canales: 0, mcp: 0, kanban: 0, plugins: 0 },
+  revisiones: { memoria: 0, skills: 0, aprendizaje: 0, cron: 0, canales: 0, mcp: 0, kanban: 0, plugins: 0, modelos: 0 },
+  descargasModelos: {},
   subagentes: {},
   notificaciones: [],
+  pedidos: {},
 };
+
+let siguientePedido = 0;
 
 /** Lo último que escribe un subagente (lo que cabe en su tarjeta). */
 const COLA_SUBAGENTE = 600;
@@ -154,6 +160,8 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
       if (e.tipo === "mcp.actualizado") return subir(s, "mcp");
       if (e.tipo === "kanban.actualizado") return subir(s, "kanban");
       if (e.tipo === "plugins.actualizados") return subir(s, "plugins");
+      if (e.tipo === "modelos.actualizados") return subir(s, "modelos");
+      if (e.tipo === "modelos.progreso") return { ...s, descargasModelos: { ...s.descargasModelos, [e.descarga.id]: e.descarga } };
       if (e.tipo === "objetivo.evaluado") {
         const sesion = s.sesiones[e.sesionId];
         return sesion ? { ...s, sesiones: { ...s.sesiones, [e.sesionId]: { ...sesion, objetivo: e.objetivo } } } : s;
@@ -168,7 +176,7 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
       return { ...t, pendientes, conversaciones: { ...t.conversaciones, [e.sesionId]: aplicarEvento(c, e, a.ahora) } };
     }
     case "usuario":
-      return conConversacion(s, a.sesionId, (c) => anadirUsuario(c, a.texto, a.ahora, a.steer));
+      return conConversacion(s, a.sesionId, (c) => anadirUsuario(c, a.texto, a.ahora, a.steer, a.adjuntos));
     case "aviso":
       return conConversacion(s, a.sesionId, (c) => {
         const conAviso = { ...anadirAviso(c, a.nivel, a.texto), cargando: false };
@@ -183,6 +191,19 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
       return { ...s, notificaciones: s.notificaciones.filter((n) => n.id !== a.id) };
     case "voz":
       return { ...s, voz: a.voz };
+    case "pedido": {
+      const n = ++siguientePedido;
+      const p = a.pedido;
+      return {
+        ...s,
+        pedidos: {
+          ...s.pedidos,
+          ...(p.caja !== undefined ? { caja: { texto: p.caja, n } } : {}),
+          ...(p.objetivo !== undefined ? { objetivo: { sesionId: p.objetivo, n } } : {}),
+          ...(p.busqueda !== undefined ? { busqueda: { texto: p.busqueda, n } } : {}),
+        },
+      };
+    }
     case "pendiente.resuelto": {
       const p = s.pendientes.find((x) => x.id === a.id);
       const sin = { ...s, pendientes: s.pendientes.filter((x) => x.id !== a.id) };
@@ -208,10 +229,11 @@ export interface Acciones {
   /** Antes de algo que reinicia el núcleo (cambiar de perfil, núcleo remoto…): esperar y reconectar sin dar error. */
   prepararReinicio: (motivo?: string) => void;
   abrirAjustes: () => void;
-  empezar: (p: { texto: string; proveedor?: string; modelo?: string; modoAprobacion?: ModoAprobacion }) => Promise<void>;
-  enviar: (sesionId: string, texto: string) => Promise<void>;
+  empezar: (p: { texto: string; adjuntos?: AdjuntoPendiente[]; proveedor?: string; modelo?: string; esfuerzo?: string; modoAprobacion?: ModoAprobacion }) => Promise<void>;
+  /** Los adjuntos solo van con un turno nuevo (no con el steer ni como respuesta a una pregunta). */
+  enviar: (sesionId: string, texto: string, adjuntos?: AdjuntoPendiente[]) => Promise<void>;
   detener: (sesionId: string) => void;
-  ajustarSesion: (sesionId: string, cambios: { proveedor?: string; modelo?: string; modoAprobacion?: ModoAprobacion }) => Promise<void>;
+  ajustarSesion: (sesionId: string, cambios: { proveedor?: string; modelo?: string; esfuerzo?: string; modoAprobacion?: ModoAprobacion }) => Promise<void>;
   renombrar: (sesionId: string, titulo: string) => Promise<void>;
   borrar: (sesionId: string) => Promise<void>;
   refrescarProveedores: () => Promise<void>;
@@ -236,6 +258,8 @@ export interface Acciones {
   listarPropuestas: () => Promise<Propuesta[]>;
   decidirPropuesta: (id: string, decision: "aceptar" | "descartar") => Promise<Propuesta>;
   historialAprendizaje: () => Promise<EntradaAprendizaje[]>;
+  /** URL completa de algo que el núcleo sirve por HTTP (p. ej. la `ruta` de artefactos.vista). */
+  urlNucleo: (ruta: string) => string;
   /** Cualquier método del núcleo, tipado por el protocolo (cron, canales, mcp, voz…). */
   llamar: <M extends NombreMetodo>(metodo: M, params: Params<M>) => Promise<Resultados[M]>;
   /** Steer a una sesión cualquiera (p. ej. un subagente), sin pasar por su conversación. */
@@ -243,6 +267,13 @@ export interface Acciones {
   cerrarNotificacion: (id: number) => void;
   /** Pone (o quita, con null) el objetivo de una sesión; la sesión se actualiza con lo que devuelve el núcleo. */
   ponerObjetivo: (sesionId: string, objetivo: string | null, maxIntentos?: number) => Promise<void>;
+  /** Añade texto a la caja de la conversación abierta (y la abre si se está en otra vista). */
+  insertarEnCaja: (texto: string) => void;
+  /** Abre la sesión con el editor de su objetivo. */
+  editarObjetivo: (sesionId: string) => void;
+  buscarEnConversaciones: (texto: string) => void;
+  /** Sesión vacía en esa carpeta, ya abierta. */
+  nuevaSesionEn: (cwd: string) => Promise<void>;
 }
 
 const ContextoEstado = createContext<EstadoApp | null>(null);
@@ -305,6 +336,8 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
           );
           return;
         }
+        // Los modelos descargados son los del proveedor llamacpp: los selectores de modelo los sacan de proveedores.listar.
+        if (evento.tipo === "modelos.actualizados") void refrescarProveedores().catch(() => {});
         despachar({ tipo: "evento", evento, ahora: Date.now() });
       });
       c.atender(
@@ -348,7 +381,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
     } catch (e) {
       if (vigente()) despachar({ tipo: "conexion", estado: "caida", error: mensaje(e) });
     }
-  }, [cargar]);
+  }, [cargar, refrescarProveedores]);
 
   useEffect(() => {
     void conectar();
@@ -388,7 +421,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
   useEffect(() => alReiniciarNucleo(() => void conectar()), [conectar]);
 
   const acciones = useMemo<Acciones>(() => {
-    const enviar = async (sesionId: string, texto: string) => {
+    const enviar = async (sesionId: string, texto: string, adjuntos: AdjuntoPendiente[] = []) => {
       const s = estadoRef.current;
       const pregunta = s.pendientes.find((p) => p.sesionId === sesionId && p.tipo === "pregunta");
       if (pregunta?.tipo === "pregunta") {
@@ -397,10 +430,11 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
         return;
       }
       const trabajando = s.sesiones[sesionId]?.trabajando || s.conversaciones[sesionId]?.trabajando;
-      despachar({ tipo: "usuario", sesionId, texto, steer: !!trabajando, ahora: Date.now() });
+      const conAdjuntos = !trabajando && adjuntos.length > 0;
+      despachar({ tipo: "usuario", sesionId, texto, steer: !!trabajando, ahora: Date.now(), ...(conAdjuntos ? { adjuntos: adjuntos.map(visto) } : {}) });
       try {
         if (trabajando) await rpc().llamar("prompt.steer", { sesionId, texto });
-        else await rpc().llamar("prompt.enviar", { sesionId, texto });
+        else await rpc().llamar("prompt.enviar", { sesionId, texto, ...(conAdjuntos ? { adjuntos: adjuntos.map(paraEnviar) } : {}) });
       } catch (e) {
         despachar({ tipo: "aviso", sesionId, nivel: "error", texto: mensaje(e), fin: !trabajando });
       }
@@ -420,12 +454,12 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       abrirEstadisticas: () => despachar({ tipo: "vista", vista: "estadisticas" }),
       prepararReinicio: (motivo) => reiniciar.current(motivo),
       abrirAjustes: () => despachar({ tipo: "vista", vista: "ajustes" }),
-      empezar: async ({ texto, ...opciones }) => {
+      empezar: async ({ texto, adjuntos, ...opciones }) => {
         const sesion = await rpc().llamar("sesion.crear", opciones);
         despachar({ tipo: "sesion", sesion });
         despachar({ tipo: "historial", sesion, historial: [] });
         despachar({ tipo: "vista", vista: "conversacion", activa: sesion.sesionId });
-        await enviar(sesion.sesionId, texto);
+        await enviar(sesion.sesionId, texto, adjuntos);
       },
       enviar,
       detener: (sesionId) => void rpc().llamar("prompt.parar", { sesionId }).catch(() => {}),
@@ -474,10 +508,28 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       decidirPropuesta: async (id, decision) => rpc().llamar("aprendizaje.decidir", { id, decision }),
       historialAprendizaje: async () => (await rpc().llamar("aprendizaje.historial", { limite: 200 })).entradas,
       llamar: async (metodo, params) => rpc().llamar(metodo, params),
+      urlNucleo: (ruta) => rpc().origenHttp + ruta,
       reconducir: async (sesionId, texto) => {
         await rpc().llamar("prompt.steer", { sesionId, texto });
       },
       cerrarNotificacion: (id) => despachar({ tipo: "notificacion.cerrada", id }),
+      insertarEnCaja: (texto) => {
+        const activa = estadoRef.current.activa;
+        if (estadoRef.current.vista !== "conversacion" && activa) despachar({ tipo: "vista", vista: "conversacion", activa });
+        despachar({ tipo: "pedido", pedido: { caja: texto } });
+      },
+      editarObjetivo: (sesionId) => {
+        despachar({ tipo: "vista", vista: "conversacion", activa: sesionId });
+        if (!estadoRef.current.conversaciones[sesionId]) void cargar(sesionId);
+        despachar({ tipo: "pedido", pedido: { objetivo: sesionId } });
+      },
+      buscarEnConversaciones: (texto) => despachar({ tipo: "pedido", pedido: { busqueda: texto.trim().slice(0, 200) } }),
+      nuevaSesionEn: async (cwd) => {
+        const sesion = await rpc().llamar("sesion.crear", { cwd });
+        despachar({ tipo: "sesion", sesion });
+        despachar({ tipo: "historial", sesion, historial: [] });
+        despachar({ tipo: "vista", vista: "conversacion", activa: sesion.sesionId });
+      },
       ponerObjetivo: async (sesionId, objetivo, maxIntentos) => {
         despachar({ tipo: "sesion", sesion: await rpc().llamar("sesion.objetivo", { sesionId, objetivo, ...(maxIntentos ? { maxIntentos } : {}) }) });
       },

@@ -3,6 +3,7 @@ import type { InfoProveedor, ModoAprobacion } from "@aquiles/protocolo";
 import { MODOS_APROBACION } from "@aquiles/protocolo";
 import { Boton, Campo, Selector, type OpcionSelector } from "@aquiles/ui";
 import { useEffect, useId, useRef } from "react";
+import { esfuerzoDe, opcionesEsfuerzo } from "../estado/esfuerzo";
 import { MODOS } from "../estado/formato";
 import { elegirCarpeta } from "../plataforma/dialogo";
 import { enTauri } from "../plataforma/tauri";
@@ -15,6 +16,7 @@ function opcionesProveedor(proveedores: InfoProveedor[], actual: string): Opcion
 /**
  * Proveedor y modelo (lista de modelos si el proveedor la da; si no, el id a mano).
  * Con `vacio`, el proveedor puede quedar sin elegir (y entonces no hay modelo).
+ * Con `alEsfuerzo`, también el esfuerzo, si el modelo declara niveles.
  */
 export function ProveedorModelo({
   proveedores,
@@ -22,15 +24,20 @@ export function ProveedorModelo({
   modelo,
   vacio,
   alCambiar,
+  esfuerzo,
+  alEsfuerzo,
 }: {
   proveedores: InfoProveedor[];
   proveedor: string;
   modelo?: string;
   vacio?: string;
   alCambiar: (proveedor: string, modelo: string | undefined) => void;
+  esfuerzo?: string;
+  alEsfuerzo?: (esfuerzo: string) => void;
 }) {
   const info = proveedores.find((p) => p.id === proveedor);
   const opciones = opcionesProveedor(proveedores, proveedor);
+  const niveles = alEsfuerzo ? esfuerzoDe(proveedores, proveedor, modelo) : undefined;
   return (
     <div className="ajustes__rejilla">
       <Selector
@@ -49,6 +56,14 @@ export function ProveedorModelo({
         />
       ) : (
         <Campo etiqueta="Modelo" mono value={modelo ?? ""} spellCheck={false} onChange={(e) => alCambiar(proveedor, e.target.value || undefined)} />
+      )}
+      {niveles && alEsfuerzo && (
+        <Selector
+          etiqueta="Esfuerzo"
+          opciones={opcionesEsfuerzo(niveles)}
+          valor={esfuerzo && niveles.niveles.includes(esfuerzo) ? esfuerzo : ""}
+          alCambiar={alEsfuerzo}
+        />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 /** Pestañas Propuestas y Aprendido de Memoria (fase 4: lo que aprende Aquiles y de dónde sale). */
 import type { EntradaAprendizaje, OrigenAprendizaje, Propuesta } from "@aquiles/protocolo";
-import { BloqueCodigo, Boton, Etiqueta, Tarjeta } from "@aquiles/ui";
+import { BloqueCodigo, Boton, ConMenuContextual, Etiqueta, Tarjeta, useMenuContextual } from "@aquiles/ui";
 import { useMemo, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { ORIGENES, tipoAprendizaje } from "../estado/aprendizaje";
@@ -62,7 +62,8 @@ export function PanelPropuestas({ propuestas }: { propuestas: Carga<Propuesta[]>
 }
 
 function TarjetaPropuesta({ p, ahora, alDecidir }: { p: Propuesta; ahora: number; alDecidir: (p: Propuesta) => void }) {
-  const { decidirPropuesta } = useAcciones();
+  const { decidirPropuesta, abrirSesion } = useAcciones();
+  const { sesiones } = useEstado();
   const [enviando, setEnviando] = useState<"aceptar" | "descartar">();
   const [error, setError] = useState<string>();
   const fallo = error ?? p.error;
@@ -79,8 +80,15 @@ function TarjetaPropuesta({ p, ahora, alDecidir }: { p: Propuesta; ahora: number
     }
   };
 
+  const menu = useMenuContextual(() => [
+    { texto: "Aceptar", icono: "check", deshabilitado: !!enviando, alElegir: () => void decidir("aceptar") },
+    { texto: "Descartar", icono: "cerrar", deshabilitado: !!enviando, alElegir: () => void decidir("descartar") },
+    { tipo: "separador" },
+    p.origen.sesionId && sesiones[p.origen.sesionId] && { texto: "Abrir sesión de origen", icono: "flecha-diagonal", alElegir: () => abrirSesion(p.origen.sesionId!) },
+  ]);
+
   return (
-    <Tarjeta como="article" className="propuesta">
+    <Tarjeta como="article" className="propuesta" {...menu}>
       <div className="propuesta__cabecera">
         <Etiqueta>{tipoAprendizaje(p)}</Etiqueta>
         <span className="propuesta__meta">
@@ -183,10 +191,19 @@ export function PanelAprendido() {
 
 /** Lo aprendido como línea temporal, con la fecha, el tipo, el resumen y el origen de cada entrada. */
 export function LineaAprendido({ entradas, ahora }: { entradas: EntradaAprendizaje[]; ahora: number }) {
+  const { sesiones } = useEstado();
+  const { abrirSesion } = useAcciones();
   return (
     <ol className="linea-tiempo">
       {entradas.map((e) => (
-        <li key={e.id} className="linea-tiempo__entrada">
+        <ConMenuContextual
+          key={e.id}
+          construir={() => [
+            e.origen.sesionId && sesiones[e.origen.sesionId] && { texto: "Abrir sesión de origen", icono: "flecha-diagonal", alElegir: () => abrirSesion(e.origen.sesionId!) },
+          ]}
+        >
+          {(menu) => (
+        <li className="linea-tiempo__entrada" {...menu}>
           <time className="linea-tiempo__fecha" dateTime={e.fecha} title={fechaCompleta(e.fecha)}>
             {fechaConHora(e.fecha, ahora)}
           </time>
@@ -198,6 +215,8 @@ export function LineaAprendido({ entradas, ahora }: { entradas: EntradaAprendiza
             </span>
           </div>
         </li>
+          )}
+        </ConMenuContextual>
       ))}
     </ol>
   );

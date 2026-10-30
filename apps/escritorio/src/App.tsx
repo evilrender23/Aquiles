@@ -1,5 +1,5 @@
-import { clases } from "@aquiles/ui";
-import { useState } from "react";
+import { ProveedorMenuContextual, clases } from "@aquiles/ui";
+import { useEffect, useState, type ReactNode } from "react";
 import { AvisoConexion } from "./componentes/AvisoConexion";
 import { BarraLateral } from "./componentes/BarraLateral";
 import { BarraTitulo } from "./componentes/BarraTitulo";
@@ -12,13 +12,25 @@ import { VistaConversacion } from "./componentes/VistaConversacion";
 import { VistaHabilidades } from "./componentes/VistaHabilidades";
 import { VistaInicio } from "./componentes/VistaInicio";
 import { VistaMemoria } from "./componentes/VistaMemoria";
-import { ProveedorApp, useEstado } from "./estado/almacen";
+import { ProveedorApp, useAcciones, useEstado } from "./estado/almacen";
 
 export function App() {
   return (
     <ProveedorApp>
-      <Marco />
+      <Menus>
+        <Marco />
+      </Menus>
     </ProveedorApp>
+  );
+}
+
+/** Menús contextuales de toda la app; una selección suelta también se puede buscar en las conversaciones. */
+function Menus({ children }: { children: ReactNode }) {
+  const { buscarEnConversaciones } = useAcciones();
+  return (
+    <ProveedorMenuContextual seleccion={(texto) => [{ texto: "Buscar en conversaciones", icono: "buscar", alElegir: () => buscarEnConversaciones(texto) }]}>
+      {children}
+    </ProveedorMenuContextual>
   );
 }
 
@@ -26,6 +38,11 @@ function Marco() {
   const estado = useEstado();
   // En ventanas estrechas la barra lateral se superpone y se abre desde la barra de título.
   const [lateralAbierta, setLateralAbierta] = useState(false);
+  // Buscar desde un menú: en ventanas estrechas la barra lateral está escondida y hay que sacarla.
+  const busqueda = estado.pedidos.busqueda?.n;
+  useEffect(() => {
+    if (busqueda) setLateralAbierta(true);
+  }, [busqueda]);
   const sesion = estado.activa ? estado.sesiones[estado.activa] : undefined;
   // En Habilidades y Memoria, la carpeta de la sesión activa es la del proyecto que se muestra.
   const ruta = estado.vista === "inicio" ? estado.ajustes?.carpeta : estado.vista === "ajustes" || estado.vista === "automatizaciones" || estado.vista === "estadisticas" ? undefined : sesion?.cwd;
