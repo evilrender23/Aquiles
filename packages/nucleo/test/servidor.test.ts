@@ -146,6 +146,12 @@ test("errores JSON-RPC", async () => {
   expect((await c.llamar("no.existe", {})).error.code).toBe(-32601);
   expect((await c.llamar("prompt.enviar", { sesionId: "" })).error.code).toBe(-32602);
   expect((await c.llamar("prompt.enviar", { sesionId: "x", texto: "hola" })).error.code).toBe(1001);
+  // Carpeta de trabajo que no existe, relativa o que es un fichero: se rechaza al crear la sesión.
+  for (const malo of [join(cwd, "no-existe"), "relativa", join(perfil, "ajustes.json")]) {
+    const r = await c.llamar("sesion.crear", { cwd: malo });
+    expect(r.error?.code).toBe(-32602);
+  }
+  expect((await c.llamar("sesion.crear", { cwd })).result.cwd).toBe(cwd);
   ws.close();
 });
 

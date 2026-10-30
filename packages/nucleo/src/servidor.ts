@@ -5,9 +5,9 @@
  * preguntas) y espera su respuesta.
  */
 import { timingSafeEqual } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import {
   codigosError,
   MAX_ADJUNTOS,
@@ -517,6 +517,9 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       return { ok: true };
     },
     "sesion.crear": async ({ cwd, modoAprobacion, proveedor, modelo, esfuerzo }) => {
+      // Una carpeta que no existe solo fallaría en el primer turno: mejor decirlo al crear la sesión.
+      if (cwd !== undefined && (!isAbsolute(cwd) || !existsSync(cwd) || !statSync(cwd).isDirectory()))
+        throw new FalloRpc(codigosError.paramsInvalidos, `No existe la carpeta ${cwd}`);
       const a = ajustes.leer();
       const nivel = esfuerzo ? await esfuerzoValido(proveedor ?? a.proveedor, modelo ?? (proveedor ? undefined : a.modelo), esfuerzo) : undefined;
       return vista(crearSesion(cwd, { modoAprobacion, proveedor, modelo, ...(nivel ? { esfuerzo: nivel } : {}) }));

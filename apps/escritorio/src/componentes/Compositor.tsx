@@ -11,7 +11,8 @@ export interface PropsCompositor {
   deshabilitado?: boolean;
   /** Con turno en marcha y sin texto, el botón detiene. */
   trabajando?: boolean;
-  alEnviar: (texto: string, adjuntos: AdjuntoPendiente[]) => void | Promise<void>;
+  /** Devolver `false` = no se envió (p. ej. la sesión no se pudo crear): el texto y los adjuntos vuelven a la caja. */
+  alEnviar: (texto: string, adjuntos: AdjuntoPendiente[]) => unknown;
   /** Con un turno en marcha (o una pregunta pendiente) los adjuntos esperan: no van con el steer. */
   adjuntosPermitidos?: boolean;
   alDetener?: () => void;
@@ -94,9 +95,15 @@ export function Compositor({
       return;
     }
     const adjuntos = adj.adjuntos;
+    const original = texto;
     setTexto("");
     adj.vaciar();
-    void alEnviar(limpio, adjuntos);
+    void Promise.resolve(alEnviar(limpio, adjuntos)).then((enviado) => {
+      if (enviado !== false) return;
+      // Sin pisar lo que se haya escrito o adjuntado mientras tanto.
+      setTexto((t) => t || original);
+      adj.restaurar(adjuntos);
+    });
   };
 
   return (

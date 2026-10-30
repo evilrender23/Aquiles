@@ -1,4 +1,4 @@
-import type { InfoProveedor, ModoAprobacion } from "@aquiles/protocolo";
+import type { InfoProveedor, InfoSesion, ModoAprobacion } from "@aquiles/protocolo";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
@@ -70,6 +70,30 @@ export function duracion(ms: number): string {
 export function nombreCarpeta(ruta: string): string {
   const partes = ruta.replace(/[\\/]+$/, "").split(/[\\/]/);
   return partes.at(-1) || ruta;
+}
+
+/** Los dos últimos tramos de una ruta (`Escritorio\proyecto`): bastan para distinguir carpetas que se llaman igual. */
+export function rutaCorta(ruta: string): string {
+  const partes = ruta.replace(/[\\/]+$/, "").split(/[\\/]/).filter(Boolean);
+  return partes.slice(-2).join("\\") || ruta;
+}
+
+/** Misma carpeta de Windows aunque cambien las mayúsculas, el tipo de barra o la barra final. */
+export function mismaCarpeta(a: string, b: string): boolean {
+  const normal = (r: string) => r.replace(/[\\/]+/g, "\\").replace(/\\$/, "").toLowerCase();
+  return normal(a) === normal(b);
+}
+
+/** Carpetas para empezar una sesión: la de los ajustes y las de las sesiones más recientes, sin repetir. */
+export function carpetasRecientes(sesiones: readonly InfoSesion[], porDefecto: string | undefined, max = 6): string[] {
+  const recientes = [...sesiones].sort((a, b) => b.actualizada.localeCompare(a.actualizada)).map((s) => s.cwd);
+  const lista: string[] = [];
+  for (const c of [...(porDefecto ? [porDefecto] : []), ...recientes]) {
+    if (lista.some((x) => mismaCarpeta(x, c))) continue;
+    lista.push(c);
+    if (lista.length >= max) break;
+  }
+  return lista;
 }
 
 export const MODOS: Record<ModoAprobacion, string> = {

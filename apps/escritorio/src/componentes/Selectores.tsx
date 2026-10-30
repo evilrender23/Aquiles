@@ -2,8 +2,10 @@ import type { InfoProveedor, ModoAprobacion } from "@aquiles/protocolo";
 import { MODOS_APROBACION } from "@aquiles/protocolo";
 import { Boton, Desplegable, GrupoOpciones, Icono, Medidor, Opcion } from "@aquiles/ui";
 import { useState } from "react";
-import { MODOS, nombreModelo, tokens } from "../estado/formato";
+import { MODOS, mismaCarpeta, nombreCarpeta, nombreModelo, rutaCorta, tokens } from "../estado/formato";
 import { esfuerzoDe, nombreEsfuerzo, opcionesEsfuerzo } from "../estado/esfuerzo";
+import { elegirCarpeta } from "../plataforma/dialogo";
+import { enTauri } from "../plataforma/tauri";
 
 export interface PropsSelectorModelo {
   proveedor: string;
@@ -47,7 +49,9 @@ export function SelectorModelo({ proveedor, modelo, proveedores, alElegir, desha
                   />
                 ))
               ) : (
-                <ModeloEscrito
+                <TextoEscrito
+                  etiqueta="Id del modelo"
+                  placeholder="id del modelo"
                   activo={p.id === proveedor}
                   valor={p.id === proveedor ? (modelo ?? "") : ""}
                   deshabilitado={!p.disponible}
@@ -114,15 +118,89 @@ export function SelectorEsfuerzo({
   );
 }
 
-function ModeloEscrito({ activo, valor, deshabilitado, alUsar }: { activo: boolean; valor: string; deshabilitado: boolean; alUsar: (m: string) => void }) {
+/** Carpeta de trabajo de una sesión nueva: la de los ajustes, las recientes y, para otra, el diálogo nativo (en el navegador, escrita). */
+export function SelectorCarpeta({
+  carpeta,
+  recientes,
+  alElegir,
+  deshabilitado,
+  alineacion = "izquierda",
+}: {
+  carpeta: string;
+  recientes: string[];
+  alElegir: (carpeta: string) => void;
+  deshabilitado?: boolean;
+  alineacion?: "izquierda" | "derecha";
+}) {
+  return (
+    <Desplegable
+      etiqueta="Carpeta"
+      alineacion={alineacion}
+      disparador={({ alternar, abierto: _a, ...aria }) => (
+        <Boton variante="chip" icono="carpeta" iconoFinal="chevron-abajo" disabled={deshabilitado} onClick={alternar} title={carpeta} {...aria}>
+          <span className="chip-modelo">{nombreCarpeta(carpeta)}</span>
+        </Boton>
+      )}
+    >
+      {(cerrar) => (
+        <>
+          {recientes.map((c) => (
+            <Opcion
+              key={c}
+              texto={rutaCorta(c)}
+              titulo={c}
+              marcada={mismaCarpeta(c, carpeta)}
+              alElegir={() => {
+                alElegir(c);
+                cerrar();
+              }}
+            />
+          ))}
+          {enTauri() ? (
+            <Opcion
+              texto="Elegir otra…"
+              alElegir={async () => {
+                cerrar();
+                const c = await elegirCarpeta(carpeta).catch(() => null);
+                if (c) alElegir(c);
+              }}
+            />
+          ) : (
+            <TextoEscrito
+              etiqueta="Ruta de la carpeta"
+              placeholder="C:\ruta\de\la\carpeta"
+              activo={!recientes.some((c) => mismaCarpeta(c, carpeta))}
+              valor=""
+              deshabilitado={false}
+              alUsar={(c) => {
+                if (c) alElegir(c);
+                cerrar();
+              }}
+            />
+          )}
+        </>
+      )}
+    </Desplegable>
+  );
+}
+
+/** Campo para escribir un valor que no está en la lista (id de modelo, ruta de carpeta), con su «Usar». */
+function TextoEscrito({
+  etiqueta,
+  placeholder,
+  activo,
+  valor,
+  deshabilitado,
+  alUsar,
+}: { etiqueta: string; placeholder: string; activo: boolean; valor: string; deshabilitado: boolean; alUsar: (v: string) => void }) {
   const [texto, setTexto] = useState(valor);
   // Sin <form>: el menú vive dentro del formulario de la caja de texto y los formularios no se anidan.
   return (
     <div className="modelo-escrito">
       <input
         className="modelo-escrito__entrada"
-        aria-label="Id del modelo"
-        placeholder="id del modelo"
+        aria-label={etiqueta}
+        placeholder={placeholder}
         value={texto}
         disabled={deshabilitado}
         onChange={(e) => setTexto(e.target.value)}

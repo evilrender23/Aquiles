@@ -106,7 +106,14 @@ export function useAdjuntos() {
     setError(undefined);
   }, []);
 
-  return { adjuntos, error, setError, arrastrando, anadirFicheros, anadirRutas, pegar, quitar, vaciar };
+  /** Devuelve a la caja los adjuntos de un envío que no salió, si no se ha adjuntado nada después. */
+  const restaurar = useCallback((lista: AdjuntoPendiente[]) => {
+    if (actuales.current.length) return;
+    actuales.current = lista;
+    setAdjuntos(lista);
+  }, []);
+
+  return { adjuntos, error, setError, arrastrando, anadirFicheros, anadirRutas, pegar, quitar, vaciar, restaurar };
 }
 
 /** Clip: el selector nativo en la app (rutas); un <input type=file> en el navegador (contenido). */
