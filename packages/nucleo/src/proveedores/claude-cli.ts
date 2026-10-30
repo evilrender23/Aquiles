@@ -41,7 +41,7 @@ interface EventoClaude {
   subtype?: string;
   event?: {
     type?: string;
-    delta?: { type?: string; text?: string; stop_reason?: string | null };
+    delta?: { type?: string; text?: string; thinking?: string; stop_reason?: string | null };
   };
   is_error?: boolean;
   result?: string;
@@ -119,7 +119,7 @@ export class ProveedorClaude implements Proveedor {
       p.senal.addEventListener("abort", () => rechazar(new ErrorAbortado()), { once: true });
     });
     try {
-      const r = await this.turno(s, contenido, alDelta, abortar);
+      const r = await this.turno(s, contenido, alDelta, abortar, p.alPensamiento);
       // Un resultado que el modelo escriba tras sus llamadas es inventado: se corta desde ahí.
       const llamada = r.texto.indexOf("</herramienta>");
       const corte = llamada >= 0 ? r.texto.indexOf("<resultado", llamada) : -1;
@@ -139,6 +139,7 @@ export class ProveedorClaude implements Proveedor {
     contenido: ContenidoClaude,
     alDelta: (texto: string) => void,
     abortar: Promise<never>,
+    alPensamiento?: (texto: string) => void,
   ): Promise<{ texto: string; uso: Uso; cortada: boolean }> {
     escribir(s, { type: "user", message: { role: "user", content: contenido } });
     let acumulado = "";
@@ -159,6 +160,8 @@ export class ProveedorClaude implements Proveedor {
             alDelta(visible.slice(emitido));
             emitido = visible.length;
           }
+        } else if (ev.event?.type === "content_block_delta" && delta?.type === "thinking_delta" && delta.thinking) {
+          alPensamiento?.(delta.thinking);
         } else if (ev.event?.type === "message_delta" && delta?.stop_reason === "max_tokens") {
           cortada = true;
         }
@@ -225,6 +228,8 @@ export class ProveedorClaude implements Proveedor {
       "--system-prompt-file", rutaSistema,
       ...(this.opciones.modelo ? ["--model", this.opciones.modelo] : []),
       ...(this.opciones.esfuerzo ? ["--effort", this.opciones.esfuerzo] : []),
+      // Sin esto el CLI manda los bloques de razonamiento vacíos (solo cuenta los tokens).
+      "--thinking-display", "summarized",
     ];
     const proceso = Bun.spawn(args, { cwd: p.cwd, env: entorno(), stdin: "pipe", stdout: "pipe", stderr: "pipe" });
     const s: SesionClaude = { proceso, cola: [], terminada: false, rutaSistema, enviados: 0, stderr: [], llamadas: 0 };

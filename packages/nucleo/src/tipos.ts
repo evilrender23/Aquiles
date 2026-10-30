@@ -23,6 +23,8 @@ export type Mensaje =
       rol: "asistente";
       texto: string;
       llamadas: LlamadaHerramienta[];
+      /** Resumen del razonamiento de esta respuesta, para enseñarlo; no se le vuelve a mandar al modelo. */
+      pensamiento?: string;
       /** Datos opacos que un proveedor necesita recibir de vuelta (p. ej. bloques de razonamiento firmados). */
       opaco?: { proveedor: string; datos: unknown };
     }
@@ -54,6 +56,8 @@ export interface PeticionModelo {
   senal: AbortSignal;
   /** Límite de tokens de salida de esta llamada; si falta, el proveedor elige. */
   maxTokensSalida?: number;
+  /** Recibe el razonamiento del modelo a medida que llega (un resumen), si el proveedor lo da. */
+  alPensamiento?: (texto: string) => void;
 }
 
 export interface RespuestaModelo {

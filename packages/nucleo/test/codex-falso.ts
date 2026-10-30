@@ -21,6 +21,7 @@ if (ultima.includes("agotado")) {
   emitir({ type: "turn.failed", error: { message: "You've hit your usage limit." } });
   process.exit(1);
 }
+if (ultima.includes("razona")) emitir({ type: "item.completed", item: { id: "item_r", type: "reasoning", text: "**Calculando 366 menos 52**" } });
 const texto = ultima.includes("herramienta")
   ? 'Voy a leerlo.\n<herramienta nombre="leer">{"ruta":"a.txt"}</herramienta>\n<resultado>inventado</resultado>'
   : Buffer.from(JSON.stringify({ args, prompt })).toString("base64");

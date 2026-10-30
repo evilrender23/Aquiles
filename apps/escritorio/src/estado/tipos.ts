@@ -26,7 +26,8 @@ export type Elemento =
       inicio?: number;
       ms?: number;
     }
-  | { tipo: "pensamiento"; id: string; ms: number }
+  /** Lo que tardó el modelo en responder y, si el proveedor lo da, el resumen de su razonamiento. Del historial llega sin `ms`. */
+  | { tipo: "pensamiento"; id: string; ms?: number; texto?: string }
   | { tipo: "tareas"; id: string; tareas: TareaVisible[] }
   | { tipo: "resumen"; id: string; texto: string }
   | { tipo: "aviso"; id: string; nivel: "aviso" | "error"; texto: string }
@@ -40,6 +41,8 @@ export interface Conversacion {
   trabajando: boolean;
   /** Desde cuándo está esperando al modelo, si lo está. */
   pensandoDesde?: number;
+  /** Razonamiento que va llegando mientras piensa (pensamiento.delta). */
+  pensamientoVivo?: string;
   contexto?: { tokens: number; ventana?: number };
 }
 

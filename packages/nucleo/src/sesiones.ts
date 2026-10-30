@@ -287,6 +287,8 @@ export function historial(s: Sesion): MensajeHistorial[] {
         }
       : m.rol === "usuario"
         ? { rol: "usuario", texto: m.texto, ...(m.adjuntos?.length ? { adjuntos: m.adjuntos.map(infoAdjunto) } : {}) }
-        : { rol: m.rol, texto: m.texto },
+        : m.rol === "asistente"
+          ? { rol: "asistente", texto: m.texto, ...(m.pensamiento ? { pensamiento: m.pensamiento } : {}) }
+          : { rol: m.rol, texto: m.texto },
   );
 }

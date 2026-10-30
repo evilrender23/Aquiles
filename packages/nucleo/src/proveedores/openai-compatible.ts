@@ -97,7 +97,7 @@ export class ProveedorOpenAICompatible implements Proveedor {
     };
     try {
       const flujo = await this.conectar().chat.completions.create(peticion, { signal: p.senal });
-      return await recoger(flujo, alDelta, p.senal, this.nombre);
+      return await recoger(flujo, alDelta, p.senal, this.nombre, p.alPensamiento);
     } catch (e) {
       if (p.senal.aborted || esAborto(e)) throw new ErrorAbortado();
       throw clasificarError(e, this.nombre);
@@ -188,6 +188,7 @@ async function recoger(
   alDelta: (texto: string) => void,
   senal: AbortSignal,
   origen: string,
+  alPensamiento?: (texto: string) => void,
 ): Promise<RespuestaModelo> {
   let texto = "";
   const enCurso = new Map<number, LlamadaEnCurso>();
@@ -199,6 +200,9 @@ async function recoger(
     if (trozo.usage) uso = trozo.usage;
     for (const opcion of trozo.choices ?? []) {
       const d = opcion.delta;
+      // No es parte del tipo de OpenAI: lo añaden llama.cpp y DeepSeek (`reasoning_content`) y OpenRouter (`reasoning`).
+      const razonamiento = (d as { reasoning_content?: unknown; reasoning?: unknown } | undefined)?.reasoning_content ?? (d as { reasoning?: unknown } | undefined)?.reasoning;
+      if (typeof razonamiento === "string" && razonamiento) alPensamiento?.(razonamiento);
       if (d?.content) {
         texto += d.content;
         alDelta(d.content);

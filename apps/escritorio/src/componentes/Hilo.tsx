@@ -6,7 +6,7 @@ import { hora } from "../estado/formato";
 import type { AdjuntoVisto, Conversacion, Elemento } from "../estado/tipos";
 import { AdjuntosMensaje } from "./Adjuntos";
 import { TarjetaArtefacto, useArtefactosHilo } from "./Artefactos";
-import { TextoAsistente } from "./Markdown";
+import { Markdown, TextoAsistente } from "./Markdown";
 import { TarjetaHerramienta } from "./TarjetaHerramienta";
 
 type Bloque = { tipo: "usuario"; e: Extract<Elemento, { tipo: "usuario" }> } | { tipo: "aquiles"; id: string; hora?: number; elementos: Elemento[] };
@@ -65,7 +65,13 @@ export function Hilo({
             {b.elementos.map((e) => (
               <ElementoAquiles key={e.id} e={e} cwd={cwd} />
             ))}
-            {pensando && i === ultimoAquiles && <ThoughtLine trabajando desde={conversacion.pensandoDesde} />}
+            {pensando && i === ultimoAquiles && (
+              <ThoughtLine
+                trabajando
+                desde={conversacion.pensandoDesde}
+                detalle={conversacion.pensamientoVivo ? <Markdown texto={conversacion.pensamientoVivo} compacto /> : undefined}
+              />
+            )}
           </article>
         ),
       )}
@@ -81,7 +87,7 @@ function ElementoAquiles({ e, cwd }: { e: Elemento; cwd: string }) {
     case "herramienta":
       return <TarjetaHerramienta h={e} cwd={cwd} />;
     case "pensamiento":
-      return <ThoughtLine trabajando={false} ms={e.ms} />;
+      return <ThoughtLine trabajando={false} ms={e.ms} detalle={e.texto ? <Markdown texto={e.texto} compacto /> : undefined} />;
     case "tareas":
       return <ListaTareas tareas={e.tareas} />;
     case "resumen":

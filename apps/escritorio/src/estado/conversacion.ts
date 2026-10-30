@@ -18,7 +18,7 @@ export function conversacionVacia(): Conversacion {
 }
 
 export function desdeHistorial(historial: MensajeHistorial[]): Elemento[] {
-  return historial.map((m): Elemento => {
+  return historial.flatMap((m): Elemento | Elemento[] => {
     if (m.rol === "herramienta") {
       return {
         tipo: "herramienta",
@@ -35,7 +35,8 @@ export function desdeHistorial(historial: MensajeHistorial[]): Elemento[] {
       const adjuntos = m.adjuntos?.map((a): AdjuntoVisto => ({ id: a.id, nombre: a.nombre, tipo: a.tipo, bytes: a.bytes, clase: a.clase, ruta: a.ruta }));
       return { tipo: "usuario", id: nuevoId(), texto: m.texto, ...(adjuntos?.length ? { adjuntos } : {}) };
     }
-    return { tipo: "asistente", id: nuevoId(), texto: m.texto, abierto: false };
+    const texto: Elemento = { tipo: "asistente", id: nuevoId(), texto: m.texto, abierto: false };
+    return m.rol === "asistente" && m.pensamiento ? [{ tipo: "pensamiento", id: nuevoId(), texto: m.pensamiento }, texto] : texto;
   });
 }
 
@@ -43,12 +44,24 @@ function cerrarTexto(l: Elemento[]): Elemento[] {
   return l.some((x) => x.tipo === "asistente" && x.abierto) ? l.map((x) => (x.tipo === "asistente" && x.abierto ? { ...x, abierto: false } : x)) : l;
 }
 
-/** Deja de esperar al modelo y, si la espera fue larga, la apunta. */
+/** Deja de esperar al modelo y, si la espera fue larga o trae razonamiento, la apunta. */
 function dejarDePensar(c: Conversacion, ahora: number): Conversacion {
   if (c.pensandoDesde === undefined) return c;
   const ms = ahora - c.pensandoDesde;
-  const elementos = ms >= PENSAMIENTO_MINIMO_MS ? [...c.elementos, { tipo: "pensamiento" as const, id: nuevoId(), ms }] : c.elementos;
-  return { ...c, elementos, pensandoDesde: undefined };
+  const texto = c.pensamientoVivo?.trim();
+  const apuntar = ms >= PENSAMIENTO_MINIMO_MS || !!texto;
+  const elementos = apuntar ? [...c.elementos, { tipo: "pensamiento" as const, id: nuevoId(), ms, ...(texto ? { texto } : {}) }] : c.elementos;
+  return { ...c, elementos, pensandoDesde: undefined, pensamientoVivo: undefined };
+}
+
+/** Razonamiento que llega: mientras piensa se acumula; si ya respondió (codex lo manda entero), va al último pensamiento. */
+function anadirPensamiento(c: Conversacion, texto: string): Conversacion {
+  if (c.pensandoDesde !== undefined) return { ...c, pensamientoVivo: (c.pensamientoVivo ?? "") + texto };
+  const i = c.elementos.findLastIndex((x) => x.tipo === "pensamiento");
+  const ultimo = c.elementos[i];
+  if (ultimo?.tipo === "pensamiento" && i >= c.elementos.length - 2)
+    return { ...c, elementos: c.elementos.with(i, { ...ultimo, texto: (ultimo.texto ?? "") + texto }) };
+  return { ...c, elementos: [...c.elementos, { tipo: "pensamiento", id: nuevoId(), texto }] };
 }
 
 export function anadirUsuario(c: Conversacion, texto: string, ahora: number, steer: boolean, adjuntos?: AdjuntoVisto[]): Conversacion {
@@ -88,6 +101,8 @@ export type EventoSesion = Extract<Evento, { sesionId: string }>;
 
 export function aplicarEvento(c: Conversacion, e: EventoSesion, ahora: number): Conversacion {
   switch (e.tipo) {
+    case "pensamiento.delta":
+      return anadirPensamiento(c, e.texto);
     case "mensaje.delta": {
       const p = dejarDePensar(c, ahora);
       const ultimo = p.elementos.at(-1);
@@ -140,7 +155,7 @@ export function aplicarEvento(c: Conversacion, e: EventoSesion, ahora: number): 
       return anadirAviso(cerrar(c), "aviso", `Reintento ${e.intento} en ${duracion(e.esperaMs)}: ${e.motivo}`);
     case "turno.fin": {
       const elementos = cerrarTexto(c.elementos).map((x) => (x.tipo === "herramienta" && x.estado === "en-curso" ? { ...x, estado: "fallo" as const } : x));
-      const fin: Conversacion = { ...c, elementos, trabajando: false, pensandoDesde: undefined };
+      const fin: Conversacion = { ...c, elementos, trabajando: false, pensandoDesde: undefined, pensamientoVivo: undefined };
       if (e.motivo === "error") return anadirAviso(fin, "error", e.error ?? "Error desconocido");
       if (e.motivo === "limite") return anadirAviso(fin, "aviso", "Se alcanzó el límite de pasos del turno");
       if (e.motivo === "parado") return anadirAviso(fin, "aviso", "Detenido");

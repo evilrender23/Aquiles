@@ -64,12 +64,20 @@ test("esfuerzo: va como model_reasoning_effort, y el catálogo trae niveles y ni
   expect(leerCatalogo(json)).toEqual([{ slug: "a", nombre: "a", ventana: 1, niveles: ["low", "ultra"], porDefecto: "low" }]);
 });
 
+test("razonamiento: se pide el resumen y llega aparte del texto", async () => {
+  const pensado: string[] = [];
+  const r = await proveedor.responder({ ...peticion([{ rol: "usuario", texto: "razona esto" }]), alPensamiento: (t) => pensado.push(t) }, () => {});
+  expect(pensado).toEqual(["**Calculando 366 menos 52**\n\n"]);
+  const { args } = JSON.parse(Buffer.from(r.texto, "base64").toString());
+  expect(args).toContain('model_reasoning_summary="detailed"');
+});
+
 test("llamadas en texto: se ocultan al vuelo y se descarta el resultado inventado", async () => {
   const deltas: string[] = [];
   const r = await proveedor.responder(peticion([{ rol: "usuario", texto: "usa una herramienta" }]), (d) => deltas.push(d));
   expect(deltas.join("")).toBe("Voy a leerlo.\n");
   expect(r.texto).toBe("Voy a leerlo.");
-  expect(r.llamadas).toEqual([{ id: "codex2-1", nombre: "leer", argumentos: { ruta: "a.txt" } }]);
+  expect(r.llamadas).toEqual([{ id: expect.stringMatching(/^codex\d+-1$/), nombre: "leer", argumentos: { ruta: "a.txt" } }]);
 });
 
 test("errores: turn.failed y salida sin eventos", async () => {

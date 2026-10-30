@@ -184,6 +184,8 @@ export class ProveedorCodex implements Proveedor {
       "-C", p.cwd,
       ...(this.opciones.modelo ? ["-m", this.opciones.modelo] : []),
       ...(this.opciones.esfuerzo ? ["-c", `model_reasoning_effort="${this.opciones.esfuerzo}"`] : []),
+      // Sin esto codex no manda nada del razonamiento (solo cuenta los tokens).
+      "-c", 'model_reasoning_summary="detailed"',
       "-",
     ];
     const proceso = Bun.spawn(args, { cwd: p.cwd, stdin: "pipe", stdout: "pipe", stderr: "pipe" });
@@ -206,6 +208,7 @@ export class ProveedorCodex implements Proveedor {
         } catch {
           continue;
         }
+        if (ev.type === "item.completed" && ev.item?.type === "reasoning" && ev.item.text) p.alPensamiento?.(`${ev.item.text}\n\n`);
         if (ev.type === "item.completed" && ev.item?.type === "agent_message" && ev.item.text) {
           textos.push(ev.item.text);
           // Los bloques de herramienta no se enseñan mientras llegan.

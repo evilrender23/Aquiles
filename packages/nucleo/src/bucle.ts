@@ -102,13 +102,22 @@ export async function ejecutarTurno(o: OpcionesTurno): Promise<ResultadoTurno> {
     emitir({ tipo: "contexto.compactado", sesionId: o.sesionId, metodo: c.metodo, antes: c.antes, despues: c.despues });
   };
 
+  /** Razonamiento de la llamada en curso: se emite según llega y se guarda con la respuesta. */
+  let pensamiento = "";
   const llamar = async (): Promise<RespuestaModelo> => {
+    pensamiento = "";
     let compactadoPorError = false;
     let reservaUsada = proveedor === o.proveedorReserva;
     for (let intento = 0; ; intento++) {
       try {
         return await proveedor.responder(
-          { sesionId: o.sesionId, sistema: o.sistema, mensajes: o.mensajes, herramientas: especs, cwd: o.cwd, senal: o.senal },
+          {
+            sesionId: o.sesionId, sistema: o.sistema, mensajes: o.mensajes, herramientas: especs, cwd: o.cwd, senal: o.senal,
+            alPensamiento: (t) => {
+              pensamiento += t;
+              emitir({ tipo: "pensamiento.delta", sesionId: o.sesionId, texto: t });
+            },
+          },
           (delta) => emitir({ tipo: "mensaje.delta", sesionId: o.sesionId, texto: delta }),
         );
       } catch (e) {
@@ -159,6 +168,7 @@ export async function ejecutarTurno(o: OpcionesTurno): Promise<ResultadoTurno> {
     texto = respuesta.texto;
     anadir({
       rol: "asistente", texto: respuesta.texto, llamadas: respuesta.llamadas, ...(respuesta.opaco ? { opaco: respuesta.opaco } : {}),
+      ...(pensamiento.trim() ? { pensamiento: pensamiento.trim() } : {}),
     });
     if (respuesta.llamadas.length === 0) return fin("fin");
 

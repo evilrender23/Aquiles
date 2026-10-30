@@ -150,3 +150,16 @@ test("límite de iteraciones y fallo del proveedor", async () => {
   }]);
   expect((await turno(roto)).r).toMatchObject({ motivo: "error", error: "clave no válida" });
 });
+
+test("el razonamiento del proveedor se emite según llega y se guarda con la respuesta", async () => {
+  const p = new ProveedorSimulado([
+    (pet) => {
+      pet.alPensamiento?.("Primero miro");
+      pet.alPensamiento?.(" el fichero.");
+      return { texto: "Hecho.", llamadas: [] };
+    },
+  ]);
+  const { eventos, mensajes } = await turno(p);
+  expect(eventos.filter((e) => e.tipo === "pensamiento.delta").map((e) => (e as { texto: string }).texto)).toEqual(["Primero miro", " el fichero."]);
+  expect(mensajes.at(-1)).toMatchObject({ rol: "asistente", texto: "Hecho.", pensamiento: "Primero miro el fichero." });
+});

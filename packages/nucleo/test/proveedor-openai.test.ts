@@ -82,6 +82,16 @@ describe("ProveedorOpenAICompatible: respuestas", () => {
     expect(f.peticiones[0]?.url).toBe("http://openai.test/v1/chat/completions");
   });
 
+  test("el razonamiento (reasoning_content de llama.cpp y DeepSeek, reasoning de OpenRouter) va aparte del texto", async () => {
+    const f = fetchFalso([
+      sse([trozo({ reasoning_content: "Pienso" }), trozo({ reasoning: " un poco." }), trozo({ content: "Hola" }), trozo({}, "stop")]),
+    ]);
+    const pensado: string[] = [];
+    const r = await proveedor(f).responder({ ...peticion([{ rol: "usuario", texto: "hola" }]), alPensamiento: (t) => pensado.push(t) }, () => {});
+    expect(pensado).toEqual(["Pienso", " un poco."]);
+    expect(r.texto).toBe("Hola");
+  });
+
   test("acumula tool_calls por índice con argumentos troceados", async () => {
     const f = fetchFalso([
       sse([

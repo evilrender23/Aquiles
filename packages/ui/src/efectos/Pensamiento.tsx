@@ -3,7 +3,7 @@
  * una cuadrícula 4×4 que barre en diagonal mientras piensa y queda en lima al terminar,
  * con la etiqueta «Pensando…» / «Pensó durante», un cronómetro y, si los hay, los pasos.
  */
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { clases } from "../clases";
 import { Icono } from "../componentes/Icono";
 
@@ -13,7 +13,8 @@ export function LatticeLoader({ activo }: { activo: boolean }) {
   return (
     <span aria-hidden="true" className={clases("nx-lattice", activo && "nx-lattice--activa")}>
       {CELDAS.map((c) => (
-        <i key={c.id} style={activo ? { animationDelay: `${c.diagonal * 90}ms` } : undefined} />
+        // Retardos negativos: el barrido ya está en marcha al aparecer, sin un primer instante con una celda suelta.
+        <i key={c.id} style={activo ? { animationDelay: `${c.diagonal * 90 - 900}ms` } : undefined} />
       ))}
     </span>
   );
@@ -25,14 +26,17 @@ export interface PropsThoughtLine {
   /** Mientras piensa, el cronómetro cuenta desde `desde` (Date.now()). */
   trabajando: boolean;
   desde?: number;
-  /** Duración final cuando ya no trabaja. */
+  /** Duración final cuando ya no trabaja; sin ella (del historial), no se enseña tiempo. */
   ms?: number;
   pasos?: string[];
+  /** El razonamiento: con él, la línea se puede desplegar para leerlo (también mientras llega). */
+  detalle?: ReactNode;
 }
 
-export function ThoughtLine({ trabajando, desde, ms = 0, pasos = [] }: PropsThoughtLine) {
+export function ThoughtLine({ trabajando, desde, ms, pasos = [], detalle }: PropsThoughtLine) {
   const [ahora, setAhora] = useState(() => Date.now());
-  const [abierto, setAbierto] = useState(trabajando);
+  // Los pasos se ven mientras trabaja; el razonamiento, solo si se pide.
+  const [abierto, setAbierto] = useState(trabajando && !detalle && pasos.length > 0);
 
   useEffect(() => {
     if (!trabajando) return;
@@ -40,8 +44,10 @@ export function ThoughtLine({ trabajando, desde, ms = 0, pasos = [] }: PropsThou
     return () => clearInterval(t);
   }, [trabajando]);
 
-  const transcurrido = trabajando && desde !== undefined ? Math.max(0, ahora - desde) : ms;
+  const transcurrido = trabajando && desde !== undefined ? Math.max(0, ahora - desde) : (ms ?? 0);
+  const conTiempo = trabajando || ms !== undefined;
   const conPasos = pasos.length > 0;
+  const desplegable = conPasos || !!detalle;
   const suave = (visible: boolean) => ({ opacity: visible ? 1 : 0, filter: visible ? "blur(0)" : "blur(2px)" });
   const contenido = (
     <>
@@ -50,12 +56,14 @@ export function ThoughtLine({ trabajando, desde, ms = 0, pasos = [] }: PropsThou
         <span style={suave(trabajando)}>
           <span className={trabajando ? "nx-shim" : undefined}>Pensando…</span>
         </span>
-        <span style={{ ...suave(!trabajando), opacity: trabajando ? 0 : 0.75 }}>Pensó durante</span>
+        <span style={{ ...suave(!trabajando), opacity: trabajando ? 0 : 0.75 }}>{conTiempo ? "Pensó durante" : "Pensamiento"}</span>
       </span>
-      <span aria-hidden="true" className="nx-pensamiento__tiempo">
-        {segundos(transcurrido)}
-      </span>
-      {conPasos && (
+      {conTiempo && (
+        <span aria-hidden="true" className="nx-pensamiento__tiempo">
+          {segundos(transcurrido)}
+        </span>
+      )}
+      {desplegable && (
         <span aria-hidden="true" className="nx-pensamiento__chevron" style={{ transform: abierto ? "rotate(180deg)" : "none" }}>
           <Icono nombre="chevron-abajo" tamano={14} grosor={2.2} />
         </span>
@@ -65,7 +73,7 @@ export function ThoughtLine({ trabajando, desde, ms = 0, pasos = [] }: PropsThou
 
   return (
     <div className="nx-pensamiento">
-      {conPasos ? (
+      {desplegable ? (
         <button type="button" className="nx-pensamiento__boton" aria-expanded={abierto} onClick={() => setAbierto((a) => !a)}>
           {contenido}
         </button>
@@ -73,8 +81,15 @@ export function ThoughtLine({ trabajando, desde, ms = 0, pasos = [] }: PropsThou
         <div className="nx-pensamiento__boton">{contenido}</div>
       )}
       <span className="nx-sr" role="status">
-        {trabajando ? "Pensando…" : `Pensó durante ${segundos(transcurrido).replace(" s", " segundos")}`}
+        {trabajando ? "Pensando…" : conTiempo ? `Pensó durante ${segundos(transcurrido).replace(" s", " segundos")}` : "Pensamiento"}
       </span>
+      {detalle && (
+        <div className={clases("nx-pensamiento__traza", abierto && "nx-pensamiento__traza--abierta")}>
+          <div>
+            <div className="nx-pensamiento__detalle">{detalle}</div>
+          </div>
+        </div>
+      )}
       {conPasos && (
         <div className={clases("nx-pensamiento__traza", abierto && "nx-pensamiento__traza--abierta")}>
           <div>

@@ -74,7 +74,7 @@ export class ProveedorAnthropic implements Proveedor {
     };
     try {
       const flujo = await this.conectar().messages.create(peticion, { signal: p.senal });
-      const r = await recoger(flujo, alDelta, p.senal);
+      const r = await recoger(flujo, alDelta, p.senal, p.alPensamiento);
       if (r.bloques.some((b) => b.type === "thinking" || b.type === "redacted_thinking")) {
         const datos: DatosOpacos = { prefijo: huellas[p.mensajes.length] ?? "", bloques: r.bloques };
         return { ...r.respuesta, opaco: { proveedor: this.nombre, datos } };
@@ -229,6 +229,7 @@ async function recoger(
   flujo: AsyncIterable<Anthropic.RawMessageStreamEvent>,
   alDelta: (texto: string) => void,
   senal: AbortSignal,
+  alPensamiento?: (texto: string) => void,
 ): Promise<{ respuesta: RespuestaModelo; bloques: Anthropic.ContentBlockParam[] }> {
   const bloques: Anthropic.ContentBlockParam[] = [];
   const json = new Map<number, string>();
@@ -280,7 +281,11 @@ async function recoger(
         const d = ev.delta;
         if (d.type === "text_delta" && b?.type === "text") anadirTexto(b, d.text);
         else if (d.type === "input_json_delta" && json.has(ev.index)) json.set(ev.index, (json.get(ev.index) ?? "") + d.partial_json);
-        else if (d.type === "thinking_delta" && b?.type === "thinking") b.thinking += d.thinking;
+        else if (d.type === "thinking_delta" && b?.type === "thinking") {
+          b.thinking += d.thinking;
+          // Con el razonamiento omitido llega vacío: solo se enseña si trae texto.
+          if (d.thinking) alPensamiento?.(d.thinking);
+        }
         else if (d.type === "signature_delta" && b?.type === "thinking") b.signature = d.signature;
         break;
       }

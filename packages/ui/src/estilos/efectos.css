@@ -118,6 +118,18 @@ button.nx-pensamiento__boton {
   min-height: 0;
   overflow: hidden;
 }
+.nx-pensamiento__detalle {
+  max-height: 360px;
+  margin: 4px 0 6px 34px;
+  padding-left: 14px;
+  overflow-y: auto;
+  border-left: 1px solid var(--line-strong);
+  color: var(--ink-muted);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: normal;
+}
 .nx-pensamiento__pasos {
   display: flex;
   flex-direction: column;
@@ -149,10 +161,12 @@ button.nx-pensamiento__boton {
   border-radius: 50%;
   background: var(--lime);
 }
+/* Un solo brillo por vuelta: sin repetir el fondo, de 100% a 0% el brillo cruza el texto de izquierda a derecha una vez. */
 .nx-shim {
   background: linear-gradient(100deg, rgba(233, 237, 231, 0.45) 30%, var(--ink) 50%, rgba(233, 237, 231, 0.45) 70%);
+  background-repeat: no-repeat;
   background-size: 250% 100%;
-  background-position: 125% 0;
+  background-position: 100% 0;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -161,7 +175,7 @@ button.nx-pensamiento__boton {
 }
 @keyframes nx-shim {
   to {
-    background-position: -125% 0;
+    background-position: 0% 0;
   }
 }
 
