@@ -265,10 +265,22 @@ function Actualizaciones() {
       <Etiqueta>Actualizaciones</Etiqueta>
       <div className="aplicacion__fila">
         {info && <span className="aplicacion__dato">{info.desarrollo ? "Compilación de desarrollo" : info.actual ? `Versión ${info.actual}` : "Versión desconocida"}</span>}
-        <Boton variante="secundario" tamano="pequeno" disabled={buscando || compilando} onClick={() => void buscar()}>
-          Buscar
-        </Boton>
-        {info && !info.hayNueva && !buscando && <span className="ajustes__estado">Al día</span>}
+        {info?.desarrollo ? (
+          // Una copia suelta no se actualiza: se instala desde main (%LOCALAPPDATA%\Aquiles) y esa sí.
+          estado.fase !== "compilando" &&
+          estado.fase !== "lista" && (
+            <Boton variante="acento" tamano="pequeno" onClick={() => void actuar(instalarActualizacion)}>
+              Instalar con actualizaciones
+            </Boton>
+          )
+        ) : (
+          <>
+            <Boton variante="secundario" tamano="pequeno" disabled={buscando || compilando} onClick={() => void buscar()}>
+              Buscar
+            </Boton>
+            {info && !info.hayNueva && !buscando && <span className="ajustes__estado">Al día</span>}
+          </>
+        )}
       </div>
       {info?.hayNueva && (
         <div className="aplicacion__actualizacion">
@@ -296,7 +308,7 @@ function Actualizaciones() {
         <div className="aplicacion__fila">
           <span className="aplicacion__dato">Versión {estado.commit}</span>
           <Boton variante="acento" tamano="pequeno" onClick={() => void actuar(aplicarActualizacion)}>
-            Reiniciar para actualizar
+            {info?.desarrollo ? "Abrir la versión instalada" : "Reiniciar para actualizar"}
           </Boton>
         </div>
       )}

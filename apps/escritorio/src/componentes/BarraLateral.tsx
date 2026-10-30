@@ -6,6 +6,7 @@ import { abrirCarpeta, puedeMostrarRutas } from "../plataforma/aplicacion";
 import { usePropuestas } from "../estado/aprendizaje";
 import { nombreCarpeta } from "../estado/formato";
 import { useReloj } from "../estado/reloj";
+import { AvisoActualizacion } from "./AvisoActualizacion";
 import { FilaSesion } from "./FilaSesion";
 import { ResultadosBusqueda } from "./ResultadosBusqueda";
 
@@ -99,6 +100,8 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
           </button>
         ))}
       </nav>
+
+      <AvisoActualizacion alVerDetalle={ir(abrirAjustes)} />
 
       {grupos.length > 0 && (
         <div className="lateral__historial">

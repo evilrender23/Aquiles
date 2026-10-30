@@ -322,6 +322,12 @@ function Principal {
         Crear-Acceso -Sustituir
     }
     Anotar "APLICADO $commit"
+    # Instalada desde una copia de desarrollo: esa copia tiene que cerrarse antes, porque solo puede
+    # haber un Aquiles abierto (en una actualización ya se esperó a que se cerrara).
+    if ($EsperarPid) {
+        $proceso = Get-Process -Id $EsperarPid -ErrorAction SilentlyContinue
+        if ($proceso) { $proceso.WaitForExit() }
+    }
     if (($Relanzar -or $interactivo) -and -not (Test-Path $noRelanzar)) {
         Start-Process (Join-Path $app 'aquiles.exe')
     }

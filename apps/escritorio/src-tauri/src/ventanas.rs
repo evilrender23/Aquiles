@@ -102,6 +102,7 @@ pub fn crear_bandeja(app: &App) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .text("abrir", "Abrir Aquiles")
         .text("rapida", "Entrada rápida")
+        .text("actualizar", "Buscar actualizaciones")
         .separator()
         .text("salir", "Salir")
         .build()?;
@@ -112,6 +113,7 @@ pub fn crear_bandeja(app: &App) -> tauri::Result<()> {
         .on_menu_event(|app, evento| match evento.id().as_ref() {
             "abrir" => mostrar_ventana_principal(app),
             "rapida" => mostrar_rapida(app),
+            "actualizar" => crate::actualizaciones::buscar_desde_bandeja(app),
             "salir" => salir(app),
             _ => {}
         })

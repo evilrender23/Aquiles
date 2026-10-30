@@ -143,6 +143,24 @@ body {
 .seccion__nombre {
   flex: 1 1 auto;
 }
+.lateral__actualizacion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-muted);
+  font: 500 13px/1 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms var(--ease);
+}
+.lateral__actualizacion:hover {
+  background: var(--surface-raised);
+}
 .lateral__historial {
   display: flex;
   flex-direction: column;

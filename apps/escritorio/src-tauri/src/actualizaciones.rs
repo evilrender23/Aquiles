@@ -2,7 +2,8 @@
 //! (en la raíz del repo), que deja la app en `<Destino>\app` y el clon en `<Destino>\codigo`.
 //!
 //! - `version.json`, junto al .exe, dice de qué commit, rama y repo salió. Sin él es una
-//!   compilación de desarrollo y no se actualiza sola.
+//!   compilación de desarrollo (una copia suelta del .exe): no se actualiza sola, pero se puede
+//!   instalar en `%LOCALAPPDATA%\Aquiles` con el `instalar.ps1` que lleva dentro, y desde ahí sí.
 //! - Para saber si hay algo nuevo se hace `git fetch` en el clon: vale para un repo privado, con
 //!   las credenciales que ya tenga Git (Git Credential Manager, GitHub Desktop).
 //! - Para actualizar se lanza `codigo\instalar.ps1 -Actualizar -EsperarPid <este> -Relanzar`
@@ -19,10 +20,13 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_notification::NotificationExt;
 
 use crate::{config, nucleo};
 
 const RAMA: &str = "main";
+/// El instalador va dentro de la app: una copia de desarrollo no tiene clon del que sacarlo.
+const INSTALADOR: &str = include_str!("../../../../instalar.ps1");
 const LIMITE_GIT: Duration = Duration::from_secs(45);
 const PRIMERA_COMPROBACION: Duration = Duration::from_secs(60);
 const CADA: Duration = Duration::from_secs(6 * 60 * 60);
@@ -184,21 +188,18 @@ fn version_instalada() -> Option<VersionInstalada> {
     interpretar_version(&fs::read_to_string(carpeta_del_exe()?.join("version.json")).ok()?)
 }
 
-/// El clon con el que se compara: `<Destino>\codigo` en una instalación y, en una compilación
-/// de desarrollo, el repo donde está el .exe.
-fn clon(instalada: bool) -> Option<PathBuf> {
-    let exe = carpeta_del_exe()?;
-    if instalada {
-        exe.parent().map(|destino| destino.join("codigo"))
-    } else {
-        Some(exe)
-    }
+/// El clon con el que se compara: `<Destino>\codigo`.
+fn clon() -> Option<PathBuf> {
+    carpeta_del_exe()?.parent().map(|destino| destino.join("codigo"))
 }
 
 fn buscar() -> Result<InfoActualizacion, String> {
-    let version = version_instalada();
-    let clon = clon(version.is_some()).ok_or("No se encuentra el código de Aquiles")?;
-    comparar(&clon, version)
+    // Una copia de desarrollo no sale de ningún clon: la interfaz ofrece instalarla (ver `destino`).
+    let Some(version) = version_instalada() else {
+        return Ok(InfoActualizacion { actual: None, ultimo: String::new(), fecha: None, mensaje: None, hay_nueva: false, desarrollo: true });
+    };
+    let clon = clon().ok_or("No se encuentra el código de Aquiles")?;
+    comparar(&clon, Some(version))
 }
 
 /// Trae la rama del repo al clon y compara su último commit con el instalado.
@@ -218,15 +219,29 @@ fn comparar(clon: &Path, version: Option<VersionInstalada>) -> Result<InfoActual
     })
 }
 
-/// `<Destino>`: la carpeta que tiene `app\` (donde está este .exe) y `codigo\`.
+/// `<Destino>`: la carpeta que tiene `app\` (donde está este .exe) y `codigo\`. En una copia de
+/// desarrollo, donde la instala `instalar.ps1` por defecto: actualizarla es instalarse ahí.
 fn destino() -> Result<PathBuf, String> {
-    let desarrollo = "Es una compilación de desarrollo: se actualiza con git pull y volviendo a compilar";
-    version_instalada().ok_or(desarrollo)?;
-    let destino = carpeta_del_exe().and_then(|app| app.parent().map(Path::to_path_buf)).ok_or(desarrollo)?;
+    if version_instalada().is_none() {
+        let local = std::env::var_os("LOCALAPPDATA").ok_or("No se encuentra %LOCALAPPDATA%")?;
+        return Ok(PathBuf::from(local).join("Aquiles"));
+    }
+    let destino = carpeta_del_exe().and_then(|app| app.parent().map(Path::to_path_buf)).ok_or("No se encuentra la carpeta de Aquiles")?;
     if !destino.join(r"codigo\instalar.ps1").exists() {
         return Err(format!("Falta {}: vuelve a instalar Aquiles con instalar.ps1", destino.join(r"codigo\instalar.ps1").display()));
     }
     Ok(destino)
+}
+
+/// El `instalar.ps1` del clon o, si aún no lo hay (copia de desarrollo), el que lleva la app.
+fn instalador(destino: &Path) -> Result<PathBuf, String> {
+    let del_clon = destino.join(r"codigo\instalar.ps1");
+    if del_clon.exists() {
+        return Ok(del_clon);
+    }
+    let temporal = std::env::temp_dir().join("aquiles-instalar.ps1");
+    fs::write(&temporal, INSTALADOR).map_err(|e| format!("No se pudo preparar el instalador: {e}"))?;
+    Ok(temporal)
 }
 
 fn registro(destino: &Path) -> PathBuf {
@@ -251,7 +266,7 @@ fn instalar(app: &AppHandle) -> Result<(), String> {
     let mut orden = orden_oculta("powershell.exe");
     orden
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-        .arg(destino.join(r"codigo\instalar.ps1"))
+        .arg(instalador(&destino)?)
         .args(["-Actualizar", "-Destino"])
         .arg(&destino)
         .args(["-Rama", &rama, "-EsperarPid", &std::process::id().to_string(), "-Relanzar"])
@@ -322,6 +337,7 @@ fn seguir_registro(app: &AppHandle, ruta: &Path, mut instalador: Child) {
                     let commit = corto(&commit);
                     eprintln!("[aquiles] actualización {commit} lista");
                     cambiar_estado(app, Estado::Lista { commit: commit.clone() });
+                    avisar(app, &format!("La versión {commit} está lista. Se aplica al reiniciar Aquiles."));
                     let _ = app.emit("actualizacion-lista", Lista { commit });
                     return;
                 }
@@ -363,6 +379,35 @@ pub fn vigilar(app: &AppHandle) {
                 Ok(Err(e)) => eprintln!("[aquiles] no se pudo buscar actualizaciones: {e}"),
                 _ => {}
             }
+        }
+    });
+}
+
+fn avisar(app: &AppHandle, texto: &str) {
+    if let Err(e) = app.notification().builder().title("Aquiles").body(texto).show() {
+        eprintln!("[aquiles] no se pudo notificar: {e}");
+    }
+}
+
+/// «Buscar actualizaciones» de la bandeja: busca y, si hay versión nueva, empieza a compilarla.
+/// La respuesta llega como notificación; el progreso, a la interfaz como siempre.
+pub fn buscar_desde_bandeja(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let estado = app.state::<Actualizacion>().estado.lock().unwrap().clone();
+        match estado {
+            Estado::Compilando { .. } => return avisar(&app, "Ya se está compilando una versión nueva."),
+            Estado::Lista { commit } => return avisar(&app, &format!("La versión {commit} está lista. Se aplica al reiniciar Aquiles.")),
+            _ => {}
+        }
+        match buscar() {
+            Err(e) => avisar(&app, &format!("No se pudo buscar actualizaciones: {e}")),
+            Ok(info) if info.desarrollo => avisar(&app, "Esta copia no se actualiza: instálala desde Ajustes → Aplicación."),
+            Ok(info) if info.hay_nueva => match instalar(&app) {
+                Ok(()) => avisar(&app, &format!("Compilando la versión {} en segundo plano.", info.ultimo)),
+                Err(e) => avisar(&app, &format!("No se pudo actualizar: {e}")),
+            },
+            Ok(_) => avisar(&app, "Está al día."),
         }
     });
 }
