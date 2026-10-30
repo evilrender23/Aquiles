@@ -1,0 +1,144 @@
+/* Aproximación provisional a magik (papel, tinta, bermellón, líneas en vez de sombras).
+   Los tokens reales del sistema de diseño llegan en la fase 2 (packages/ui). */
+:root {
+  --papel: #f4f0e8;
+  --tinta: #1b1a17;
+  --tinta-suave: #5c5850;
+  --linea: #1b1a1726;
+  --bermellon: #e0402b;
+  --mono: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+  --serif: "Iowan Old Style", Georgia, "Times New Roman", serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#raiz {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  height: 100%;
+}
+
+.conversacion {
+  overflow-y: auto;
+  padding: 24px max(24px, calc((100% - 760px) / 2));
+}
+
+.conversacion > * {
+  margin: 0 0 14px;
+}
+
+.usuario,
+.asistente,
+.aviso {
+  white-space: pre-wrap;
+}
+
+.usuario {
+  font-family: var(--mono);
+  font-size: 14px;
+  border-left: 2px solid var(--tinta);
+  padding-left: 12px;
+}
+
+.usuario::before {
+  content: "› ";
+}
+
+.aviso {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--bermellon);
+}
+
+.herramienta {
+  font-family: var(--mono);
+  font-size: 13px;
+  border: 1px solid var(--linea);
+  padding: 6px 10px;
+}
+
+.herramienta summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.herramienta .args {
+  color: var(--tinta-suave);
+}
+
+.herramienta.fallo .estado {
+  color: var(--bermellon);
+}
+
+.herramienta pre {
+  margin: 8px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre;
+  color: var(--tinta-suave);
+}
+
+.entrada {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--linea);
+  padding: 12px max(24px, calc((100% - 760px) / 2));
+  font-family: var(--mono);
+}
+
+.prompt {
+  line-height: 36px;
+}
+
+.entrada textarea {
+  flex: 1;
+  resize: none;
+  min-height: 36px;
+  max-height: 160px;
+  field-sizing: content;
+  padding: 7px 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: 14px/22px var(--mono);
+  outline: none;
+}
+
+.entrada button {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--tinta);
+  background: var(--tinta);
+  color: var(--papel);
+  font: 13px var(--mono);
+  cursor: pointer;
+}
+
+.entrada button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.entrada button[type="button"] {
+  background: transparent;
+  color: var(--bermellon);
+  border-color: var(--bermellon);
+}

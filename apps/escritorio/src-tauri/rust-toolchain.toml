@@ -1,0 +1,4 @@
+# Tauri en Windows se compila con MSVC (WebView2 y el sidecar del núcleo son x86_64-pc-windows-msvc).
+# En esta máquina el toolchain por defecto es GNU; esto lo cambia solo para este proyecto.
+[toolchain]
+channel = "stable-x86_64-pc-windows-msvc"

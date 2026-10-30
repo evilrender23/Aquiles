@@ -1,0 +1,12 @@
+node_modules/
+dist/
+target/
+*.log
+.DS_Store
+
+# binarios generados del núcleo (bun run compilar:nucleo)
+apps/escritorio/src-tauri/binaries/
+apps/escritorio/src-tauri/gen/
+
+# carpeta de pruebas manuales
+.prueba/

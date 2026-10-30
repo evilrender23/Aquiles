@@ -1,0 +1,15 @@
+{
+  "name": "@aquiles/nucleo",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/main.ts",
+  "scripts": {
+    "inicio": "bun src/main.ts",
+    "cli": "bun src/main.ts --cli"
+  },
+  "dependencies": {
+    "@aquiles/protocolo": "workspace:*",
+    "zod": "4.1.12"
+  }
+}

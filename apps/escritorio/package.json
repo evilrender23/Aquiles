@@ -1,0 +1,24 @@
+{
+  "name": "@aquiles/escritorio",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p . && vite build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@aquiles/protocolo": "workspace:*",
+    "@tauri-apps/api": "2.9.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.9.2",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "5.1.0",
+    "vite": "7.1.12"
+  }
+}

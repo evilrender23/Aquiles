@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "La ventana principal solo necesita lo básico; el núcleo se lanza desde Rust.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
