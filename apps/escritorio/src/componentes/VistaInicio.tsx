@@ -1,6 +1,6 @@
 import type { ModoAprobacion } from "@aquiles/protocolo";
 import { CrystalizedBall, Etiqueta, GradientAscii, Titular } from "@aquiles/ui";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { esfuerzoTrasCambio } from "../estado/esfuerzo";
 import { carpetasRecientes } from "../estado/formato";
@@ -20,6 +20,10 @@ export function VistaInicio() {
   const modo = eleccion.modoAprobacion ?? ajustes?.modoAprobacion;
   const carpeta = eleccion.cwd ?? ajustes?.carpeta;
   const recientes = useMemo(() => carpetasRecientes(Object.values(sesiones), ajustes?.carpeta), [sesiones, ajustes?.carpeta]);
+  const buscarFicheros = useCallback(
+    async (consulta: string) => (carpeta ? (await llamar("ficheros.buscar", { cwd: carpeta, consulta })).ficheros : []),
+    [carpeta, llamar],
+  );
   const listo = conexion === "conectada" && !!ajustes;
 
   return (
@@ -37,6 +41,7 @@ export function VistaInicio() {
           etiqueta="Instrucción para Aquiles"
           placeholder="Describe qué quieres que haga"
           textoEnviar="Empezar"
+          buscarFicheros={buscarFicheros}
           filas={3}
           deshabilitado={!listo}
           dictar={voz?.dictado ? async () => (await llamar("voz.dictar", {})).texto : undefined}

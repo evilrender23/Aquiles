@@ -10,7 +10,7 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 9;
+export const VERSION_PROTOCOLO = 10;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -223,6 +223,11 @@ export const metodos = {
   "estadisticas.leer": z.object({ dias: z.number().int().min(1).max(365).optional() }),
   "buscar.sesiones": z.object({ consulta: z.string().min(1), limite: z.number().int().min(1).max(100).optional() }),
   /**
+   * Ficheros de una carpeta de trabajo para mencionarlos con `@` (sin .git, node_modules… ni lo del .gitignore).
+   * Al enviar, cada `@ruta` que sea un fichero de la carpeta de la sesión llega al modelo como adjunto.
+   */
+  "ficheros.buscar": z.object({ cwd: z.string().min(1), consulta: z.string().max(200), limite: z.number().int().min(1).max(100).optional() }),
+  /**
    * Publica un artefacto HTML o SVG para verlo en un iframe aislado: el núcleo lo sirve en `/vista/<clave>` (clave
    * aleatoria, sin token) con CSP `sandbox`, fuera del origen de la app. Caduca a la hora o al publicar 50 más.
    */
@@ -407,6 +412,8 @@ export interface Resultados {
   "skills.restaurarVersion": InfoSkill;
   "skills.curar": { cambios: CambioCurador[] };
   "buscar.sesiones": { resultados: ResultadoBusqueda[] };
+  /** Rutas relativas a `cwd`, con `/`. */
+  "ficheros.buscar": { ficheros: string[] };
   /** Ruta en el servidor del núcleo (`/vista/…`); la app le antepone http(s)://host:puerto de su conexión. */
   "artefactos.vista": { ruta: string };
   "artefactos.guardar": { ruta: string };

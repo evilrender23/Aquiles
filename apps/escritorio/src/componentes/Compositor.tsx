@@ -2,6 +2,7 @@ import { Boton, BotonIcono, clases, elementosCampoTexto, useMenuContextual } fro
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AdjuntoPendiente } from "../estado/adjuntos";
 import { BotonAdjuntar, ChipsAdjuntos, ZonaSoltar, useAdjuntos } from "./Adjuntos";
+import { useMenciones } from "./Menciones";
 
 export interface PropsCompositor {
   etiqueta: string;
@@ -22,6 +23,8 @@ export interface PropsCompositor {
   dictar?: () => Promise<string>;
   /** Texto que llega de fuera (citar un mensaje, insertar un bloque de código): se añade al final. */
   insercion?: { texto: string; n: number };
+  /** Ficheros de la carpeta de trabajo para mencionarlos con `@`. Sin ella, `@` es un carácter más. */
+  buscarFicheros?: (consulta: string) => Promise<string[]>;
 }
 
 /** Última inserción atendida: fuera del componente, porque la caja puede montarse con el pedido ya hecho. */
@@ -42,10 +45,12 @@ export function Compositor({
   dictar,
   insercion,
   adjuntosPermitidos = true,
+  buscarFicheros,
 }: PropsCompositor) {
   const [texto, setTexto] = useState("");
   const adj = useAdjuntos();
   const caja = useRef<HTMLTextAreaElement>(null);
+  const menciones = useMenciones(caja, texto, setTexto, buscarFicheros);
 
   // Cada inserción nueva (su `n`) se añade una vez, separada de lo que ya hubiera, y el cursor queda al final.
   useEffect(() => {
@@ -116,9 +121,11 @@ export function Compositor({
     >
       <ZonaSoltar visible={adj.arrastrando && !deshabilitado} />
       <ChipsAdjuntos adjuntos={adj.adjuntos} alQuitar={adj.quitar} />
+      {menciones.lista}
       <textarea
         ref={caja}
         {...menu}
+        {...menciones.aria}
         onPaste={adj.pegar}
         className="compositor__texto"
         aria-label={etiqueta}
@@ -126,8 +133,14 @@ export function Compositor({
         rows={filas}
         value={texto}
         disabled={deshabilitado}
-        onChange={(e) => setTexto(e.target.value)}
+        onChange={(e) => {
+          setTexto(e.target.value);
+          menciones.detectar();
+        }}
+        onSelect={menciones.detectar}
+        onClick={menciones.detectar}
         onKeyDown={(e) => {
+          if (menciones.alTecla(e)) return;
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             enviar();

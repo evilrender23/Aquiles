@@ -1,5 +1,5 @@
 import { Boton, Icono, Titular, clases } from "@aquiles/ui";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { estaTrabajando, useAcciones, useEstado } from "../estado/almacen";
 import { type ArtefactosSesion, recogerArtefactos, renderizable } from "../estado/artefactos";
 import { conversacionVacia } from "../estado/conversacion";
@@ -60,6 +60,8 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
   const trabajando = estaTrabajando(estado, sesionId);
   const pendientes = estado.pendientes.filter((p) => p.sesionId === sesionId);
   const conectada = estado.conexion === "conectada";
+  const cwd = sesion?.cwd;
+  const buscarFicheros = useCallback(async (consulta: string) => (cwd ? (await llamar("ficheros.buscar", { cwd, consulta })).ficheros : []), [cwd, llamar]);
 
   // App monta una vista por sesión (key), así que esto empieza pegado abajo en cada una.
   const desplazable = useRef<HTMLDivElement>(null);
@@ -157,6 +159,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
             etiqueta="Mensaje para Aquiles"
             placeholder="Escribe una instrucción"
             textoEnviar="Enviar"
+            buscarFicheros={buscarFicheros}
             deshabilitado={!conectada || conversacion.cargando}
             trabajando={trabajando}
             alEnviar={(t, adjuntos) => enviar(sesionId, t, adjuntos)}

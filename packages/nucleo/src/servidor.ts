@@ -41,6 +41,7 @@ import { ErrorHerramienta, type Herramienta, type Pregunta } from "./herramienta
 import { cerrarEstadoSesion } from "./herramientas/index";
 import { cerrarNavegador, herramientaNavegador } from "./herramientas/navegador";
 import { ErrorKanban, Kanban } from "./kanban";
+import { buscarFicheros, conMenciones } from "./menciones";
 import { buscarModelos, Descargas, directorioModelos, ficherosRepo, modelosLocales as modelosDescargados } from "./locales/huggingface";
 import { instalarLlamaCpp, rutaLlamaServer } from "./locales/llamacpp";
 import { ClienteMcp } from "./mcp";
@@ -571,7 +572,9 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     "prompt.enviar": async ({ sesionId, texto, adjuntos }) => {
       const s = obtener(sesionId);
       if (s.turno) throw new FalloRpc(codigosError.sesionOcupada, "La sesión ya está trabajando; usa prompt.steer");
-      const guardados = adjuntos?.length ? await guardarEn(s, adjuntos) : undefined;
+      // Cada `@ruta` que es un fichero de la carpeta de la sesión va como adjunto.
+      const todos = await conMenciones(texto, s.cwd, adjuntos ?? []);
+      const guardados = todos.length ? await guardarEn(s, todos) : undefined;
       const orden = /^\/aprender(?:\s+([\s\S]+))?$/.exec(texto.trim());
       if (orden && !orden[1] && !guardados) return revisarComoTurno(s, texto);
       if (orden) aprendizaje.aprendiendo.add(s.id);
@@ -708,6 +711,10 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       return { ruta };
     },
     "buscar.sesiones": ({ consulta, limite }) => ({ resultados: indice.buscar(consulta, limite) }),
+    "ficheros.buscar": async ({ cwd, consulta, limite }) => {
+      if (!isAbsolute(cwd) || !existsSync(cwd)) throw new FalloRpc(codigosError.paramsInvalidos, `No existe la carpeta ${cwd}`);
+      return { ficheros: await buscarFicheros(cwd, consulta, limite) };
+    },
     "aprendizaje.listar": ({ todas }) => ({ propuestas: registro.propuestas(todas) }),
     "aprendizaje.decidir": ({ id, decision }) => {
       if (!registro.propuesta(id)) throw new FalloRpc(codigosError.paramsInvalidos, `No existe la propuesta ${id}`);
