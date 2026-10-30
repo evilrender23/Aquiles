@@ -728,12 +728,16 @@ body {
 }
 .compositor__barra {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
-.compositor__hueco {
+.compositor__controles {
+  display: flex;
   flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .compositor__detener.nx-boton {
   height: 56px;

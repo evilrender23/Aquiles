@@ -135,19 +135,21 @@ export function Compositor({
         }}
       />
       <div className="compositor__barra">
-        <BotonAdjuntar alRutas={adj.anadirRutas} alFicheros={(f) => void adj.anadirFicheros(f)} deshabilitado={deshabilitado} />
-        {dictar && (
-          <BotonIcono
-            etiqueta={escuchando ? "Escuchando" : "Dictar"}
-            icono="microfono"
-            className={clases("compositor__microfono", escuchando && "compositor__microfono--escuchando")}
-            aria-pressed={escuchando}
-            disabled={deshabilitado}
-            onClick={() => void escuchar()}
-          />
-        )}
-        {izquierda}
-        <div className="compositor__hueco" />
+        {/* Si los chips no caben, bajan de línea entre ellos: el botón de enviar se queda a la derecha. */}
+        <div className="compositor__controles">
+          <BotonAdjuntar alRutas={adj.anadirRutas} alFicheros={(f) => void adj.anadirFicheros(f)} deshabilitado={deshabilitado} />
+          {dictar && (
+            <BotonIcono
+              etiqueta={escuchando ? "Escuchando" : "Dictar"}
+              icono="microfono"
+              className={clases("compositor__microfono", escuchando && "compositor__microfono--escuchando")}
+              aria-pressed={escuchando}
+              disabled={deshabilitado}
+              onClick={() => void escuchar()}
+            />
+          )}
+          {izquierda}
+        </div>
         {derecha}
         {trabajando && !hayAlgo && alDetener ? (
           <Boton variante="secundario" className="compositor__detener" icono="detener" onClick={alDetener}>
