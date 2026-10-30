@@ -847,7 +847,8 @@ body {
   flex-direction: column;
   gap: 24px;
   width: 100%;
-  max-width: 860px;
+  /* Ancho para que carpeta, modelo, esfuerzo, permisos y «Empezar» quepan en una línea. */
+  max-width: 1000px;
   margin: auto auto 0;
   padding: 32px 32px 64px;
 }
