@@ -54,20 +54,19 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
   // Como en el lienzo: la cifra en lima junto a Memoria son las propuestas pendientes.
   const pendientes = usePropuestas().datos?.length ?? 0;
   const secciones = [
-    { n: "01", etiqueta: "Conversaciones", activa: estado.vista === "conversacion", ir: ir(() => (estado.activa ? abrirSesion(estado.activa) : nuevaSesion())) },
-    { n: "02", etiqueta: "Kanban", activa: estado.vista === "kanban", ir: ir(abrirKanban) },
-    { n: "03", etiqueta: "Habilidades", activa: estado.vista === "habilidades", ir: ir(abrirHabilidades) },
+    { n: "01", etiqueta: "Kanban", activa: estado.vista === "kanban", ir: ir(abrirKanban) },
+    { n: "02", etiqueta: "Habilidades", activa: estado.vista === "habilidades", ir: ir(abrirHabilidades) },
     {
-      n: "04",
+      n: "03",
       etiqueta: "Memoria",
       activa: estado.vista === "memoria",
       ir: ir(() => abrirMemoria()),
       cuenta: pendientes || undefined,
       tituloCuenta: pendientes === 1 ? "1 propuesta pendiente" : `${pendientes} propuestas pendientes`,
     },
-    { n: "05", etiqueta: "Automatizaciones", activa: estado.vista === "automatizaciones", ir: ir(abrirAutomatizaciones) },
-    { n: "06", etiqueta: "Estadísticas", activa: estado.vista === "estadisticas", ir: ir(abrirEstadisticas) },
-    { n: "07", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(abrirAjustes) },
+    { n: "04", etiqueta: "Automatizaciones", activa: estado.vista === "automatizaciones", ir: ir(abrirAutomatizaciones) },
+    { n: "05", etiqueta: "Estadísticas", activa: estado.vista === "estadisticas", ir: ir(abrirEstadisticas) },
+    { n: "06", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(abrirAjustes) },
   ];
 
   return (
