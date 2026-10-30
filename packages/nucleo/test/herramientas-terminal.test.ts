@@ -193,6 +193,7 @@ test("resumen, clave de permiso y formato de salida", () => {
     "buscar_texto",
     "escribir",
     "editar",
+    "escribir_documento",
     "terminal",
     "procesos",
     "tareas",

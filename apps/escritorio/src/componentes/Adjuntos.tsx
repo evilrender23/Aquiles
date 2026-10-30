@@ -3,11 +3,13 @@ import { BotonIcono, Icono, clases, copiarTexto, useMenuContextual } from "@aqui
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { useAcciones } from "../estado/almacen";
 import { type AdjuntoPendiente, admitir, desdeFicheros, desdeRutas, esImagen, renombrarPegado, tamanoLegible } from "../estado/adjuntos";
+import { claseDocumento } from "../estado/artefactos";
 import type { AdjuntoVisto } from "../estado/tipos";
 import { mostrarFichero, puedeMostrarRutas } from "../plataforma/aplicacion";
 import { alArrastrarFicheros } from "../plataforma/arrastre";
 import { elegirFicheros } from "../plataforma/dialogo";
 import { enTauri } from "../plataforma/tauri";
+import { useArtefactosHilo } from "./Artefactos";
 
 /** Los adjuntos de una caja: añadir (clip, soltar, pegar), quitar y vaciar al enviar, con el error del último intento. */
 export function useAdjuntos() {
@@ -224,8 +226,12 @@ function AdjuntoMensaje({ sesionId, a, alAmpliar }: { sesionId: string; a: Adjun
   const imagen = esImagen(a);
   const ruta = a.ruta;
   const mostrar = puedeMostrarRutas() && !!ruta;
+  // Un .md o un .docx se abre en el visor del panel de artefactos.
+  const visor = useArtefactosHilo();
+  const verDocumento = ruta && visor && claseDocumento(ruta) ? () => visor.abrirDocumento(ruta, a.nombre) : undefined;
   const menu = useMenuContextual(() => [
     imagen && url && { texto: "Ver", icono: "flecha-diagonal", alElegir: () => alAmpliar({ url, nombre: a.nombre }) },
+    verDocumento && { texto: "Ver", icono: "flecha-diagonal", alElegir: verDocumento },
     ruta && { texto: "Copiar ruta", icono: "copiar", alElegir: () => copiarTexto(ruta) },
     mostrar && ruta && { texto: "Mostrar fichero", icono: "carpeta", alElegir: () => mostrarFichero(ruta) },
   ]);
@@ -247,10 +253,11 @@ function AdjuntoMensaje({ sesionId, a, alAmpliar }: { sesionId: string; a: Adjun
       {detalle && <span className="adjunto__tamano">{detalle}</span>}
     </>
   );
+  const abrir = verDocumento ?? (mostrar && ruta ? () => void mostrarFichero(ruta) : undefined);
   return (
     <li className="adjunto adjunto--mensaje" title={ruta ?? a.nombre} {...menu}>
-      {mostrar && ruta ? (
-        <button type="button" className="adjunto__abrir" onClick={() => void mostrarFichero(ruta)}>
+      {abrir ? (
+        <button type="button" className="adjunto__abrir" onClick={abrir}>
           {contenido}
         </button>
       ) : (

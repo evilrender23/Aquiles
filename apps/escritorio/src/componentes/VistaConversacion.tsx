@@ -12,6 +12,7 @@ import { PanelObjetivo } from "./Objetivo";
 import { TarjetaPermiso, TarjetaPregunta } from "./Peticiones";
 import { PanelSubagentes, hijosDe } from "./PanelSubagentes";
 import { MedidorContexto, SelectorEsfuerzo, SelectorModelo, SelectorPermisos } from "./Selectores";
+import { PanelDocumento, usePanelDocumento } from "./VisorDocumento";
 
 /** Último pedido de «Objetivo…» atendido (la vista se monta con el pedido ya hecho). */
 let ultimoObjetivo = 0;
@@ -89,6 +90,12 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
 
   const artefactos = useMemo(() => recogerArtefactos(conversacion.elementos), [conversacion.elementos]);
   const [panel, setPanel] = usePanelArtefactos(artefactos);
+  // El panel enseña un artefacto o un documento (.md, .docx): abrir uno cierra el otro.
+  const visor = usePanelDocumento(sesionId, sesion?.cwd, () => setPanel(undefined));
+  const { documento, abrir: abrirDocumento, cerrar: cerrarDocumento } = visor;
+  useEffect(() => {
+    if (panel) cerrarDocumento();
+  }, [panel, cerrarDocumento]);
   const versiones = panel ? artefactos.porId.get(panel.id) : undefined;
   const indice = versiones ? Math.min(panel?.version ?? versiones.length - 1, versiones.length - 1) : 0;
   const ctxArtefactos = useMemo<ContextoArtefactos>(
@@ -100,8 +107,9 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
         const a = todas[version];
         setPanel({ id, version: version === todas.length - 1 ? undefined : version, pestana: a?.completo && renderizable(a.tipo) ? "vista" : "codigo", manual: false });
       },
+      abrirDocumento,
     }),
-    [artefactos, panel, versiones, indice, setPanel],
+    [artefactos, panel, versiones, indice, setPanel, abrirDocumento],
   );
   const conPanel = !!(panel && versiones?.length);
 
@@ -113,7 +121,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
   };
 
   return (
-    <div className={clases("conversacion", conPanel && "conversacion--artefacto")}>
+    <div className={clases("conversacion", (conPanel || documento) && "conversacion--artefacto")}>
       <section className="conversacion__principal">
         <div
           ref={desplazable}
@@ -198,7 +206,16 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
         </div>
       </section>
 
-      {conPanel && panel && versiones ? (
+      {documento ? (
+        <PanelDocumento
+          key={documento.ruta}
+          sesionId={sesionId}
+          documento={documento}
+          alPestana={visor.elegirPestana}
+          alRecargar={visor.recargar}
+          alCerrar={cerrarDocumento}
+        />
+      ) : conPanel && panel && versiones ? (
         <PanelArtefacto
           key={panel.id}
           sesionId={sesionId}

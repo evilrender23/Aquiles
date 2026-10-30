@@ -260,6 +260,8 @@ export interface Acciones {
   urlNucleo: (ruta: string) => string;
   /** Cualquier método del núcleo, tipado por el protocolo (cron, canales, mcp, voz…). */
   llamar: <M extends NombreMetodo>(metodo: M, params: Params<M>) => Promise<Resultados[M]>;
+  /** Los eventos del núcleo tal como llegan, con lo que el estado no guarda (los argumentos de una herramienta). Devuelve cómo dejar de escuchar. */
+  alEvento: (f: (e: Evento) => void) => () => void;
   /** Steer a una sesión cualquiera (p. ej. un subagente), sin pasar por su conversación. */
   reconducir: (sesionId: string, texto: string) => Promise<void>;
   cerrarNotificacion: (id: number) => void;
@@ -289,6 +291,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
   const reiniciar = useRef<(motivo?: string) => void>(() => {});
   const siguientePendiente = useRef(0);
   const siguienteNotificacion = useRef(0);
+  const oyentes = useRef(new Set<(e: Evento) => void>());
 
   const rpc = useCallback((): ClienteRpc => {
     if (!cliente.current) throw new Error("Sin conexión con el núcleo");
@@ -336,6 +339,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
         }
         // Los modelos descargados son los del proveedor llamacpp: los selectores de modelo los sacan de proveedores.listar.
         if (evento.tipo === "modelos.actualizados") void refrescarProveedores().catch(() => {});
+        for (const f of oyentes.current) f(evento);
         despachar({ tipo: "evento", evento, ahora: Date.now() });
       });
       c.atender(
@@ -505,6 +509,10 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       decidirPropuesta: async (id, decision) => rpc().llamar("aprendizaje.decidir", { id, decision }),
       historialAprendizaje: async () => (await rpc().llamar("aprendizaje.historial", { limite: 200 })).entradas,
       llamar: async (metodo, params) => rpc().llamar(metodo, params),
+      alEvento: (f) => {
+        oyentes.current.add(f);
+        return () => void oyentes.current.delete(f);
+      },
       urlNucleo: (ruta) => rpc().origenHttp + ruta,
       reconducir: async (sesionId, texto) => {
         await rpc().llamar("prompt.steer", { sesionId, texto });

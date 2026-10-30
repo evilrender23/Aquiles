@@ -1,0 +1,24 @@
+/* Visor de documentos (.md y .docx) en el panel de artefactos, y «Ver» en las tarjetas de herramienta. */
+
+.visor-documento__escribiendo {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* Tarjeta de herramienta con un documento: la cabecera y «Ver» en la misma fila. */
+.herramienta__fila {
+  display: flex;
+  align-items: center;
+}
+.herramienta__fila > .herramienta__cabecera {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.herramienta__ver {
+  flex: none;
+  margin-right: 12px;
+}

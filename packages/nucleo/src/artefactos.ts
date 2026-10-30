@@ -73,8 +73,8 @@ export class FicheroYaExiste extends Error {
   }
 }
 
-/** Guarda un artefacto en la carpeta de trabajo. El nombre es solo un nombre de fichero, sin carpetas. */
-export async function guardarArtefacto(cwd: string, nombre: string, contenido: string, sobrescribir = false): Promise<string> {
+/** Guarda un artefacto (o los bytes de un documento) en la carpeta de trabajo. El nombre es solo un nombre de fichero, sin carpetas. */
+export async function guardarArtefacto(cwd: string, nombre: string, contenido: string | Uint8Array, sobrescribir = false): Promise<string> {
   const limpio = nombre.trim();
   const conControl = [...limpio].some((c) => c.charCodeAt(0) < 32);
   if (!limpio || conControl || basename(limpio) !== limpio || /[<>:"/\\|?*]/.test(limpio) || /^\.+$/.test(limpio))

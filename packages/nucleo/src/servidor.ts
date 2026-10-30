@@ -716,12 +716,23 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     },
     "buscar.sesiones": ({ consulta, limite }) => ({ resultados: indice.buscar(consulta, limite) }),
     "comandos.listar": ({ sesionId }) => ({ comandos: comandos.listar(sesionId ? obtener(sesionId) : undefined) }),
-    // Provisionales: los conecta el módulo de documentos.
-    "documentos.leer": () => {
-      throw new FalloRpc(codigosError.metodoNoExiste, "Todavía no disponible");
+    // Documentos para el visor y «Guardar como Word» (documentos.ts, importado al primer uso).
+    "documentos.leer": async ({ ruta }) => {
+      const { leerDocumento } = await import("./documentos");
+      try {
+        return await leerDocumento(ruta);
+      } catch (e) {
+        throw fallo(e);
+      }
     },
-    "documentos.exportar": () => {
-      throw new FalloRpc(codigosError.metodoNoExiste, "Todavía no disponible");
+    "documentos.exportar": async ({ sesionId, nombre, markdown, sobrescribir }) => {
+      const s = obtener(sesionId);
+      const { exportarDocumento } = await import("./documentos");
+      try {
+        return { ruta: await exportarDocumento(s.cwd, nombre, markdown, sobrescribir) };
+      } catch (e) {
+        throw fallo(e, e instanceof FicheroYaExiste ? codigosError.yaExiste : codigosError.paramsInvalidos);
+      }
     },
     "ficheros.buscar": async ({ cwd, consulta, limite }) => {
       if (!isAbsolute(cwd) || !existsSync(cwd)) throw new FalloRpc(codigosError.paramsInvalidos, `No existe la carpeta ${cwd}`);

@@ -14,9 +14,21 @@ import {
   type NombreIcono,
   useMenuContextual,
 } from "@aquiles/ui";
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import { useAcciones } from "../estado/almacen";
-import { contarLineas, nombreFichero, renderizable, type TrozoHilo } from "../estado/artefactos";
+import { contarLineas, nombreFichero, nombreWord, renderizable, type TrozoHilo } from "../estado/artefactos";
 import { mostrarFichero, puedeMostrarRutas } from "../plataforma/aplicacion";
 import { ErrorNucleo } from "../rpc";
 import { Markdown } from "./Markdown";
@@ -31,6 +43,8 @@ export interface ContextoArtefactos {
   /** El que enseña el panel ahora. */
   abierto?: { id: string; version: number };
   abrir: (id: string, version: number) => void;
+  /** Abre un .md o un .docx (ruta absoluta) en el panel, como documento de solo lectura; `nombre`, si no es el del fichero (un adjunto). */
+  abrirDocumento: (ruta: string, nombre?: string) => void;
 }
 export const ArtefactosHilo = createContext<ContextoArtefactos | null>(null);
 export const useArtefactosHilo = () => useContext(ArtefactosHilo);
@@ -53,7 +67,7 @@ export function TarjetaArtefacto({ a, version, activa, alAbrir }: { a: Artefacto
   );
 }
 
-/* ── Panel ────────────────────────────────────────── */
+/* ── Marco del panel (artefactos y documentos) ────── */
 
 const ANCHO_MINIMO = 340;
 /** Lo que se deja como mínimo a la conversación al ensanchar el panel. */
@@ -69,73 +83,31 @@ function anchoGuardado(): number {
   }
 }
 
-type Guardado = { tipo: "guardando" } | { tipo: "ok"; ruta: string } | { tipo: "existe" } | { tipo: "error"; texto: string };
+export const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
+export const PANEL = "panel-artefacto";
 
-const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const PANEL = "panel-artefacto";
-
-export function PanelArtefacto({
-  sesionId,
-  versiones,
-  indice,
-  pestana,
-  alVersion,
-  alPestana,
+/** El panel de la derecha: asa para ensancharlo, cabecera con icono, título y Cerrar; el resto lo pone quien lo usa. */
+export function MarcoPanel({
+  titulo,
+  ayuda,
+  icono,
+  cabecera,
+  menu,
   alCerrar,
+  children,
 }: {
-  sesionId: string;
-  versiones: Artefacto[];
-  indice: number;
-  pestana: PestanaArtefacto;
-  alVersion: (i: number) => void;
-  alPestana: (p: PestanaArtefacto) => void;
+  titulo: string;
+  /** Texto al pasar el ratón por el título (la ruta de un documento). */
+  ayuda?: string;
+  icono: NombreIcono;
+  /** Lo que va entre el título y Cerrar (el selector de versión). */
+  cabecera?: ReactNode;
+  menu: ReturnType<typeof useMenuContextual>;
   alCerrar: () => void;
+  children: ReactNode;
 }) {
-  const { llamar } = useAcciones();
-  const a = versiones[indice] ?? versiones[versiones.length - 1];
   const [ancho, setAncho] = useState(anchoGuardado);
-  const [guardado, setGuardado] = useState<Guardado>();
-  const [copiado, setCopiado] = useState(false);
   const panel = useRef<HTMLElement>(null);
-
-  // Otro artefacto u otra versión: lo de guardar era del anterior.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: el disparador es el cambio de artefacto o de versión.
-  useEffect(() => setGuardado(undefined), [a?.id, indice]);
-  useEffect(() => {
-    if (!copiado) return;
-    const t = setTimeout(() => setCopiado(false), 1400);
-    return () => clearTimeout(t);
-  }, [copiado]);
-
-  const conVista = a ? renderizable(a.tipo) : false;
-  const activa: PestanaArtefacto = conVista ? pestana : "codigo";
-  const nombre = a ? nombreFichero(a) : "";
-
-  const copiar = () => {
-    if (!a) return;
-    copiarTexto(a.contenido);
-    setCopiado(true);
-  };
-  const guardar = async (sobrescribir = false) => {
-    if (!a) return;
-    setGuardado({ tipo: "guardando" });
-    try {
-      const { ruta } = await llamar("artefactos.guardar", { sesionId, nombre, contenido: a.contenido, ...(sobrescribir ? { sobrescribir: true } : {}) });
-      setGuardado({ tipo: "ok", ruta });
-    } catch (e) {
-      const texto = mensaje(e);
-      setGuardado(!sobrescribir && e instanceof ErrorNucleo && e.codigo === codigosError.yaExiste ? { tipo: "existe" } : { tipo: "error", texto });
-    }
-  };
-
-  const menu = useMenuContextual(({ seleccion }) => [
-    seleccion.trim() && { texto: "Copiar", icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
-    seleccion.trim() && { tipo: "separador" },
-    { texto: seleccion.trim() ? "Copiar todo" : "Copiar", icono: "copiar", alElegir: copiar },
-    { texto: "Guardar en la carpeta", icono: "guardar", deshabilitado: !a?.completo, alElegir: () => void guardar() },
-    { tipo: "separador" },
-    { texto: "Cerrar", icono: "cerrar", alElegir: alCerrar },
-  ]);
 
   // Ensanchar arrastrando el borde izquierdo (o con las flechas cuando el asa tiene el foco).
   const maximo = () => Math.max(ANCHO_MINIMO, (panel.current?.parentElement?.clientWidth ?? 1200) - MINIMO_CONVERSACION);
@@ -173,10 +145,8 @@ export function PanelArtefacto({
     fijarAncho(nuevo);
   };
 
-  if (!a) return null;
-
   return (
-    <aside ref={panel} className="panel-artefacto" aria-label={a.titulo} style={{ width: ancho }} {...menu}>
+    <aside ref={panel} className="panel-artefacto" aria-label={titulo} style={{ width: ancho }} {...menu}>
       {/* biome-ignore lint/a11y/useSemanticElements: un <hr> no se puede arrastrar ni enfocar; es el separador redimensionable de ARIA. */}
       <div
         className="panel-artefacto__asa"
@@ -190,85 +160,54 @@ export function PanelArtefacto({
         onKeyDown={teclaAsa}
       />
       <header className="panel-artefacto__cabecera">
-        <Icono nombre={ICONOS_ARTEFACTO[a.tipo]} tamano={18} className="panel-artefacto__icono" />
-        <h2 className="panel-artefacto__titulo" title={a.titulo}>
-          {a.titulo}
+        <Icono nombre={icono} tamano={18} className="panel-artefacto__icono" />
+        <h2 className="panel-artefacto__titulo" title={ayuda ?? titulo}>
+          {titulo}
         </h2>
-        {versiones.length > 1 && (
-          <Desplegable
-            etiqueta="Versión"
-            alineacion="derecha"
-            disparador={({ alternar, abierto: _a, ...aria }) => (
-              <Boton variante="chip" tamano="pequeno" iconoFinal="chevron-abajo" onClick={alternar} title="Versión" {...aria}>
-                v{indice + 1}
-              </Boton>
-            )}
-          >
-            {(cerrar) =>
-              versiones.map((v, i) => (
-                <Opcion
-                  // biome-ignore lint/suspicious/noArrayIndexKey: las versiones solo se añaden al final.
-                  key={i}
-                  texto={`v${i + 1}`}
-                  marcada={i === indice}
-                  titulo={v.titulo}
-                  alElegir={() => {
-                    alVersion(i);
-                    cerrar();
-                  }}
-                />
-              ))
-            }
-          </Desplegable>
-        )}
+        {cabecera}
         <BotonIcono etiqueta="Cerrar" icono="cerrar" onClick={alCerrar} />
       </header>
-      <div className="panel-artefacto__barra">
-        {conVista ? (
-          <Pestanas
-            etiqueta="Artefacto"
-            className="panel-artefacto__pestanas"
-            pestanas={[
-              { id: "codigo", texto: "Código" },
-              { id: "vista", texto: "Vista" },
-            ]}
-            activa={activa}
-            alElegir={alPestana}
-            idPanel={PANEL}
-          />
-        ) : (
-          <span className="panel-artefacto__lenguaje">{a.lenguaje ?? ""}</span>
-        )}
-        <span className="panel-artefacto__acciones">
-          <BotonIcono etiqueta={copiado ? "Copiado" : "Copiar"} icono={copiado ? "check" : "copiar"} onClick={copiar} />
-          <BotonIcono etiqueta="Guardar en la carpeta" icono="guardar" disabled={!a.completo || guardado?.tipo === "guardando"} onClick={() => void guardar()} />
-        </span>
-      </div>
-      <EstadoGuardado guardado={guardado} nombre={nombre} alSobrescribir={() => void guardar(true)} alCancelar={() => setGuardado(undefined)} />
-      <div
-        className={clases("panel-artefacto__cuerpo", activa === "vista" && `panel-artefacto__cuerpo--${a.tipo}`)}
-        {...(conVista ? { role: "tabpanel", id: PANEL, "aria-labelledby": idPestana(PANEL, activa) } : {})}
-      >
-        {activa === "codigo" ? (
-          <CodigoConLineas key={`${a.id}:${indice}`} texto={a.contenido} seguir={!a.completo} />
-        ) : a.tipo === "markdown" ? (
-          <div className="panel-artefacto__md">
-            <Markdown texto={a.contenido} />
-          </div>
-        ) : a.completo && (a.tipo === "html" || a.tipo === "svg") ? (
-          <VistaAislada tipo={a.tipo} contenido={a.contenido} titulo={a.titulo} />
-        ) : (
-          <div className="panel-artefacto__espera">
-            <LatticeLoader activo />
-            <span>{lineas(contarLineas(a.contenido))}</span>
-          </div>
-        )}
-      </div>
+      {children}
     </aside>
   );
 }
 
-function EstadoGuardado({ guardado, nombre, alSobrescribir, alCancelar }: { guardado?: Guardado; nombre: string; alSobrescribir: () => void; alCancelar: () => void }) {
+/* ── Guardar en la carpeta de la sesión ───────────── */
+
+/** Qué se guarda: el texto tal cual (artefactos.guardar) o el markdown convertido a Word (documentos.exportar). */
+export interface Destino {
+  tipo: "fichero" | "word";
+  nombre: string;
+  contenido: string;
+}
+
+export type Guardado = { tipo: "guardando" } | { tipo: "ok"; ruta: string } | { tipo: "existe"; destino: Destino } | { tipo: "error"; texto: string };
+
+/** Guardar con la pregunta de sobrescribir: si ya existe (código `yaExiste`), se queda en «existe» hasta que se elija. */
+export function useGuardado(sesionId: string) {
+  const { llamar } = useAcciones();
+  const [guardado, setGuardado] = useState<Guardado>();
+  const guardar = useCallback(
+    async (destino: Destino, sobrescribir = false) => {
+      setGuardado({ tipo: "guardando" });
+      const extra = sobrescribir ? { sobrescribir: true } : {};
+      try {
+        const { ruta } =
+          destino.tipo === "word"
+            ? await llamar("documentos.exportar", { sesionId, nombre: destino.nombre, markdown: destino.contenido, ...extra })
+            : await llamar("artefactos.guardar", { sesionId, nombre: destino.nombre, contenido: destino.contenido, ...extra });
+        setGuardado({ tipo: "ok", ruta });
+      } catch (e) {
+        setGuardado(!sobrescribir && e instanceof ErrorNucleo && e.codigo === codigosError.yaExiste ? { tipo: "existe", destino } : { tipo: "error", texto: mensaje(e) });
+      }
+    },
+    [llamar, sesionId],
+  );
+  const olvidar = useCallback(() => setGuardado(undefined), []);
+  return { guardado, guardar, olvidar };
+}
+
+export function EstadoGuardado({ guardado, alGuardar, alCancelar }: { guardado?: Guardado; alGuardar: (d: Destino, sobrescribir: boolean) => void; alCancelar: () => void }) {
   const cancelar = useRef<HTMLButtonElement>(null);
   const existe = guardado?.tipo === "existe";
   useEffect(() => {
@@ -279,9 +218,9 @@ function EstadoGuardado({ guardado, nombre, alSobrescribir, alCancelar }: { guar
     return (
       <div className="panel-artefacto__aviso" role="alert">
         <span>
-          <code>{nombre}</code> ya existe
+          <code>{guardado.destino.nombre}</code> ya existe
         </span>
-        <Boton variante="acento" tamano="pequeno" onClick={alSobrescribir}>
+        <Boton variante="acento" tamano="pequeno" onClick={() => alGuardar(guardado.destino, true)}>
           Sobrescribir
         </Boton>
         <Boton variante="fantasma" tamano="pequeno" ref={cancelar} onClick={alCancelar} onKeyDown={(e) => e.key === "Escape" && alCancelar()}>
@@ -310,8 +249,147 @@ function EstadoGuardado({ guardado, nombre, alSobrescribir, alCancelar }: { guar
   );
 }
 
+/* ── Panel de un artefacto ────────────────────────── */
+
+export function PanelArtefacto({
+  sesionId,
+  versiones,
+  indice,
+  pestana,
+  alVersion,
+  alPestana,
+  alCerrar,
+}: {
+  sesionId: string;
+  versiones: Artefacto[];
+  indice: number;
+  pestana: PestanaArtefacto;
+  alVersion: (i: number) => void;
+  alPestana: (p: PestanaArtefacto) => void;
+  alCerrar: () => void;
+}) {
+  const a = versiones[indice] ?? versiones[versiones.length - 1];
+  const { guardado, guardar, olvidar } = useGuardado(sesionId);
+  const [copiado, setCopiado] = useState(false);
+
+  // Otro artefacto u otra versión: lo de guardar era del anterior.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: el disparador es el cambio de artefacto o de versión.
+  useEffect(() => olvidar(), [a?.id, indice]);
+  useEffect(() => {
+    if (!copiado) return;
+    const t = setTimeout(() => setCopiado(false), 1400);
+    return () => clearTimeout(t);
+  }, [copiado]);
+
+  const conVista = a ? renderizable(a.tipo) : false;
+  const activa: PestanaArtefacto = conVista ? pestana : "codigo";
+  const conWord = a?.tipo === "markdown";
+  const ocupado = !a?.completo || guardado?.tipo === "guardando";
+
+  const copiar = () => {
+    if (!a) return;
+    copiarTexto(a.contenido);
+    setCopiado(true);
+  };
+  const enCarpeta = () => a && void guardar({ tipo: "fichero", nombre: nombreFichero(a), contenido: a.contenido });
+  const comoWord = () => a && void guardar({ tipo: "word", nombre: nombreWord(a.id), contenido: a.contenido });
+
+  const menu = useMenuContextual(({ seleccion }) => [
+    seleccion.trim() && { texto: "Copiar", icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
+    seleccion.trim() && { tipo: "separador" },
+    { texto: seleccion.trim() ? "Copiar todo" : "Copiar", icono: "copiar", alElegir: copiar },
+    { texto: "Guardar en la carpeta", icono: "guardar", deshabilitado: !a?.completo, alElegir: enCarpeta },
+    conWord && { texto: "Guardar como Word", icono: "documento", deshabilitado: !a?.completo, alElegir: comoWord },
+    { tipo: "separador" },
+    { texto: "Cerrar", icono: "cerrar", alElegir: alCerrar },
+  ]);
+
+  if (!a) return null;
+
+  return (
+    <MarcoPanel
+      titulo={a.titulo}
+      icono={ICONOS_ARTEFACTO[a.tipo]}
+      menu={menu}
+      alCerrar={alCerrar}
+      cabecera={
+        versiones.length > 1 && (
+          <Desplegable
+            etiqueta="Versión"
+            alineacion="derecha"
+            disparador={({ alternar, abierto: _a, ...aria }) => (
+              <Boton variante="chip" tamano="pequeno" iconoFinal="chevron-abajo" onClick={alternar} title="Versión" {...aria}>
+                v{indice + 1}
+              </Boton>
+            )}
+          >
+            {(cerrar) =>
+              versiones.map((v, i) => (
+                <Opcion
+                  // biome-ignore lint/suspicious/noArrayIndexKey: las versiones solo se añaden al final.
+                  key={i}
+                  texto={`v${i + 1}`}
+                  marcada={i === indice}
+                  titulo={v.titulo}
+                  alElegir={() => {
+                    alVersion(i);
+                    cerrar();
+                  }}
+                />
+              ))
+            }
+          </Desplegable>
+        )
+      }
+    >
+      <div className="panel-artefacto__barra">
+        {conVista ? (
+          <Pestanas
+            etiqueta="Artefacto"
+            className="panel-artefacto__pestanas"
+            pestanas={[
+              { id: "codigo", texto: "Código" },
+              { id: "vista", texto: "Vista" },
+            ]}
+            activa={activa}
+            alElegir={alPestana}
+            idPanel={PANEL}
+          />
+        ) : (
+          <span className="panel-artefacto__lenguaje">{a.lenguaje ?? ""}</span>
+        )}
+        <span className="panel-artefacto__acciones">
+          <BotonIcono etiqueta={copiado ? "Copiado" : "Copiar"} icono={copiado ? "check" : "copiar"} onClick={copiar} />
+          <BotonIcono etiqueta="Guardar en la carpeta" icono="guardar" disabled={ocupado} onClick={enCarpeta} />
+          {conWord && <BotonIcono etiqueta="Guardar como Word" icono="documento" disabled={ocupado} onClick={comoWord} />}
+        </span>
+      </div>
+      <EstadoGuardado guardado={guardado} alGuardar={(d, s) => void guardar(d, s)} alCancelar={olvidar} />
+      <div
+        className={clases("panel-artefacto__cuerpo", activa === "vista" && `panel-artefacto__cuerpo--${a.tipo}`)}
+        {...(conVista ? { role: "tabpanel", id: PANEL, "aria-labelledby": idPestana(PANEL, activa) } : {})}
+      >
+        {activa === "codigo" ? (
+          <CodigoConLineas key={`${a.id}:${indice}`} texto={a.contenido} seguir={!a.completo} />
+        ) : a.tipo === "markdown" ? (
+          <div className="panel-artefacto__md">
+            <Markdown texto={a.contenido} />
+          </div>
+        ) : a.completo && (a.tipo === "html" || a.tipo === "svg") ? (
+          <VistaAislada tipo={a.tipo} contenido={a.contenido} titulo={a.titulo} />
+        ) : (
+          <div className="panel-artefacto__espera">
+            <LatticeLoader activo />
+            <span>{lineas(contarLineas(a.contenido))}</span>
+          </div>
+        )}
+      </div>
+    </MarcoPanel>
+  );
+}
+
 /** Código con números de línea; mientras llega, sigue el final si no se ha subido a leer. */
-function CodigoConLineas({ texto, seguir }: { texto: string; seguir: boolean }) {
+export function CodigoConLineas({ texto, seguir }: { texto: string; seguir: boolean }) {
   const caja = useRef<HTMLElement>(null);
   const pegado = useRef(true);
   const n = contarLineas(texto);
@@ -366,7 +444,7 @@ function publicar(clave: string, crear: () => Promise<string>): Promise<string> 
 }
 
 /** iframe en el origen del núcleo, sin allow-same-origin: el artefacto no ve la app ni el token. */
-function VistaAislada({ tipo, contenido, titulo }: { tipo: "html" | "svg"; contenido: string; titulo: string }) {
+export function VistaAislada({ tipo, contenido, titulo }: { tipo: "html" | "svg"; contenido: string; titulo: string }) {
   const { llamar, urlNucleo } = useAcciones();
   const [estado, setEstado] = useState<{ url?: string; error?: string }>({});
   useEffect(() => {
