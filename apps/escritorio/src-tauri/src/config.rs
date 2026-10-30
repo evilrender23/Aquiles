@@ -1,6 +1,6 @@
 //! Configuración de la app en `app.json`, junto a los perfiles del núcleo: el perfil activo,
-//! el atajo de la entrada rápida y, si lo hay, el núcleo remoto. El token del remoto no va
-//! aquí, sino en el llavero.
+//! el atajo de la entrada rápida, si se actualiza sola y, si lo hay, el núcleo remoto. El token
+//! del remoto no va aquí, sino en el llavero.
 
 use std::path::PathBuf;
 
@@ -12,6 +12,8 @@ pub struct ConfigApp {
     pub perfil: String,
     #[serde(default = "atajo_por_defecto")]
     pub atajo: String,
+    #[serde(default = "verdadero", rename = "actualizarSolo")]
+    pub actualizar_solo: bool,
     #[serde(default)]
     pub remoto: Option<Remoto>,
 }
@@ -29,9 +31,13 @@ fn atajo_por_defecto() -> String {
     "Ctrl+Alt+Space".into()
 }
 
+fn verdadero() -> bool {
+    true
+}
+
 impl Default for ConfigApp {
     fn default() -> Self {
-        Self { perfil: perfil_por_defecto(), atajo: atajo_por_defecto(), remoto: None }
+        Self { perfil: perfil_por_defecto(), atajo: atajo_por_defecto(), actualizar_solo: true, remoto: None }
     }
 }
 
@@ -109,11 +115,12 @@ mod pruebas {
         let config = ConfigApp {
             perfil: "trabajo".into(),
             atajo: "Ctrl+Shift+K".into(),
+            actualizar_solo: false,
             remoto: Some(Remoto { url: "wss://casa:47420".into() }),
         };
         let texto = serde_json::to_string(&config).unwrap();
         assert!(!texto.contains("token"));
         assert_eq!(interpretar(&texto), config);
-        assert_eq!(serde_json::to_value(ConfigApp::default()).unwrap(), serde_json::json!({ "perfil": "principal", "atajo": "Ctrl+Alt+Space", "remoto": null }));
+        assert_eq!(serde_json::to_value(ConfigApp::default()).unwrap(), serde_json::json!({ "perfil": "principal", "atajo": "Ctrl+Alt+Space", "actualizarSolo": true, "remoto": null }));
     }
 }

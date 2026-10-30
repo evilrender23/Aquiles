@@ -3,6 +3,7 @@
 mod actualizaciones;
 mod atajo;
 mod config;
+mod explorador;
 mod llavero;
 mod nucleo;
 mod ventanas;
@@ -19,9 +20,9 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::Builder::new().arg(ventanas::ARG_MINIMIZADO).build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(nucleo::Nucleo::new())
+        .manage(actualizaciones::Actualizacion::new())
         .invoke_handler(tauri::generate_handler![
             nucleo::conexion_nucleo,
             nucleo::perfil_actual,
@@ -33,10 +34,15 @@ pub fn run() {
             llavero::hay_clave,
             llavero::borrar_clave,
             ventanas::mostrar_principal,
+            explorador::abrir_carpeta,
             atajo::atajo_actual,
             atajo::cambiar_atajo,
             actualizaciones::buscar_actualizacion,
             actualizaciones::instalar_actualizacion,
+            actualizaciones::estado_actualizacion,
+            actualizaciones::aplicar_actualizacion,
+            actualizaciones::actualizar_solo,
+            actualizaciones::cambiar_actualizar_solo,
         ])
         .on_window_event(ventanas::al_evento_de_ventana)
         .setup(|app| {
@@ -46,12 +52,14 @@ pub fn run() {
                 ventanas::mostrar_ventana_principal(app.handle());
             }
             nucleo::arrancar(app.handle(), false);
+            actualizaciones::vigilar(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("no se pudo iniciar Aquiles")
         .run(|app, evento| {
             if let RunEvent::Exit = evento {
+                actualizaciones::al_salir(app);
                 nucleo::parar(app);
             }
         });

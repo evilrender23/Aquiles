@@ -11,13 +11,18 @@ const COMANDOS: &[&str] = &[
     "hay_clave",
     "borrar_clave",
     "mostrar_principal",
+    "abrir_carpeta",
     "atajo_actual",
     "cambiar_atajo",
     "buscar_actualizacion",
     "instalar_actualizacion",
+    "estado_actualizacion",
+    "aplicar_actualizacion",
+    "actualizar_solo",
+    "cambiar_actualizar_solo",
 ];
 
-/// Los tests que montan una app (el del actualizador) enlazan TaskDialogIndirect, que solo está
+/// Los tests que montan una app (el del atajo) enlazan TaskDialogIndirect, que solo está
 /// en Common Controls 6: sin su manifiesto no arrancan (STATUS_ENTRYPOINT_NOT_FOUND).
 /// tauri-build solo se lo pone a los binarios; por el enlazador llega también a los tests, y se
 /// quita el de tauri-build para que el .exe no lo lleve dos veces.

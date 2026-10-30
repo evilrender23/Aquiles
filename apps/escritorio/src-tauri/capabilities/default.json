@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Ventana principal: la barra de título propia, elegir carpeta, notificaciones, traerse al frente, arranque con Windows, cambiar el atajo, relanzar y todos los comandos propios. El núcleo se lanza desde Rust.",
+  "description": "Ventana principal: la barra de título propia, elegir carpeta, notificaciones, traerse al frente, señalar ficheros y abrir carpetas en el Explorador, arranque con Windows, cambiar el atajo y todos los comandos propios. El núcleo se lanza desde Rust.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -16,7 +16,7 @@
     "dialog:allow-open",
     "notification:default",
     "autostart:default",
-    "process:allow-restart",
+    "opener:allow-reveal-item-in-dir",
     "allow-conexion-nucleo",
     "allow-perfil-actual",
     "allow-cambiar-perfil",
@@ -27,9 +27,14 @@
     "allow-hay-clave",
     "allow-borrar-clave",
     "allow-mostrar-principal",
+    "allow-abrir-carpeta",
     "allow-atajo-actual",
     "allow-cambiar-atajo",
     "allow-buscar-actualizacion",
-    "allow-instalar-actualizacion"
+    "allow-instalar-actualizacion",
+    "allow-estado-actualizacion",
+    "allow-aplicar-actualizacion",
+    "allow-actualizar-solo",
+    "allow-cambiar-actualizar-solo"
   ]
 }

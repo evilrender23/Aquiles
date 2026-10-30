@@ -9,6 +9,8 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
 ## Qué hace
 
 - **Conversación con herramientas:** leer, buscar, editar y crear ficheros; terminal persistente (local, en un contenedor Docker o por SSH); búsqueda y lectura de webs; control de Edge (desactivado por defecto); servidores MCP.
+- **Adjuntos:** imágenes y documentos (PDF, Word, Excel, PowerPoint, texto y código). Se sacan su texto y las imágenes las ven los modelos que las admiten.
+- **Artefactos:** páginas HTML, SVG, documentos y ficheros de código que el modelo escribe aparte. Se ven mientras los escribe y luego se renderizan en una vista aislada.
 - **Permisos:** escribe sin preguntar dentro de la carpeta de trabajo y pregunta antes de ejecutar comandos. También se puede elegir «preguntar siempre» o «libre en el proyecto». Hay un guardián opcional: un modelo que aprueba lo claramente seguro.
 - **Memoria y skills:** memoria corta del usuario, del agente y de cada proyecto, más una personalidad editable; skills en formato `SKILL.md`; búsqueda de texto en todas las conversaciones.
 - **Aprendizaje:** una revisión en segundo plano propone qué recordar de cada conversación, y tú aceptas o descartas. Todo lo aprendido queda registrado con su sesión de origen. Las skills aprendidas que no se usan se archivan, sin borrarse.
@@ -18,7 +20,13 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
   - conversación desde esos chats;
   - kanban en el que cada tarjeta se encarga a un agente;
   - objetivos con un juez que decide si el trabajo está acabado.
-- **Modelos:** los CLI de Antigravity (`agy`) y de Claude Code (`claude`) con la cuenta en la que hayas iniciado sesión; Anthropic, OpenAI y OpenRouter con clave de API; Ollama y LM Studio en local.
+- **Modelos:**
+  - los CLI de Antigravity (`agy`), Claude Code (`claude`) y Codex (`codex`), con la cuenta en la que hayas iniciado sesión;
+  - Anthropic, OpenAI y OpenRouter con clave de API;
+  - Ollama y LM Studio en local;
+  - modelos GGUF de Hugging Face, que se buscan, se descargan y se ejecutan con llama.cpp.
+
+  El nivel de esfuerzo de razonamiento se puede elegir en los modelos que lo declaran.
 - **Aplicación:**
   - bandeja del sistema y arranque con Windows;
   - atajo global con entrada rápida;
@@ -30,7 +38,14 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
 
 ## Instalación
 
-En PowerShell:
+En PowerShell, clona el repositorio y ejecuta el instalador. Hace falta Git (`winget install -e --id Git.Git`). Si el repositorio es privado, `git` te pedirá la primera vez una cuenta de GitHub que tenga acceso.
+
+```powershell
+git clone https://github.com/evilrender23/Aquiles.git
+powershell -ExecutionPolicy Bypass -File Aquiles\instalar.ps1
+```
+
+Si el repositorio es público, basta con una línea:
 
 ```powershell
 irm https://raw.githubusercontent.com/evilrender23/Aquiles/main/instalar.ps1 | iex
@@ -44,7 +59,7 @@ El script hace tres cosas:
 La app se mantiene al día sola: cuando `main` tiene commits nuevos, los compila en segundo plano y los aplica al reiniciarla. También se puede comprobar a mano en Ajustes → Aplicación.
 
 Para hablar con un modelo hace falta al menos una de estas cosas:
-- `agy` o `claude` instalado y con la sesión iniciada;
+- `agy`, `claude` o Codex instalado y con la sesión iniciada;
 - una clave de API (en Ajustes → Claves);
 - Ollama o LM Studio en marcha.
 
