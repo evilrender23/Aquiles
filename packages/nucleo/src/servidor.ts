@@ -41,7 +41,6 @@ import { consultarGuardian } from "./guardian";
 import { ErrorHerramienta, type Herramienta, type Pregunta } from "./herramientas/herramienta";
 import { cerrarEstadoSesion } from "./herramientas/index";
 import { cerrarNavegador, herramientaNavegador } from "./herramientas/navegador";
-import { ErrorKanban, Kanban } from "./kanban";
 import { buscarFicheros, conMenciones } from "./menciones";
 import { buscarModelos, Descargas, directorioModelos, ficherosRepo, modelosLocales as modelosDescargados } from "./locales/huggingface";
 import { instalarLlamaCpp, rutaLlamaServer } from "./locales/llamacpp";
@@ -458,7 +457,6 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     turno: (s, texto, adjuntos) => void ejecutarConAdjuntos(s, texto, { aprobar: aprobarEnApp(s), preguntar: preguntarEnApp(s) }, adjuntos),
     carpetaPorDefecto: () => ajustes.leer().carpeta,
   });
-  const kanban = new Kanban({ dir: o.perfil, motor, cwdPorDefecto: o.cwdPorDefecto });
   const plugins = new Plugins({ dir: o.perfil, alCambiar: () => emitir({ tipo: "plugins.actualizados" }), log });
   void plugins.cargar().catch((e) => log(`plugins: ${e instanceof Error ? e.message : e}`));
   extras.push(() => plugins.herramientas());
@@ -479,7 +477,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     try {
       return await f();
     } catch (e) {
-      if (e instanceof ErrorKanban || e instanceof ErrorPlugin || e instanceof ErrorCron || e instanceof ErrorCanal) {
+      if (e instanceof ErrorPlugin || e instanceof ErrorCron || e instanceof ErrorCanal) {
         throw new FalloRpc(codigosError.paramsInvalidos, e.message);
       }
       throw e;
@@ -798,14 +796,6 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       avisar(s);
       return vista(s);
     },
-    "kanban.listar": () => ({ tarjetas: kanban.listar() }),
-    "kanban.crear": (p) => comoParamsAsync(() => kanban.crear(p)),
-    "kanban.editar": (p) => comoParamsAsync(() => kanban.editar(p)),
-    "kanban.borrar": ({ id }) => comoParamsAsync(() => {
-      kanban.borrar(id);
-      return { borrada: true as const };
-    }),
-    "kanban.ejecutar": ({ id }) => comoParamsAsync(() => kanban.ejecutar(id)),
     "plugins.listar": () => ({ plugins: plugins.listar() }),
     "plugins.activar": ({ nombre, activo }) => comoParamsAsync(() => plugins.activar(nombre, activo)),
     "estadisticas.leer": ({ dias }) =>

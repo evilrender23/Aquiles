@@ -18,7 +18,6 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
 - **Automatizaciones:**
   - tareas programadas («cada lunes 9:00», «en 30m» o cron) que entregan el resultado en el escritorio, Telegram, Discord, Slack o por correo;
   - conversación desde esos chats;
-  - kanban en el que cada tarjeta se encarga a un agente;
   - objetivos con un juez que decide si el trabajo está acabado.
 - **Modelos:**
   - los CLI de Antigravity (`agy`), Claude Code (`claude`) y Codex (`codex`), con la cuenta en la que hayas iniciado sesión;

@@ -10,7 +10,7 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 11;
+export const VERSION_PROTOCOLO = 12;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -24,10 +24,6 @@ export type ModoAprobacion = (typeof MODOS_APROBACION)[number];
 /** Dónde corre la terminal: en este equipo, en un contenedor Docker o en otra máquina por SSH. */
 export const ENTORNOS_TERMINAL = ["local", "docker", "ssh"] as const;
 export type EntornoTerminal = (typeof ENTORNOS_TERMINAL)[number];
-
-/** Columnas del kanban, en orden. */
-export const COLUMNAS_KANBAN = ["pendiente", "en-curso", "revision", "hecha"] as const;
-export type ColumnaKanban = (typeof COLUMNAS_KANBAN)[number];
 
 /** Canales por los que Aquiles entrega resultados y, si el canal lo permite, conversa. */
 export const CANALES = ["escritorio", "terminal", "telegram", "discord", "slack", "correo"] as const;
@@ -209,13 +205,6 @@ export const metodos = {
   "copias.restaurar": z.object({ nombre: z.string().min(1) }),
   /** Objetivo de una sesión (fase 8): tras cada turno un juez decide si se cumplió; si no, Aquiles sigue solo. */
   "sesion.objetivo": z.object({ sesionId: idSesion, objetivo: z.string().max(2000).nullable(), maxIntentos: z.number().int().min(1).max(20).optional() }),
-  /** Kanban multiagente: cada tarjeta se puede encargar a un agente, que trabaja en su propia sesión. */
-  "kanban.listar": z.object({}),
-  "kanban.crear": z.object({ titulo: z.string().min(1).max(200), descripcion: z.string().max(20_000).optional(), columna: z.enum(COLUMNAS_KANBAN).optional(), cwd: z.string().min(1).optional() }),
-  "kanban.editar": z.object({ id: z.string().min(1), titulo: z.string().min(1).max(200).optional(), descripcion: z.string().max(20_000).optional(), columna: z.enum(COLUMNAS_KANBAN).optional(), orden: z.number().optional() }),
-  "kanban.borrar": z.object({ id: z.string().min(1) }),
-  /** Encarga la tarjeta a un agente: sesión nueva con la descripción como tarea; la tarjeta pasa a «en curso». */
-  "kanban.ejecutar": z.object({ id: z.string().min(1) }),
   /** Plugins: código propio del usuario en <perfil>/plugins que añade herramientas. Desactivados hasta que se activan. */
   "plugins.listar": z.object({}),
   "plugins.activar": z.object({ nombre: z.string().min(1), activo: z.boolean() }),
@@ -342,8 +331,7 @@ export interface InfoSesion {
   origen?:
     | { tipo: "cron"; tareaId: string }
     | { tipo: "canal"; canal: IdCanal; chatId: string }
-    | { tipo: "subagente"; padre: string }
-    | { tipo: "kanban"; tarjetaId: string };
+    | { tipo: "subagente"; padre: string };
   /** El núcleo se cerró a mitad de un turno de esta sesión: se puede continuar. */
   interrumpida?: boolean;
   objetivo?: ObjetivoSesion;
@@ -478,11 +466,6 @@ export interface Resultados {
   "copias.crear": InfoCopia;
   "copias.restaurar": { reiniciando: true };
   "sesion.objetivo": InfoSesion;
-  "kanban.listar": { tarjetas: TarjetaKanban[] };
-  "kanban.crear": TarjetaKanban;
-  "kanban.editar": TarjetaKanban;
-  "kanban.borrar": { borrada: true };
-  "kanban.ejecutar": TarjetaKanban;
   "plugins.listar": { plugins: InfoPlugin[] };
   "plugins.activar": InfoPlugin;
   "estadisticas.leer": Estadisticas;
@@ -500,23 +483,6 @@ export interface InfoCopia {
   perfil: string;
   fecha: string;
   bytes: number;
-}
-
-export interface TarjetaKanban {
-  id: string;
-  titulo: string;
-  descripcion: string;
-  columna: ColumnaKanban;
-  /** Posición dentro de la columna (menor = más arriba). */
-  orden: number;
-  cwd: string;
-  /** Sesión del agente que la trabaja (si se encargó). */
-  sesionId?: string;
-  /** Estado del agente: trabajando, terminó (pasa a revisión) o falló. */
-  agente?: "trabajando" | "terminado" | "error";
-  error?: string;
-  creada: string;
-  actualizada: string;
 }
 
 export interface InfoPlugin {
@@ -829,7 +795,6 @@ export type Evento =
   | { tipo: "subagente.inicio"; sesionId: string; subId: string; tarea: string }
   | { tipo: "subagente.fin"; sesionId: string; subId: string; motivo: MotivoFin; texto: string; error?: string }
   | { tipo: "mcp.actualizado" }
-  | { tipo: "kanban.actualizado" }
   | { tipo: "plugins.actualizados" }
   /** Progreso de una descarga de modelo (cada ~0,5 s y al acabar). */
   | { tipo: "modelos.progreso"; descarga: ProgresoDescargaModelo }

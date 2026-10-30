@@ -1,12 +1,11 @@
 /**
  * Prueba con un modelo real de lo que trabaja sin nadie delante (gasta cuota):
  *   bun packages/nucleo/scripts/probar-automatico.ts [--proveedor claude] [--modelo haiku]
- * 1. Kanban: se encarga una tarjeta a un agente y se comprueba el fichero que deja.
- * 2. Objetivo con juez: una sesión con objetivo; el juez debe darlo por cumplido.
- * 3. Tarea programada: se ejecuta ahora y entrega en el escritorio (evento `notificacion`).
+ * 1. Objetivo con juez: una sesión con objetivo; el juez debe darlo por cumplido.
+ * 2. Tarea programada: se ejecuta ahora y entrega en el escritorio (evento `notificacion`).
  * Perfil y carpeta temporales; escribir dentro de la carpeta no pide permiso.
  */
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -56,22 +55,7 @@ const esperar = async (cond: () => boolean | Promise<boolean>, segundos = 240) =
 const resultados: [string, boolean][] = [];
 
 try {
-  // 1. Kanban
-  const tarjeta = await llamar("kanban.crear", {
-    titulo: "Fichero de saludo",
-    descripcion: "Crea en la carpeta de trabajo el fichero hola.txt con el texto exacto: hola kanban",
-  });
-  await llamar("kanban.ejecutar", { id: tarjeta.id });
-  await esperar(async () => {
-    const t = (await llamar("kanban.listar")).tarjetas.find((x: any) => x.id === tarjeta.id);
-    return t?.agente && t.agente !== "trabajando";
-  });
-  const t = (await llamar("kanban.listar")).tarjetas.find((x: any) => x.id === tarjeta.id);
-  const hola = await readFile(join(cwd, "hola.txt"), "utf8").catch(() => "");
-  console.log(`kanban: columna ${t.columna}, agente ${t.agente}, hola.txt = ${JSON.stringify(hola.trim())}`);
-  resultados.push(["kanban", t.columna === "revision" && hola.trim().toLowerCase() === "hola kanban"]);
-
-  // 2. Objetivo con juez
+  // 1. Objetivo con juez
   const s = await llamar("sesion.crear", {});
   await llamar("sesion.objetivo", {
     sesionId: s.sesionId,
@@ -87,7 +71,7 @@ try {
   console.log(`objetivo: ${veredictos.length} evaluaciones, estado ${ultimo?.tipo === "objetivo.evaluado" ? `${ultimo.objetivo.estado} (${ultimo.objetivo.motivo})` : "?"}`);
   resultados.push(["objetivo", ultimo?.tipo === "objetivo.evaluado" && ultimo.objetivo.estado === "cumplido"]);
 
-  // 3. Tarea programada que entrega en el escritorio
+  // 2. Tarea programada que entrega en el escritorio
   const tarea = await llamar("cron.crear", {
     nombre: "Recuento",
     prompt: "Cuenta las líneas de datos.txt y responde solo con el número.",
