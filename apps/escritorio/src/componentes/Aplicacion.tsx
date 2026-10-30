@@ -1,6 +1,6 @@
-/** Ajustes → Plugins y Aplicación (arranque con Windows, actualizaciones, perfiles, copias y núcleo remoto). */
+/** Piezas de Ajustes: plugins (Herramientas), arranque y atajo (General), actualizaciones, perfiles, copias y núcleo remoto (Aplicación). */
 import type { InfoCopia } from "@aquiles/protocolo";
-import { Boton, Campo, CampoInterruptor, Chip, ConMenuContextual, Etiqueta, Interruptor, Medidor, copiarTexto } from "@aquiles/ui";
+import { Boton, Campo, CampoInterruptor, Chip, ConMenuContextual, Interruptor, Medidor, copiarTexto } from "@aquiles/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -117,51 +117,35 @@ export function SeccionPlugins() {
   );
 }
 
-export function SeccionAplicacion() {
-  const tauri = enTauri();
-  return (
-    <>
-      {tauri && <Arranque />}
-      {tauri && <Atajo />}
-      {tauri && <Actualizaciones />}
-      <Perfiles />
-      <Copias />
-      {tauri && <Remoto />}
-    </>
-  );
-}
-
-function Arranque() {
+export function Arranque() {
   const [activo, setActivo] = useState<boolean>();
   const [error, setError] = useState<string>();
   useEffect(() => {
     arranqueActivado().then(setActivo, (e) => setError(mensaje(e)));
   }, []);
   return (
-    <div className="ajustes__grupo">
-      <div className="ajustes__interruptores">
-        <CampoInterruptor
-          etiqueta="Arrancar con Windows"
-          activo={!!activo}
-          disabled={activo === undefined}
-          alCambiar={async (a) => {
-            try {
-              await cambiarArranque(a);
-              setActivo(await arranqueActivado());
-              setError(undefined);
-            } catch (e) {
-              setError(mensaje(e));
-            }
-          }}
-        />
-      </div>
+    <>
+      <Interruptor
+        aria-label="Arrancar con Windows"
+        activo={!!activo}
+        disabled={activo === undefined}
+        alCambiar={async (a) => {
+          try {
+            await cambiarArranque(a);
+            setActivo(await arranqueActivado());
+            setError(undefined);
+          } catch (e) {
+            setError(mensaje(e));
+          }
+        }}
+      />
       <TextoError texto={error} />
-    </div>
+    </>
   );
 }
 
 /** Atajo global de la entrada rápida: el actual, si se registró (y por qué no), y un campo para cambiarlo. */
-function Atajo() {
+export function Atajo() {
   const [estado, setEstado] = useState<EstadoAtajo>();
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -200,7 +184,7 @@ function Atajo() {
           if (texto.trim() && texto.trim() !== estado?.atajo) void cambiar();
         }}
       >
-        <Campo etiqueta="Atajo de la entrada rápida" mono spellCheck={false} value={texto} onChange={(e) => setTexto(e.target.value)} />
+        <Campo etiqueta="Teclas" mono spellCheck={false} value={texto} onChange={(e) => setTexto(e.target.value)} />
         <Boton type="submit" variante="secundario" disabled={guardando || !texto.trim() || texto.trim() === estado?.atajo}>
           Cambiar
         </Boton>
@@ -215,7 +199,7 @@ function Atajo() {
  * Actualizaciones: la app se compila desde `main`. Versión = commit; «Actualizar» compila en segundo plano
  * (por pasos) y, cuando está lista, «Reiniciar para actualizar» cambia las carpetas y vuelve a abrir la app.
  */
-function Actualizaciones() {
+export function Actualizaciones() {
   const [info, setInfo] = useState<InfoActualizacion>();
   const [buscando, setBuscando] = useState(false);
   const [estado, setEstado] = useState<EstadoActualizacion>({ fase: "inactiva" });
@@ -262,7 +246,6 @@ function Actualizaciones() {
   const compilando = estado.fase === "compilando";
   return (
     <div className="ajustes__grupo">
-      <Etiqueta>Actualizaciones</Etiqueta>
       <div className="aplicacion__fila">
         {info && <span className="aplicacion__dato">{info.desarrollo ? "Compilación de desarrollo" : info.actual ? `Versión ${info.actual}` : "Versión desconocida"}</span>}
         {info?.desarrollo ? (
@@ -332,7 +315,7 @@ function Actualizaciones() {
   );
 }
 
-function Perfiles() {
+export function Perfiles() {
   const { llamar, prepararReinicio, reconectar } = useAcciones();
   const perfiles = useCarga("perfiles", 0, () => llamar("perfiles.listar", {}));
   const [nombre, setNombre] = useState("");
@@ -364,7 +347,6 @@ function Perfiles() {
 
   return (
     <div className="ajustes__grupo">
-      <Etiqueta>Perfiles</Etiqueta>
       <TextoError texto={perfiles.error} />
       {perfiles.datos && (
         <ul className="aplicacion__lista">
@@ -416,7 +398,7 @@ function Perfiles() {
   );
 }
 
-function Copias() {
+export function Copias() {
   const { llamar, prepararReinicio } = useAcciones();
   const copias = useCarga("copias", 0, async () => (await llamar("copias.listar", {})).copias);
   const [creando, setCreando] = useState(false);
@@ -449,7 +431,6 @@ function Copias() {
 
   return (
     <div className="ajustes__grupo">
-      <Etiqueta>Copias</Etiqueta>
       <TextoError texto={copias.error} />
       {copias.datos && copias.datos.length > 0 && (
         <ul className="aplicacion__lista">
@@ -484,7 +465,7 @@ function Copias() {
   );
 }
 
-function Remoto() {
+export function Remoto() {
   const { prepararReinicio, reconectar } = useAcciones();
   const [actual, setActual] = useState<string | null>();
   const [url, setUrl] = useState("");
@@ -511,7 +492,6 @@ function Remoto() {
 
   return (
     <div className="ajustes__grupo">
-      <Etiqueta>Núcleo remoto</Etiqueta>
       {actual ? (
         <div className="aplicacion__fila">
           <span className="aplicacion__dato aplicacion__dato--mono">{actual}</span>

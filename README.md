@@ -65,7 +65,7 @@ Una copia suelta de la app (sin instalar) ofrece ahí «Instalar con actualizaci
 
 Para hablar con un modelo hace falta al menos una de estas cosas:
 - `agy`, `claude` o Codex instalado y con la sesión iniciada;
-- una clave de API (en Ajustes → Claves);
+- una clave de API (en Ajustes → Modelos);
 - Ollama o LM Studio en marcha.
 
 ## Desarrollo

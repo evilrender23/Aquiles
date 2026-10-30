@@ -1,4 +1,4 @@
-/** Ajustes → MCP: servidores, su estado y herramientas, y el formulario para añadir o editar. */
+/** Ajustes → Herramientas → MCP: servidores, su estado y herramientas, y el formulario para añadir o editar. */
 import type { InfoServidorMcp } from "@aquiles/protocolo";
 import { Boton, BotonIcono, Campo, CampoInterruptor, Etiqueta, clases, useMenuContextual } from "@aquiles/ui";
 import { useState } from "react";

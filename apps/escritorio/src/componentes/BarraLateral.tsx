@@ -72,7 +72,7 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
     },
     { n: "03", etiqueta: "Automatizaciones", activa: estado.vista === "automatizaciones", ir: ir(abrirAutomatizaciones) },
     { n: "04", etiqueta: "Estadísticas", activa: estado.vista === "estadisticas", ir: ir(abrirEstadisticas) },
-    { n: "05", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(abrirAjustes) },
+    { n: "05", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(() => abrirAjustes()) },
   ];
 
   return (
@@ -100,7 +100,7 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
         ))}
       </nav>
 
-      <AvisoActualizacion alVerDetalle={ir(abrirAjustes)} />
+      <AvisoActualizacion alVerDetalle={ir(() => abrirAjustes("aplicacion"))} />
 
       {grupos.length > 0 && (
         <div className="lateral__historial">

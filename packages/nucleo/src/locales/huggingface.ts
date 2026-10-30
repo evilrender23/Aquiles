@@ -62,7 +62,7 @@ function validarRepo(repo: string): string {
 
 async function pedirJson<T>(url: string, o: { fetch?: Fetch; token?: string; senal?: AbortSignal }): Promise<T> {
   const r = await (o.fetch ?? fetch)(url, { headers: cabeceras(o.token), ...(o.senal ? { signal: o.senal } : {}) });
-  if (r.status === 401 || r.status === 403) throw new Error("Hugging Face pide una clave con acceso a este modelo (Ajustes → Claves)");
+  if (r.status === 401 || r.status === 403) throw new Error("Hugging Face pide una clave con acceso a este modelo (Ajustes → Modelos → Claves de API)");
   if (r.status === 404) throw new Error("No existe ese modelo en Hugging Face");
   if (!r.ok) throw new Error(`Hugging Face respondió ${r.status}`);
   return (await r.json()) as T;
@@ -280,7 +280,7 @@ export class Descargas {
         headers: { ...cabeceras(token), ...(desde ? { range: `bytes=${desde}-` } : {}) },
         signal: senal,
       });
-      if (r.status === 401 || r.status === 403) throw new Error("Hugging Face pide una clave con acceso a este modelo (Ajustes → Claves)");
+      if (r.status === 401 || r.status === 403) throw new Error("Hugging Face pide una clave con acceso a este modelo (Ajustes → Modelos → Claves de API)");
       if (!r.ok || !r.body) throw new Error(`Hugging Face respondió ${r.status} al descargar ${parte}`);
       // Sin 206, el servidor manda el fichero entero: se empieza de cero.
       const reanuda = desde > 0 && r.status === 206;

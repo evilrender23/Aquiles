@@ -31,14 +31,14 @@ import { alAbrirSesion, alReiniciarNucleo } from "../plataforma/aplicacion";
 import { notificarSistema } from "../plataforma/notificaciones";
 import { enTauri } from "../plataforma/tauri";
 import { type AdjuntoPendiente, paraEnviar, visto } from "./adjuntos";
-import type { AdjuntoVisto, Conversacion, EstadoApp, EstadoConexion, Notificacion, Pendiente, PestanaMemoria, Subagente, Vista } from "./tipos";
+import type { AdjuntoVisto, Conversacion, EstadoApp, EstadoConexion, Notificacion, Pendiente, PestanaAjustes, PestanaMemoria, Subagente, Vista } from "./tipos";
 
 type Accion =
   | { tipo: "conexion"; estado: EstadoConexion; error?: string }
   | { tipo: "inicial"; sesiones: InfoSesion[]; ajustes: Ajustes }
   | { tipo: "proveedores"; proveedores: InfoProveedor[] }
   | { tipo: "ajustes"; ajustes: Ajustes }
-  | { tipo: "vista"; vista: Vista; activa?: string; pestanaMemoria?: PestanaMemoria }
+  | { tipo: "vista"; vista: Vista; activa?: string; pestanaMemoria?: PestanaMemoria; pestanaAjustes?: PestanaAjustes }
   | { tipo: "sesion"; sesion: InfoSesion }
   | { tipo: "sesion.borrada"; sesionId: string }
   | { tipo: "cargando"; sesionId: string }
@@ -125,7 +125,7 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
     case "ajustes":
       return { ...s, ajustes: a.ajustes };
     case "vista":
-      return { ...s, vista: a.vista, activa: a.vista === "inicio" ? undefined : (a.activa ?? s.activa), pestanaMemoria: a.pestanaMemoria };
+      return { ...s, vista: a.vista, activa: a.vista === "inicio" ? undefined : (a.activa ?? s.activa), pestanaMemoria: a.pestanaMemoria, pestanaAjustes: a.pestanaAjustes };
     case "sesion":
       return { ...s, sesiones: { ...s.sesiones, [a.sesion.sesionId]: a.sesion } };
     case "sesion.borrada": {
@@ -226,7 +226,7 @@ export interface Acciones {
   abrirEstadisticas: () => void;
   /** Antes de algo que reinicia el núcleo (cambiar de perfil, núcleo remoto…): esperar y reconectar sin dar error. */
   prepararReinicio: (motivo?: string) => void;
-  abrirAjustes: () => void;
+  abrirAjustes: (pestana?: PestanaAjustes) => void;
   empezar: (p: { texto: string; adjuntos?: AdjuntoPendiente[]; proveedor?: string; modelo?: string; esfuerzo?: string; modoAprobacion?: ModoAprobacion }) => Promise<void>;
   /** Los adjuntos solo van con un turno nuevo (no con el steer ni como respuesta a una pregunta). */
   enviar: (sesionId: string, texto: string, adjuntos?: AdjuntoPendiente[]) => Promise<void>;
@@ -450,7 +450,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       abrirAutomatizaciones: () => despachar({ tipo: "vista", vista: "automatizaciones" }),
       abrirEstadisticas: () => despachar({ tipo: "vista", vista: "estadisticas" }),
       prepararReinicio: (motivo) => reiniciar.current(motivo),
-      abrirAjustes: () => despachar({ tipo: "vista", vista: "ajustes" }),
+      abrirAjustes: (pestana) => despachar({ tipo: "vista", vista: "ajustes", pestanaAjustes: pestana }),
       empezar: async ({ texto, adjuntos, ...opciones }) => {
         const sesion = await rpc().llamar("sesion.crear", opciones);
         despachar({ tipo: "sesion", sesion });

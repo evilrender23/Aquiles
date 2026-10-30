@@ -884,40 +884,97 @@ body {
 .ajustes__pagina {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-width: 1000px;
+  gap: 28px;
+  max-width: 960px;
 }
-.ajustes__pagina > .nx-titular {
-  margin-bottom: 20px;
-}
-.ajustes__seccion {
+.ajustes__cabecera {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px 48px;
-  padding: 28px;
-}
-.ajustes__encabezado {
-  flex: 1 1 200px;
-  display: flex;
   align-items: baseline;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 12px 24px;
 }
-.ajustes__numero {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--lime);
+.ajustes__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
-.ajustes__titulo {
+
+/* Grupo: tarjeta con su título y, debajo, los ajustes separados por una línea. */
+.ajuste-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-raised);
+}
+.ajuste-grupo__cabecera {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ajuste-grupo__titulo {
+  margin: 0;
   font: var(--type-h3);
   letter-spacing: var(--tracking-h3);
   color: var(--ink-strong);
 }
-.ajustes__cuerpo {
-  flex: 2 1 420px;
-  min-width: 0;
+.ajuste-grupo__descripcion {
+  margin: 0;
+  font: var(--type-body-s);
+  color: var(--ink-muted);
+}
+.ajuste-grupo__cuerpo {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
+}
+
+/* Un ajuste: a la izquierda qué es, a la derecha el control. En ventanas estrechas, uno debajo del otro. */
+.ajuste {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 1.6fr);
+  gap: 12px 40px;
+  align-items: start;
+}
+.ajuste + .ajuste {
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.ajuste__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+}
+.ajuste__titulo {
+  font: 600 16px/22px var(--font-sans);
+  color: var(--ink-strong);
+}
+.ajuste__descripcion {
+  font: var(--type-body-s);
+  color: var(--ink-muted);
+}
+.ajuste__control {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  min-width: 0;
+}
+.ajuste__control > .nx-interruptor {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+@media (max-width: 900px) {
+  .ajuste {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ajuste-grupo {
+    padding: 22px 20px;
+  }
 }
 .ajustes__rejilla {
   display: grid;
@@ -948,13 +1005,6 @@ body {
 }
 .ajustes__clave > .nx-boton {
   margin-bottom: 8px;
-}
-.ajustes__pie {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
-  padding-top: 12px;
 }
 .ajustes__estado {
   font: var(--type-body-s);

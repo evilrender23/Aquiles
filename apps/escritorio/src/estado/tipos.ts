@@ -62,6 +62,8 @@ export type Pendiente =
       responder: (r: string) => void;
     };
 
+export type PestanaAjustes = "general" | "modelos" | "herramientas" | "aprendizaje" | "aplicacion";
+
 export type Vista = "inicio" | "conversacion" | "habilidades" | "memoria" | "automatizaciones" | "estadisticas" | "ajustes";
 
 /** Subagente lanzado con `delegar`: lo que se sabe por sus eventos (subagente.inicio/fin y sus mensaje.delta). */
@@ -116,4 +118,6 @@ export interface EstadoApp {
   };
   /** Pestaña con la que se abre Memoria (p. ej. Propuestas desde el aviso de una revisión). */
   pestanaMemoria?: PestanaMemoria;
+  /** Pestaña con la que se abre Ajustes (desde el aviso de actualización…). */
+  pestanaAjustes?: PestanaAjustes;
 }

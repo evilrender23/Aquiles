@@ -102,7 +102,7 @@ export class ServidorLlama {
     if (this.actual?.modelo === m.id && this.actual.proceso.exitCode === null) return this.actual.estado;
     await this.parar();
     const exe = (this.o.ruta ?? rutaLlamaServer)();
-    if (!exe) throw new ErrorProveedor("otro", "llama.cpp no está instalado. Instálalo desde Ajustes → Modelos locales.");
+    if (!exe) throw new ErrorProveedor("otro", "llama.cpp no está instalado. Instálalo desde Ajustes → Modelos.");
     const puerto = await puertoLibre();
     const clave = randomBytes(24).toString("hex");
     const proceso = Bun.spawn(

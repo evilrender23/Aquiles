@@ -749,7 +749,7 @@ export interface ResultadoModeloHF {
   repo: string;
   descargas: number;
   likes: number;
-  /** Hay que aceptar sus condiciones en huggingface.co y poner una clave de Hugging Face (Ajustes → Claves). */
+  /** Hay que aceptar sus condiciones en huggingface.co y poner una clave de Hugging Face (Ajustes → Modelos → Claves de API). */
   protegido: boolean;
   /** Hugging Face lo declara de imagen y texto (ve imágenes si se descarga su proyector). */
   imagenes?: boolean;
