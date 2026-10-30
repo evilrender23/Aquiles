@@ -9,7 +9,7 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
 ## Qué hace
 
 - **Conversación con herramientas:** leer, buscar, editar y crear ficheros; terminal persistente (local, en un contenedor Docker o por SSH); búsqueda y lectura de webs; control de Edge (desactivado por defecto); servidores MCP.
-- **Adjuntos:** imágenes y documentos (PDF, Word, Excel, PowerPoint, texto y código). Se sacan su texto y las imágenes las ven los modelos que las admiten.
+- **Adjuntos:** imágenes y documentos (PDF, Word, Excel, PowerPoint, texto y código). Se sacan su texto y las imágenes las ven los modelos que las admiten. Los ficheros de la carpeta de trabajo también se pueden mencionar con `@` en el mensaje.
 - **Artefactos:** páginas HTML, SVG, documentos y ficheros de código que el modelo escribe aparte. Se ven mientras los escribe y luego se renderizan en una vista aislada.
 - **Permisos:** escribe sin preguntar dentro de la carpeta de trabajo y pregunta antes de ejecutar comandos. También se puede elegir «preguntar siempre» o «libre en el proyecto». Hay un guardián opcional: un modelo que aprueba lo claramente seguro.
 - **Memoria y skills:** memoria corta del usuario, del agente y de cada proyecto, más una personalidad editable; skills en formato `SKILL.md`; búsqueda de texto en todas las conversaciones.
@@ -56,7 +56,12 @@ El script hace tres cosas:
 2. Descarga la rama `main` en `%LOCALAPPDATA%\Aquiles\codigo`.
 3. La compila, la instala en `%LOCALAPPDATA%\Aquiles\app` y crea un acceso directo en el menú Inicio.
 
-La app se mantiene al día sola: cuando `main` tiene commits nuevos, los compila en segundo plano y los aplica al reiniciarla. También se puede comprobar a mano en Ajustes → Aplicación.
+La app se mantiene al día sola: cuando `main` tiene commits nuevos, los compila en segundo plano y los aplica al reiniciarla. También se puede actualizar a mano:
+- desde el aviso que aparece en la barra lateral cuando hay versión nueva;
+- con «Buscar actualizaciones» en el icono de la bandeja;
+- en Ajustes → Aplicación.
+
+Una copia suelta de la app (sin instalar) ofrece ahí «Instalar con actualizaciones».
 
 Para hablar con un modelo hace falta al menos una de estas cosas:
 - `agy`, `claude` o Codex instalado y con la sesión iniciada;
