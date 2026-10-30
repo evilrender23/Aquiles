@@ -53,7 +53,7 @@ export class ProveedorAnthropic implements Proveedor {
 
   constructor(private opciones: OpcionesAnthropic = {}) {
     this.modelo = opciones.modelo ?? MODELO_ANTHROPIC;
-    this.ventanaContexto = opciones.ventanaContexto ?? 200_000;
+    this.ventanaContexto = opciones.ventanaContexto ?? ventanaDe(this.modelo);
   }
 
   async responder(p: PeticionModelo, alDelta: (texto: string) => void): Promise<RespuestaModelo> {
@@ -311,4 +311,9 @@ function parsearArgumentos(bruto: string): unknown {
   } catch {
     return { __json_invalido: bruto };
   }
+}
+
+/** Ventana de contexto por modelo: los Claude 5 tienen 1M; los anteriores, 200k. */
+export function ventanaDe(modelo: string): number {
+  return /^claude-(?:sonnet|opus|haiku|fable)-5-\d/.test(modelo) ? 1_000_000 : 200_000;
 }

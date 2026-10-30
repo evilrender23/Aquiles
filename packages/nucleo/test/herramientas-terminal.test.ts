@@ -199,5 +199,6 @@ test("resumen, clave de permiso y formato de salida", () => {
     "preguntar",
     "leer_web",
     "buscar_web",
+    "instalar_docker",
   ]);
 });

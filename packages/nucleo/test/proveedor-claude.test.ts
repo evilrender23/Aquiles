@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
+import { ventanaDe } from "../src/proveedores/anthropic";
 import { errorClaude, ProveedorClaude, transcripcion } from "../src/proveedores/claude-cli";
 import { ErrorAbortado, ErrorProveedor, type Mensaje, type PeticionModelo } from "../src/tipos";
 
@@ -18,6 +19,8 @@ test("eco: system prompt en fichero, sin herramientas propias, uso sumado con la
   expect(eco).toMatchObject({ recibidos: 1, texto: "hola", sistema: "Eres Aquiles, de prueba.", sinHerramientas: true });
   expect(deltas.join("")).toBe(r.texto);
   expect(r.uso).toEqual({ entrada: 115, salida: 7, razonamiento: 2 });
+  // La ventana de contexto la dice el CLI en el result.
+  expect(proveedor.ventanaContexto).toBe(1_000_000);
 });
 
 test("llamadas en texto: oculta el bloque al vuelo y descarta resultados inventados", async () => {
@@ -82,4 +85,10 @@ test("transcripción con llamadas y resultados", () => {
   ]);
   expect(t).toContain('[Tú]\n<herramienta nombre="leer">{"ruta":"a"}</herramienta>');
   expect(t).toContain('<resultado herramienta="leer" id="1">\nx\n</resultado>');
+});
+
+test("ventana de contexto por modelo de la API de Anthropic", () => {
+  expect(ventanaDe("claude-sonnet-5-5")).toBe(1_000_000);
+  expect(ventanaDe("claude-fable-5-1")).toBe(1_000_000);
+  expect(ventanaDe("claude-3-5-sonnet-20241022")).toBe(200_000);
 });

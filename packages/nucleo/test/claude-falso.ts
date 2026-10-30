@@ -38,6 +38,6 @@ for await (const linea of console) {
   } else {
     const eco = JSON.stringify({ recibidos, texto, sistema: sistema.split("\n")[0], sinHerramientas });
     delta(eco);
-    emitir({ type: "result", subtype: "success", is_error: false, result: eco, usage });
+    emitir({ type: "result", subtype: "success", is_error: false, result: eco, usage, modelUsage: { "claude-prueba-5-5": { contextWindow: 1_000_000 } } });
   }
 }

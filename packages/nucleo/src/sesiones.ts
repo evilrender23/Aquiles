@@ -64,6 +64,7 @@ export function sistemaBase(cwd: string, fecha = new Date()): string {
     `Fecha: ${fecha.toISOString().slice(0, 10)}`,
     "Responde en el idioma del usuario, de forma directa.",
     "Comprueba con las herramientas en vez de suponer el contenido de los ficheros.",
+    "Nunca inventes la salida de un comando ni el contenido de un fichero: si no lo has ejecutado o leído con una herramienta, no lo des por hecho.",
     "Lee un fichero antes de editarlo; usa editar para cambios concretos y escribir para ficheros nuevos.",
     "Ejecuta los tests o comandos que demuestren que el cambio funciona antes de darlo por terminado.",
     "En trabajos de varios pasos, lleva la lista con la herramienta tareas.",

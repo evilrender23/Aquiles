@@ -7,6 +7,7 @@
 import { existsSync } from "node:fs";
 import type { AjustesHerramientas } from "@aquiles/protocolo";
 import type { Subprocess } from "bun";
+import { rutaDocker } from "./docker";
 import { ErrorHerramienta } from "./herramienta";
 
 /** Clave de `ctx.estado` donde el servidor deja, antes del turno, dónde corre la terminal de la sesión. */
@@ -78,7 +79,7 @@ class Docker implements Remoto {
   readonly carpeta = "/trabajo";
   readonly nombre: string;
   readonly aviso: string;
-  private readonly docker = ejecutable("AQUILES_DOCKER", "docker");
+  private readonly docker = process.env.AQUILES_DOCKER?.trim() ? ejecutable("AQUILES_DOCKER", "docker") : [rutaDocker() ?? "docker"];
   private usado = false;
   /** Tras el `rm -f` no queda nada dentro que matar. */
   private cerrado = false;
@@ -119,7 +120,7 @@ class Docker implements Remoto {
     const filtro = ["ps", "-a", "--filter", `name=${this.contenedor}`, "--format", "{{.Names}} {{.State}}"];
     const r = await orden([...this.docker, ...filtro], 20_000, { senal });
     if (r.fallo === CANCELADA) throw cancelado();
-    if (r.fallo || r.codigo !== 0) throw new ErrorHerramienta(`Docker no está instalado o no responde: ${detalle(r)}`);
+    if (r.fallo || r.codigo !== 0) throw new ErrorHerramienta(`Docker no está instalado o no responde: ${detalle(r)}. Puedes ofrecer instalarlo o arrancarlo con instalar_docker.`);
     // El filtro busca por trozo de nombre: hay que quedarse con el exacto.
     for (const linea of r.salida.split("\n")) {
       const [nombre, estado = ""] = linea.trim().split(/\s+/);

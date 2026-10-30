@@ -5,6 +5,7 @@
  * preguntas) y espera su respuesta.
  */
 import { timingSafeEqual } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -267,6 +268,8 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       return { subId: hija.id, texto: r.texto };
     } finally {
       p.senal.removeEventListener("abort", parar);
+      // El subagente ya acabó: su terminal (y su contenedor, si es Docker) no se queda abierta.
+      await cerrarEstadoSesion(hija.estado);
     }
   };
   const delegar = herramientaDelegar(lanzarSubagente);
@@ -285,6 +288,8 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
    */
   const ejecutarEn = (s: Sesion, texto: string, x: OpcionesEjecucion): Promise<ResultadoTurno> => {
     if (s.turno) throw new FalloRpc(codigosError.sesionOcupada, "La sesión ya está trabajando; usa prompt.steer");
+    // Sin esto, el primer proceso que se lanza en ella falla con un ENOENT que culpa al ejecutable.
+    if (!existsSync(s.cwd)) throw new FalloRpc(codigosError.paramsInvalidos, `La carpeta de trabajo ya no existe: ${s.cwd}`);
     const proveedor = proveedorDe(s);
     const usuario: Mensaje = { rol: "usuario", texto };
     s.mensajes.push(usuario);

@@ -11,11 +11,12 @@ import { EstadoTerminal } from "./shell";
 import { tareas } from "./tareas";
 import { terminal } from "./terminal";
 import { buscarWeb, leerWeb } from "./web";
+import { herramientaInstalarDocker } from "./docker";
 
 export { buscarFicheros, buscarTexto, buscarWeb, editar, escribir, leer, leerWeb, preguntar, procesos, tareas, terminal };
 
 export function herramientasPorDefecto(): Herramienta<any>[] {
-  return [leer, buscarFicheros, buscarTexto, escribir, editar, terminal, procesos, tareas, preguntar, leerWeb, buscarWeb];
+  return [leer, buscarFicheros, buscarTexto, escribir, editar, terminal, procesos, tareas, preguntar, leerWeb, buscarWeb, herramientaInstalarDocker()];
 }
 
 /** Libera lo que las herramientas dejaron en `ctx.estado`: mata el shell y los procesos en segundo plano y cierra la pestaña del navegador. */

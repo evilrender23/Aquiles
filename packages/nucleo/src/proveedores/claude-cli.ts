@@ -41,6 +41,8 @@ interface EventoClaude {
   result?: string;
   usage?: UsoClaude;
   rate_limit_info?: { status?: string; resetsAt?: number };
+  /** Por modelo; trae la ventana de contexto real (p. ej. 1.000.000 en los Claude 5). */
+  modelUsage?: Record<string, { contextWindow?: number }>;
 }
 
 interface UsoClaude {
@@ -75,7 +77,8 @@ export interface OpcionesClaude {
 export class ProveedorClaude implements Proveedor {
   readonly nombre = "claude";
   readonly conversacionPropia = true;
-  readonly ventanaContexto = 200_000;
+  /** La dice el CLI en cada `result` (`modelUsage[…].contextWindow`); hasta la primera respuesta no se sabe. */
+  ventanaContexto?: number;
   get modelo(): string | undefined {
     return this.opciones.modelo;
   }
@@ -148,6 +151,8 @@ export class ProveedorClaude implements Proveedor {
       } else if (ev.type === "result") {
         if (ev.is_error) throw errorClaude(ev.result ?? ev.subtype ?? "", s.limiteHasta);
         if (ev.subtype !== "success") throw errorClaude(ev.subtype ?? "");
+        const ventana = Math.max(0, ...Object.values(ev.modelUsage ?? {}).map((m) => m.contextWindow ?? 0));
+        if (ventana) this.ventanaContexto = ventana;
         return { texto: ev.result ?? acumulado, uso: uso(ev.usage), cortada };
       }
     }
