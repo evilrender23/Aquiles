@@ -711,6 +711,16 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       return { ruta };
     },
     "buscar.sesiones": ({ consulta, limite }) => ({ resultados: indice.buscar(consulta, limite) }),
+    // Provisionales: los conectan los módulos de documentos y de comandos.
+    "documentos.leer": () => {
+      throw new FalloRpc(codigosError.metodoNoExiste, "Todavía no disponible");
+    },
+    "documentos.exportar": () => {
+      throw new FalloRpc(codigosError.metodoNoExiste, "Todavía no disponible");
+    },
+    "comandos.listar": () => {
+      throw new FalloRpc(codigosError.metodoNoExiste, "Todavía no disponible");
+    },
     "ficheros.buscar": async ({ cwd, consulta, limite }) => {
       if (!isAbsolute(cwd) || !existsSync(cwd)) throw new FalloRpc(codigosError.paramsInvalidos, `No existe la carpeta ${cwd}`);
       return { ficheros: await buscarFicheros(cwd, consulta, limite) };

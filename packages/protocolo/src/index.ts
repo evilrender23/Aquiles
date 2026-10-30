@@ -10,7 +10,7 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 10;
+export const VERSION_PROTOCOLO = 11;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -227,6 +227,17 @@ export const metodos = {
    * Al enviar, cada `@ruta` que sea un fichero de la carpeta de la sesión llega al modelo como adjunto.
    */
   "ficheros.buscar": z.object({ cwd: z.string().min(1), consulta: z.string().max(200), limite: z.number().int().min(1).max(100).optional() }),
+  /** Un documento para el visor: .md tal cual; .docx convertido a HTML (se ve aislado con artefactos.vista). */
+  "documentos.leer": z.object({ ruta: z.string().min(1) }),
+  /** Guarda un texto en markdown como documento de Word en la carpeta de trabajo de la sesión (como artefactos.guardar). */
+  "documentos.exportar": z.object({
+    sesionId: idSesion,
+    nombre: z.string().min(1).max(200),
+    markdown: z.string().max(20_000_000),
+    sobrescribir: z.boolean().optional(),
+  }),
+  /** Comandos con «/» para la caja de texto: los de Aquiles y uno por skill activa. */
+  "comandos.listar": z.object({ sesionId: idSesion.optional() }),
   /**
    * Publica un artefacto HTML o SVG para verlo en un iframe aislado: el núcleo lo sirve en `/vista/<clave>` (clave
    * aleatoria, sin token) con CSP `sandbox`, fuera del origen de la app. Caduca a la hora o al publicar 50 más.
@@ -378,9 +389,19 @@ export interface InfoAdjunto {
   ruta: string;
 }
 
+export interface InfoComando {
+  /** Sin la barra: «aprender», «objetivo», el nombre de una skill… */
+  nombre: string;
+  descripcion: string;
+  /** Pista de lo que va detrás, si lleva algo («<texto>», «[fuente]»). */
+  argumentos?: string;
+  origen: "aquiles" | "skill";
+}
+
 export type MensajeHistorial =
   | { rol: "usuario"; texto: string; adjuntos?: InfoAdjunto[] }
-  | { rol: "asistente" | "resumen"; texto: string }
+  | { rol: "asistente"; texto: string; /** Resumen del razonamiento, si el proveedor lo da. */ pensamiento?: string }
+  | { rol: "resumen"; texto: string }
   | { rol: "herramienta"; id: string; nombre: string; resumen?: string; resultado: string; error: boolean; diffs?: Diff[] };
 
 export interface Resultados {
@@ -414,6 +435,9 @@ export interface Resultados {
   "buscar.sesiones": { resultados: ResultadoBusqueda[] };
   /** Rutas relativas a `cwd`, con `/`. */
   "ficheros.buscar": { ficheros: string[] };
+  "documentos.leer": { nombre: string; formato: "markdown" | "html"; contenido: string };
+  "documentos.exportar": { ruta: string };
+  "comandos.listar": { comandos: InfoComando[] };
   /** Ruta en el servidor del núcleo (`/vista/…`); la app le antepone http(s)://host:puerto de su conexión. */
   "artefactos.vista": { ruta: string };
   "artefactos.guardar": { ruta: string };
@@ -788,6 +812,8 @@ export interface TareaVisible {
 
 export type Evento =
   | { tipo: "mensaje.delta"; sesionId: string; texto: string }
+  /** Razonamiento del modelo mientras piensa (resumen; claude, codex y las API que lo dan). */
+  | { tipo: "pensamiento.delta"; sesionId: string; texto: string }
   | { tipo: "herramienta.inicio"; sesionId: string; id: string; nombre: string; argumentos: unknown; resumen?: string }
   | { tipo: "herramienta.progreso"; sesionId: string; id: string; texto: string }
   | { tipo: "herramienta.fin"; sesionId: string; id: string; nombre: string; resultado: string; error: boolean; diffs?: Diff[] }
