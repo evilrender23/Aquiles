@@ -7,7 +7,6 @@ import { Notificaciones } from "./componentes/Notificaciones";
 import { VistaAjustes } from "./componentes/VistaAjustes";
 import { VistaAutomatizaciones } from "./componentes/VistaAutomatizaciones";
 import { VistaEstadisticas } from "./componentes/VistaEstadisticas";
-import { VistaKanban } from "./componentes/VistaKanban";
 import { VistaConversacion } from "./componentes/VistaConversacion";
 import { VistaHabilidades } from "./componentes/VistaHabilidades";
 import { VistaInicio } from "./componentes/VistaInicio";
@@ -63,8 +62,6 @@ function Marco() {
             <VistaMemoria />
           ) : estado.vista === "automatizaciones" ? (
             <VistaAutomatizaciones />
-          ) : estado.vista === "kanban" ? (
-            <VistaKanban />
           ) : estado.vista === "estadisticas" ? (
             <VistaEstadisticas />
           ) : estado.vista === "conversacion" && estado.activa ? (

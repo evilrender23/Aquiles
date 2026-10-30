@@ -2810,7 +2810,7 @@ button.aviso-flotante__cuerpo:hover .aviso-flotante__titulo {
   gap: 12px;
 }
 
-/* ── Fase 8: objetivo, kanban, estadísticas ────────── */
+/* ── Fase 8: objetivo y estadísticas ────────── */
 .objetivo {
   display: flex;
   flex-direction: column;
@@ -2918,166 +2918,6 @@ button.aviso-flotante__cuerpo:hover .aviso-flotante__titulo {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-/* Kanban */
-.kanban {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  overflow-y: auto;
-  padding: 40px 48px 48px;
-}
-.kanban__cabecera {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-}
-.kanban__columnas {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(200px, 1fr));
-  gap: 16px;
-  align-items: start;
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-.kanban__columna {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 160px;
-  padding: 14px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-tile);
-  background: var(--surface-base);
-  transition: border-color 140ms var(--ease);
-}
-.kanban__columna--destino {
-  border-color: var(--lime-borde);
-}
-.kanban__titulo-columna {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 0 4px;
-}
-.kanban__cuenta {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--lime);
-}
-.kanban__lista {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 40px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.kanban__hueco,
-.kanban__hueco-antes::before {
-  content: "";
-  display: block;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--lime);
-}
-.kanban__hueco-antes::before {
-  margin-bottom: 8px;
-}
-.tarjeta-kanban {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 14px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-  cursor: grab;
-}
-.tarjeta-kanban:active {
-  cursor: grabbing;
-}
-.tarjeta-kanban--trabajando {
-  border-color: var(--lime-borde);
-}
-.tarjeta-kanban--error {
-  border-style: dashed;
-  border-color: var(--line-strong);
-}
-.tarjeta-kanban__titulo {
-  font: 600 15px/21px var(--font-sans);
-  color: var(--ink-strong);
-  overflow-wrap: anywhere;
-}
-.tarjeta-kanban__descripcion {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--ink-muted);
-  white-space: pre-wrap;
-}
-.tarjeta-kanban__carpeta {
-  font: 400 12px/16px var(--font-mono);
-  color: var(--ink-muted);
-}
-.tarjeta-kanban__agente {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  font-size: 13px;
-}
-.tarjeta-kanban__estado {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  color: var(--ink-strong);
-}
-.tarjeta-kanban__punto {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--lime);
-}
-.tarjeta-kanban--error .tarjeta-kanban__punto {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--ink-strong);
-}
-.tarjeta-kanban__error {
-  font-size: 13px;
-  color: var(--ink-strong);
-}
-.tarjeta-kanban__botones {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.tarjeta-kanban__botones .nx-boton--pequeno {
-  height: 30px;
-  padding: 0 12px;
-  font-size: 13px;
-}
-.tarjeta-kanban__hueco {
-  flex: 1 1 auto;
-}
-.tarjeta-kanban__izquierda svg {
-  transform: rotate(180deg);
-}
-.formulario-kanban--tarjeta {
-  gap: 12px;
-  padding: 14px;
-  border-radius: var(--radius-sm);
 }
 
 /* Estadísticas */
@@ -3476,8 +3316,7 @@ button.aviso-flotante__cuerpo:hover .aviso-flotante__titulo {
   .ajustes,
   .memoria,
   .automatizaciones,
-  .estadisticas,
-  .kanban {
+  .estadisticas {
     padding: 28px 20px 48px;
   }
   .tarea-prog__fila,

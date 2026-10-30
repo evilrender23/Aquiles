@@ -60,7 +60,7 @@ const inicial: EstadoApp = {
   conversaciones: {},
   pendientes: [],
   proveedores: [],
-  revisiones: { memoria: 0, skills: 0, aprendizaje: 0, cron: 0, canales: 0, mcp: 0, kanban: 0, plugins: 0, modelos: 0 },
+  revisiones: { memoria: 0, skills: 0, aprendizaje: 0, cron: 0, canales: 0, mcp: 0, plugins: 0, modelos: 0 },
   descargasModelos: {},
   subagentes: {},
   notificaciones: [],
@@ -158,7 +158,6 @@ function reducir(s: EstadoApp, a: Accion): EstadoApp {
       if (e.tipo === "cron.ejecucion" || e.tipo === "cron.actualizado") return subir(s, "cron");
       if (e.tipo === "canales.actualizados") return subir(s, "canales");
       if (e.tipo === "mcp.actualizado") return subir(s, "mcp");
-      if (e.tipo === "kanban.actualizado") return subir(s, "kanban");
       if (e.tipo === "plugins.actualizados") return subir(s, "plugins");
       if (e.tipo === "modelos.actualizados") return subir(s, "modelos");
       if (e.tipo === "modelos.progreso") return { ...s, descargasModelos: { ...s.descargasModelos, [e.descarga.id]: e.descarga } };
@@ -224,7 +223,6 @@ export interface Acciones {
   abrirHabilidades: () => void;
   abrirMemoria: (pestana?: PestanaMemoria) => void;
   abrirAutomatizaciones: () => void;
-  abrirKanban: () => void;
   abrirEstadisticas: () => void;
   /** Antes de algo que reinicia el núcleo (cambiar de perfil, núcleo remoto…): esperar y reconectar sin dar error. */
   prepararReinicio: (motivo?: string) => void;
@@ -450,7 +448,6 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       abrirHabilidades: () => despachar({ tipo: "vista", vista: "habilidades" }),
       abrirMemoria: (pestana) => despachar({ tipo: "vista", vista: "memoria", pestanaMemoria: pestana }),
       abrirAutomatizaciones: () => despachar({ tipo: "vista", vista: "automatizaciones" }),
-      abrirKanban: () => despachar({ tipo: "vista", vista: "kanban" }),
       abrirEstadisticas: () => despachar({ tipo: "vista", vista: "estadisticas" }),
       prepararReinicio: (motivo) => reiniciar.current(motivo),
       abrirAjustes: () => despachar({ tipo: "vista", vista: "ajustes" }),

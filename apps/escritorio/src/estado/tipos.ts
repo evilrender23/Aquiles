@@ -59,7 +59,7 @@ export type Pendiente =
       responder: (r: string) => void;
     };
 
-export type Vista = "inicio" | "conversacion" | "kanban" | "habilidades" | "memoria" | "automatizaciones" | "estadisticas" | "ajustes";
+export type Vista = "inicio" | "conversacion" | "habilidades" | "memoria" | "automatizaciones" | "estadisticas" | "ajustes";
 
 /** Subagente lanzado con `delegar`: lo que se sabe por sus eventos (subagente.inicio/fin y sus mensaje.delta). */
 export interface Subagente {
@@ -94,7 +94,7 @@ export interface EstadoApp {
   proveedores: InfoProveedor[];
   ajustes?: Ajustes;
   /** Suben con memoria.actualizada y skills.actualizadas (y al reconectar): las vistas que las muestran vuelven a pedirlas. */
-  revisiones: { memoria: number; skills: number; aprendizaje: number; cron: number; canales: number; mcp: number; kanban: number; plugins: number; modelos: number };
+  revisiones: { memoria: number; skills: number; aprendizaje: number; cron: number; canales: number; mcp: number; plugins: number; modelos: number };
   /** Último progreso de cada descarga de modelo (modelos.progreso), por id. */
   descargasModelos: Record<string, ProgresoDescargaModelo>;
   /** Por subId; los hijos de una sesión se buscan por `padre`. */

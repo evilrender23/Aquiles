@@ -23,7 +23,7 @@ function agrupar(sesiones: InfoSesion[]): GrupoRamas<InfoSesion>[] {
 
 export function BarraLateral({ alElegir }: { alElegir: () => void }) {
   const estado = useEstado();
-  const { nuevaSesion, nuevaSesionEn, abrirSesion, abrirKanban, abrirHabilidades, abrirMemoria, abrirAutomatizaciones, abrirEstadisticas, abrirAjustes } = useAcciones();
+  const { nuevaSesion, nuevaSesionEn, abrirSesion, abrirHabilidades, abrirMemoria, abrirAutomatizaciones, abrirEstadisticas, abrirAjustes } = useAcciones();
   const [consulta, setConsulta] = useState("");
   // «Buscar en conversaciones» desde el menú de una selección.
   const pedida = estado.pedidos.busqueda;
@@ -61,19 +61,18 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
   // Como en el lienzo: la cifra en lima junto a Memoria son las propuestas pendientes.
   const pendientes = usePropuestas().datos?.length ?? 0;
   const secciones = [
-    { n: "01", etiqueta: "Kanban", activa: estado.vista === "kanban", ir: ir(abrirKanban) },
-    { n: "02", etiqueta: "Habilidades", activa: estado.vista === "habilidades", ir: ir(abrirHabilidades) },
+    { n: "01", etiqueta: "Habilidades", activa: estado.vista === "habilidades", ir: ir(abrirHabilidades) },
     {
-      n: "03",
+      n: "02",
       etiqueta: "Memoria",
       activa: estado.vista === "memoria",
       ir: ir(() => abrirMemoria()),
       cuenta: pendientes || undefined,
       tituloCuenta: pendientes === 1 ? "1 propuesta pendiente" : `${pendientes} propuestas pendientes`,
     },
-    { n: "04", etiqueta: "Automatizaciones", activa: estado.vista === "automatizaciones", ir: ir(abrirAutomatizaciones) },
-    { n: "05", etiqueta: "Estadísticas", activa: estado.vista === "estadisticas", ir: ir(abrirEstadisticas) },
-    { n: "06", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(abrirAjustes) },
+    { n: "03", etiqueta: "Automatizaciones", activa: estado.vista === "automatizaciones", ir: ir(abrirAutomatizaciones) },
+    { n: "04", etiqueta: "Estadísticas", activa: estado.vista === "estadisticas", ir: ir(abrirEstadisticas) },
+    { n: "05", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(abrirAjustes) },
   ];
 
   return (

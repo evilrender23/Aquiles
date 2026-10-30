@@ -131,12 +131,6 @@ export function FilaSesion({
           <span className="nx-sr">Tarea programada:</span>
         </span>
       )}
-      {sesion.origen?.tipo === "kanban" && (
-        <span className="fila-sesion__origen" title="Tarjeta del kanban">
-          <Icono nombre="columnas" tamano={13} />
-          <span className="nx-sr">Tarjeta del kanban:</span>
-        </span>
-      )}
       {sesion.origen?.tipo === "canal" && (
         <span className="fila-sesion__origen" title={`Chat de ${sesion.origen.canal}`}>
           <Icono nombre="chat" tamano={13} />
