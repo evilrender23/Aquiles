@@ -3,19 +3,38 @@ import type { Proveedor } from "../tipos";
 import { ProveedorAgy } from "./agy";
 import { ProveedorAnthropic } from "./anthropic";
 import { MODELOS_CLAUDE, ProveedorClaude } from "./claude-cli";
+import { ejecutableCodex, modelosCodex, ProveedorCodex } from "./codex-cli";
+import { join } from "node:path";
+import { directorioModelos, modelosLocales as modelosDescargados } from "../locales/huggingface";
+import { ProveedorLlamaCpp, rutaLlamaServer, ServidorLlama } from "../locales/llamacpp";
+import { esfuerzoAnthropic, esfuerzoCodex, esfuerzoDeCli, nivelesPara } from "./esfuerzo";
 import { presetsOpenAI, proveedorDePreset, type NombrePresetOpenAI } from "./openai-compatible";
 import { guionDemo, ProveedorSimulado } from "./simulado";
 
 export interface OpcionesProveedor {
   modelo?: string;
+  /** Nivel de esfuerzo de razonamiento; solo lo usan los proveedores que lo declaran (ver esfuerzo.ts). */
+  esfuerzo?: string;
 }
 
-export const PROVEEDORES = ["agy", "claude", "anthropic", ...(Object.keys(presetsOpenAI) as NombrePresetOpenAI[]), "simulado"] as const;
+export const PROVEEDORES = [
+  "agy", "claude", "codex", "anthropic", "llamacpp", ...(Object.keys(presetsOpenAI) as NombrePresetOpenAI[]), "simulado",
+] as const;
+
+let servidorLlama: ServidorLlama | undefined;
+
+/** El llama-server de este proceso (uno a la vez, compartido por todas las sesiones que usan `llamacpp`). */
+export function servidorLlamaCpp(): ServidorLlama {
+  servidorLlama ??= new ServidorLlama({ ficheroPid: join(directorioModelos(), "llama-server.pid") });
+  return servidorLlama;
+}
 
 const NOMBRES: Record<string, string> = {
   agy: "Antigravity (agy)",
   claude: "Claude Code (claude)",
+  codex: "Codex (codex)",
   anthropic: "Anthropic",
+  llamacpp: "Hugging Face (llama.cpp)",
   ollama: "Ollama",
   lmstudio: "LM Studio",
   openrouter: "OpenRouter",
@@ -39,15 +58,19 @@ export const VARIABLES_SECRETOS: Record<string, string> = {
   "slack-app": "AQUILES_SLACK_APP_TOKEN",
   correo: "AQUILES_CORREO_CLAVE",
   brave: "AQUILES_BRAVE_KEY",
+  huggingface: "HF_TOKEN",
 };
 
 const MODELOS_ANTHROPIC = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"];
 
 /** Crea un proveedor por nombre (CLI, servidor y banco de tareas). */
 export function crearProveedor(nombre: string, opciones: OpcionesProveedor = {}): Proveedor {
-  if (nombre === "agy") return new ProveedorAgy({ modelo: opciones.modelo });
-  if (nombre === "claude") return new ProveedorClaude({ modelo: opciones.modelo });
-  if (nombre === "anthropic") return new ProveedorAnthropic({ modelo: opciones.modelo });
+  const { modelo, esfuerzo } = opciones;
+  if (nombre === "agy") return new ProveedorAgy({ modelo, esfuerzo });
+  if (nombre === "claude") return new ProveedorClaude({ modelo, esfuerzo });
+  if (nombre === "codex") return new ProveedorCodex({ modelo, esfuerzo });
+  if (nombre === "anthropic") return new ProveedorAnthropic({ modelo, esfuerzo });
+  if (nombre === "llamacpp") return new ProveedorLlamaCpp(modelo, { servidor: servidorLlamaCpp() });
   if (nombre === "simulado") return new ProveedorSimulado(guionDemo(), 15);
   if (nombre in presetsOpenAI) {
     if (!opciones.modelo) throw new Error(`Con ${nombre} hay que indicar el modelo`);
@@ -98,6 +121,29 @@ async function modelosLocales(baseURL: string): Promise<string[] | undefined> {
   }
 }
 
+/** Niveles de esfuerzo que declara un proveedor (de su CLI, su catálogo o su API); undefined si no declara ninguno. */
+export async function esfuerzoDeProveedor(id: string): Promise<InfoProveedor["esfuerzo"]> {
+  if (id === "agy" || id === "claude") {
+    const exe = Bun.which(id);
+    return exe ? await esfuerzoDeCli(exe) : undefined;
+  }
+  if (id === "codex") return (await ejecutableCodex()) ? esfuerzoCodex(await modelosCodex().catch(() => [])) : undefined;
+  if (id === "anthropic") {
+    const clave = process.env.AQUILES_CLAVE_ANTHROPIC || process.env.ANTHROPIC_API_KEY;
+    return clave ? await esfuerzoAnthropic(clave) : undefined;
+  }
+  return undefined;
+}
+
+/** El nivel si el modelo lo admite; si no (o si el proveedor no declara niveles), undefined. Sin modelo, vale el por defecto. */
+export async function esfuerzoValido(proveedor: string, modelo: string | undefined, nivel: string | undefined): Promise<string | undefined> {
+  if (!nivel) return undefined;
+  // Codex sin -m usa el primero de su catálogo (el que se anuncia como modeloPorDefecto).
+  const efectivo = modelo ?? (proveedor === "codex" ? (await modelosCodex().catch(() => []))[0]?.slug : undefined);
+  const niveles = nivelesPara(await esfuerzoDeProveedor(proveedor).catch(() => undefined), efectivo);
+  return niveles?.niveles.includes(nivel) ? nivel : undefined;
+}
+
 /** Proveedores conocidos con su disponibilidad actual y modelos. */
 export async function listarProveedores(incluirSimulado = false): Promise<InfoProveedor[]> {
   const info = (id: string, extra: Omit<InfoProveedor, "id" | "nombre" | "necesitaClave">): InfoProveedor => ({
@@ -106,20 +152,34 @@ export async function listarProveedores(incluirSimulado = false): Promise<InfoPr
   const tareas: Promise<InfoProveedor>[] = [
     (async () => {
       if (!Bun.which("agy")) return info("agy", { disponible: false, motivo: "agy no está instalado", modelos: [] });
-      const modelos = await modelosAgy().catch(() => []);
-      return info("agy", { disponible: true, modelos });
+      const [modelos, esfuerzo] = await Promise.all([modelosAgy().catch(() => []), esfuerzoDeProveedor("agy")]);
+      return info("agy", { disponible: true, modelos, ...(esfuerzo ? { esfuerzo } : {}) });
     })(),
-    Promise.resolve(
-      Bun.which("claude")
-        ? info("claude", { disponible: true, modelos: MODELOS_CLAUDE })
-        : info("claude", { disponible: false, motivo: "claude no está instalado", modelos: [] }),
-    ),
-    Promise.resolve(
-      info("anthropic", {
+    (async () => {
+      if (!Bun.which("claude")) return info("claude", { disponible: false, motivo: "claude no está instalado", modelos: [] });
+      const esfuerzo = await esfuerzoDeProveedor("claude");
+      return info("claude", { disponible: true, modelos: MODELOS_CLAUDE, ...(esfuerzo ? { esfuerzo } : {}) });
+    })(),
+    (async () => {
+      if (!(await ejecutableCodex())) return info("codex", { disponible: false, motivo: "Codex no está instalado", modelos: [] });
+      const catalogo = await modelosCodex().catch(() => []);
+      const modelos = catalogo.map((m) => m.slug);
+      const esfuerzo = esfuerzoCodex(catalogo);
+      return info("codex", { disponible: true, modelos, ...(modelos[0] ? { modeloPorDefecto: modelos[0] } : {}), ...(esfuerzo ? { esfuerzo } : {}) });
+    })(),
+    (async () => {
+      const esfuerzo = await esfuerzoDeProveedor("anthropic");
+      return info("anthropic", {
         disponible: hayClave("anthropic"), ...(hayClave("anthropic") ? {} : { motivo: "falta la clave" }),
-        modelos: MODELOS_ANTHROPIC, modeloPorDefecto: MODELOS_ANTHROPIC[0],
-      }),
-    ),
+        modelos: MODELOS_ANTHROPIC, modeloPorDefecto: MODELOS_ANTHROPIC[0], ...(esfuerzo ? { esfuerzo } : {}),
+      });
+    })(),
+    (async () => {
+      const modelos = (await modelosDescargados().catch(() => [])).map((m) => m.id);
+      if (!rutaLlamaServer()) return info("llamacpp", { disponible: false, motivo: "llama.cpp no está instalado", modelos });
+      if (!modelos.length) return info("llamacpp", { disponible: false, motivo: "no hay modelos descargados", modelos });
+      return info("llamacpp", { disponible: true, modelos, modeloPorDefecto: modelos[0] });
+    })(),
     ...(["ollama", "lmstudio"] as const).map(async (id) => {
       const modelos = await modelosLocales(presetsOpenAI[id].baseURL);
       if (!modelos) return info(id, { disponible: false, motivo: "no responde en local", modelos: [] });

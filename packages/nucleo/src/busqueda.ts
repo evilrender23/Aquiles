@@ -13,6 +13,8 @@ import { definir, type Herramienta } from "./herramientas/herramienta";
 import type { Mensaje } from "./tipos";
 
 const MAX_TEXTO = 20_000;
+/** Del texto extraído de cada adjunto se indexa el principio. */
+const MAX_TEXTO_ADJUNTO = 2000;
 const LINEAS_RESULTADO = 5;
 const POR_SESION = 3;
 
@@ -204,7 +206,10 @@ export class IndiceSesiones {
       else if (l?.tipo === "ajuste" && typeof l.titulo === "string" && l.titulo) titulo = l.titulo;
       else if (l?.tipo === "mensaje" && l.mensaje && typeof l.mensaje === "object") {
         mensajes.push({ mensaje: l.mensaje, fecha: l.fecha });
-        if (primero === undefined && l.mensaje.rol === "usuario" && typeof l.mensaje.texto === "string") primero = l.mensaje.texto;
+        if (primero === undefined && l.mensaje.rol === "usuario" && typeof l.mensaje.texto === "string") {
+          // Como el título de la sesión: si solo lleva adjuntos, sus nombres.
+          primero = l.mensaje.texto.trim() || (Array.isArray(l.mensaje.adjuntos) ? l.mensaje.adjuntos.map((a: { nombre?: unknown }) => a.nombre).join(", ") : "");
+        }
       }
     }
     if (!inicio || typeof inicio.cwd !== "string") return 0;
@@ -219,8 +224,15 @@ export class IndiceSesiones {
   }
 }
 
-/** Texto que se indexa: el de usuario, asistente y resumen; de una herramienta, nombre, resumen y el principio del resultado. */
+/**
+ * Texto que se indexa: el de usuario (con el nombre y el principio del texto de sus adjuntos), asistente y resumen;
+ * de una herramienta, nombre, resumen y el principio del resultado.
+ */
 function textoIndexable(m: Mensaje): string {
+  if (m.rol === "usuario" && Array.isArray(m.adjuntos) && m.adjuntos.length) {
+    const adjuntos = m.adjuntos.map((a) => [a.nombre, a.texto?.slice(0, MAX_TEXTO_ADJUNTO) ?? ""].join("\n").trim());
+    return [typeof m.texto === "string" ? m.texto.slice(0, MAX_TEXTO) : "", ...adjuntos].join("\n").trim();
+  }
   if (m.rol !== "herramienta") return typeof m.texto === "string" ? m.texto.trim().slice(0, MAX_TEXTO) : "";
   const cabeza = (m.resultado ?? "").split("\n", LINEAS_RESULTADO).join("\n").slice(0, 600);
   return [m.resumen ? `${m.nombre}: ${m.resumen}` : m.nombre, cabeza].join("\n").trim();

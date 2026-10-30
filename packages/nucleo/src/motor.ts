@@ -3,6 +3,7 @@
  * y la pasarela de canales (pasarela.ts). Lo implementa servidor.ts.
  */
 import type { Ajustes, Evento, InfoSesion, ModoAprobacion } from "@aquiles/protocolo";
+import type { AdjuntoEntrante } from "./adjuntos";
 import type { PeticionAprobacion, RespuestaAprobacion, ResultadoTurno } from "./bucle";
 import type { Pregunta } from "./herramientas/herramienta";
 
@@ -18,6 +19,8 @@ export interface PeticionTurno {
     origen?: InfoSesion["origen"];
   };
   texto: string;
+  /** Ficheros del mensaje (p. ej. los que llegan por un canal); se guardan como los de prompt.enviar. Uno que no vale hace fallar el turno. */
+  adjuntos?: AdjuntoEntrante[];
   /** Quién responde a los permisos; si falta, se deniega todo lo que pida permiso. */
   aprobar?: (p: PeticionAprobacion) => Promise<RespuestaAprobacion>;
   /** Quién responde a las preguntas del agente; si falta, reciben «No hay nadie para responder; decide tú». */
@@ -27,7 +30,7 @@ export interface PeticionTurno {
 }
 
 export interface Motor {
-  /** Lanza un turno y espera a que termine. Falla si la sesión no existe o ya está trabajando. */
+  /** Lanza un turno y espera a que termine. Falla si la sesión no existe, ya está trabajando o un adjunto no vale. */
   turno(p: PeticionTurno): Promise<{ sesionId: string; resultado: ResultadoTurno }>;
   existeSesion(sesionId: string): boolean;
   /** La sesión tiene un turno en marcha. */

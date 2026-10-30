@@ -5,6 +5,7 @@
  * Llamada:   <herramienta nombre="leer">{"ruta":"a.txt"}</herramienta>
  * Resultado: <resultado herramienta="leer" id="h1">…</resultado>
  */
+import { textoUsuario, type VistaImagen } from "../adjuntos";
 import type { EspecHerramienta, LlamadaHerramienta, Mensaje } from "../tipos";
 
 const ETIQUETA = "<herramienta";
@@ -55,10 +56,11 @@ export function textoVisible(acumulado: string): string {
   return acumulado;
 }
 
-export function renderizarMensaje(m: Mensaje): string {
+/** Un mensaje como texto; los adjuntos van detrás del texto del usuario. `vistas`: las imágenes que el modelo ve aparte. */
+export function renderizarMensaje(m: Mensaje, vistas?: ReadonlyMap<string, VistaImagen>): string {
   switch (m.rol) {
     case "usuario":
-      return m.texto;
+      return textoUsuario(m, vistas);
     case "herramienta":
       return `<resultado herramienta="${m.nombre}" id="${m.id}"${m.error ? ' error="si"' : ""}>\n${m.resultado}\n</resultado>`;
     case "asistente":

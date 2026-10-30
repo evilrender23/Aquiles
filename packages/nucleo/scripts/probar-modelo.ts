@@ -59,6 +59,6 @@ for (const [pregunta, esperado] of [
   );
 }
 
-await proveedor.cerrar();
+await proveedor.cerrar?.();
 console.log(`historial: ${mensajes.map((m) => m.rol).join(" → ")}`);
 process.exit(fallos ? 1 : 0);

@@ -1,4 +1,10 @@
-import type { Diff, Uso } from "@aquiles/protocolo";
+import type { Diff, InfoAdjunto, Uso } from "@aquiles/protocolo";
+
+/** Fichero adjunto a un mensaje del usuario, ya guardado (adjuntos.ts). Va tal cual en el JSONL de la sesión. */
+export interface AdjuntoGuardado extends Omit<InfoAdjunto, "caracteres"> {
+  /** Texto que recibe el modelo (documentos y texto), ya recortado; falta si no se pudo sacar nada. */
+  texto?: string;
+}
 
 export interface LlamadaHerramienta {
   id: string;
@@ -12,7 +18,7 @@ export interface LlamadaHerramienta {
  * los proveedores lo envían como un mensaje de usuario marcado como resumen.
  */
 export type Mensaje =
-  | { rol: "usuario"; texto: string }
+  | { rol: "usuario"; texto: string; adjuntos?: AdjuntoGuardado[] }
   | {
       rol: "asistente";
       texto: string;

@@ -14,6 +14,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Uso } from "@aquiles/protocolo";
+import { base64, imagenesAdjuntas, LIMITES_API, textoUsuario, type VistaImagen, verImagenes } from "../adjuntos";
 import { ErrorAbortado, ErrorProveedor, type Mensaje, type PeticionModelo, type Proveedor, type RespuestaModelo } from "../tipos";
 import { lineas } from "./agy";
 import { extraerLlamadas, instrucciones, renderizarMensaje, textoVisible } from "./protocolo-texto";
@@ -29,6 +30,11 @@ const ESPERA_INTERRUPCION_MS = 5000;
  */
 const DE_SESION_ANFITRIONA = /^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_AGENT_SDK_|CLAUDE_PID$|CLAUDE_EFFORT$|CLAUDE_PREVIEW_|ANTHROPIC_BASE_URL$)/;
 const DEL_USUARIO = /^CLAUDE_CODE_(USE_BEDROCK|USE_VERTEX|USE_FOUNDRY|OAUTH_TOKEN|GIT_BASH_PATH|MAX_OUTPUT_TOKENS)$/;
+
+/** `content` de un mensaje de usuario: texto, o bloques de la API de mensajes si lleva imágenes. */
+type ContenidoClaude =
+  | string
+  | ({ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } })[];
 
 interface EventoClaude {
   type?: string;
@@ -72,6 +78,8 @@ export interface OpcionesClaude {
   comando?: string[];
   /** Alias (`sonnet`, `opus`, `haiku`, `fable`) o id completo; si falta, el que tenga `claude` por defecto. */
   modelo?: string;
+  /** `--effort` del CLI (sus niveles salen de `claude --help`, ver esfuerzo.ts); si falta, el que elija el CLI. */
+  esfuerzo?: string;
 }
 
 export class ProveedorClaude implements Proveedor {
@@ -90,11 +98,20 @@ export class ProveedorClaude implements Proveedor {
     if (p.senal.aborted) throw new ErrorAbortado();
     const s = this.sesion(p);
     const nuevos = p.mensajes.slice(s.enviados);
+    const vistas = verImagenes(p.mensajes, LIMITES_API);
     // Un proceso nuevo con historial previo (reinicio del núcleo o del proceso): se le pasa la conversación entera.
-    const contenido =
+    const texto =
       s.enviados === 0 && nuevos.some((m) => m.rol === "asistente")
-        ? transcripcion(nuevos)
-        : nuevos.filter((m) => m.rol !== "asistente").map(renderizarMensaje).join("\n\n");
+        ? transcripcion(nuevos, vistas)
+        : nuevos.filter((m) => m.rol !== "asistente").map((m) => renderizarMensaje(m, vistas)).join("\n\n");
+    // Claude Code guarda la conversación: cada imagen se manda una vez, en el mensaje que la trae.
+    const imagenes = nuevos.flatMap((m) => imagenesAdjuntas(m, vistas));
+    const contenido: ContenidoClaude = imagenes.length
+      ? [
+          ...imagenes.map((a) => ({ type: "image" as const, source: { type: "base64" as const, media_type: a.tipo, data: base64(a) } })),
+          { type: "text", text: texto },
+        ]
+      : texto;
     s.enviados = p.mensajes.length;
     s.llamadas += 1;
 
@@ -119,7 +136,7 @@ export class ProveedorClaude implements Proveedor {
   /** Envía un mensaje y lee hasta su `result`. */
   private async turno(
     s: SesionClaude,
-    contenido: string,
+    contenido: ContenidoClaude,
     alDelta: (texto: string) => void,
     abortar: Promise<never>,
   ): Promise<{ texto: string; uso: Uso; cortada: boolean }> {
@@ -207,6 +224,7 @@ export class ProveedorClaude implements Proveedor {
       "--no-session-persistence",
       "--system-prompt-file", rutaSistema,
       ...(this.opciones.modelo ? ["--model", this.opciones.modelo] : []),
+      ...(this.opciones.esfuerzo ? ["--effort", this.opciones.esfuerzo] : []),
     ];
     const proceso = Bun.spawn(args, { cwd: p.cwd, env: entorno(), stdin: "pipe", stdout: "pipe", stderr: "pipe" });
     const s: SesionClaude = { proceso, cola: [], terminada: false, rutaSistema, enviados: 0, stderr: [], llamadas: 0 };
@@ -218,9 +236,9 @@ export class ProveedorClaude implements Proveedor {
 }
 
 /** Conversación previa en un solo mensaje, para un proceso que empieza sin ella. */
-export function transcripcion(mensajes: readonly Mensaje[]): string {
+export function transcripcion(mensajes: readonly Mensaje[], vistas?: ReadonlyMap<string, VistaImagen>): string {
   const partes = mensajes.map((m) => {
-    if (m.rol === "usuario") return `[Usuario]\n${m.texto}`;
+    if (m.rol === "usuario") return `[Usuario]\n${textoUsuario(m, vistas)}`;
     if (m.rol !== "asistente") return renderizarMensaje(m);
     const llamadas = m.llamadas.map((l) => `<herramienta nombre="${l.nombre}">${JSON.stringify(l.argumentos)}</herramienta>`);
     return ["[Tú]", m.texto, ...llamadas].filter(Boolean).join("\n");

@@ -133,8 +133,10 @@ export class RegistroAprendizaje {
 export function transcripcionRevision(mensajes: readonly Mensaje[]): string {
   const partes = mensajes.map((m) => {
     switch (m.rol) {
-      case "usuario":
-        return `[Usuario]\n${m.texto}`;
+      case "usuario": {
+        const adjuntos = m.adjuntos?.length ? `\n(Adjuntos: ${m.adjuntos.map((a) => `${a.nombre}, ${a.clase}`).join("; ")})` : "";
+        return `[Usuario]\n${m.texto}${adjuntos}`;
+      }
       case "resumen":
         return `[Resumen de lo anterior]\n${m.texto}`;
       case "asistente": {

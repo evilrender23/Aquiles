@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RUTA_RPC, type Evento } from "@aquiles/protocolo";
+import { RUTA_RPC, VERSION_PROTOCOLO, type Evento } from "@aquiles/protocolo";
 import { leer } from "../src/herramientas/leer";
 import { ProveedorSimulado } from "../src/proveedores/simulado";
 import { iniciarServidor, type Servidor } from "../src/servidor";
@@ -83,7 +83,7 @@ test("rechaza token malo y origen ajeno", async () => {
 test("turno completo, persistencia y reanudar", async () => {
   const ws = await conectar();
   const c = rpc(ws);
-  expect((await c.llamar("nucleo.info", {})).result).toMatchObject({ proveedor: "simulado", protocolo: 7 });
+  expect((await c.llamar("nucleo.info", {})).result).toMatchObject({ proveedor: "simulado", protocolo: VERSION_PROTOCOLO });
   const { result: s } = await c.llamar("sesion.crear", {});
   expect(s).toMatchObject({ cwd, modoAprobacion: "preguntar-ejecutar" });
   expect((await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "lee hola.txt" })).result).toEqual({ aceptado: true });

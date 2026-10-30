@@ -81,6 +81,20 @@ test("indexar es idempotente y de las herramientas guarda solo el principio", ()
   expect(i.buscar("hola")).toEqual([]);
 });
 
+test("de los adjuntos indexa el nombre y el principio del texto extraído", () => {
+  const i = indice();
+  const texto = `${"relleno ".repeat(300)}escondido`;
+  const m: Mensaje = {
+    rol: "usuario",
+    texto: "",
+    adjuntos: [{ id: "a", nombre: "presupuesto-cocina.xlsx", tipo: "x", bytes: 1, clase: "documento", ruta: "C:/a", texto: `azulejos ${texto}` }],
+  };
+  expect(i.indexar("s", 0, m, "2026-10-01T00:00:00.000Z")).toBe(true);
+  expect(i.buscar("presupuesto")).toHaveLength(1);
+  expect(i.buscar("azulejos")).toHaveLength(1);
+  expect(i.buscar("escondido")).toEqual([]);
+});
+
 test("como mucho 3 resultados por sesión, ordenados por relevancia y fecha", () => {
   const i = indice();
   for (let n = 0; n < 6; n++) i.indexar("larga", n, usuario(`error de red número ${n}`), `2026-10-0${n + 1}T00:00:00.000Z`);

@@ -1,8 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ventanaDe } from "../src/proveedores/anthropic";
 import { errorClaude, ProveedorClaude, transcripcion } from "../src/proveedores/claude-cli";
 import { ErrorAbortado, ErrorProveedor, type Mensaje, type PeticionModelo } from "../src/tipos";
+import { adjuntosDePrueba } from "./ficheros-prueba";
 
 const proveedor = new ProveedorClaude({ comando: [process.execPath, join(import.meta.dir, "claude-falso.ts")] });
 afterEach(() => proveedor.cerrar());
@@ -75,6 +77,22 @@ test("clasifica los errores del CLI", () => {
   expect(errorClaude("API Error: 529 Overloaded").tipo).toBe("sobrecarga");
   expect(errorClaude("Prompt is too long").tipo).toBe("contexto");
   expect(errorClaude("algo raro").tipo).toBe("otro");
+});
+
+test("adjuntos: con imágenes, content son bloques image (base64) y text; cada imagen viaja una vez", async () => {
+  const { foto, nota } = await adjuntosDePrueba();
+  const mensajes: Mensaje[] = [{ rol: "usuario", texto: "¿Qué ves?", adjuntos: [foto, nota] }];
+  const eco = JSON.parse((await proveedor.responder(peticion(mensajes), () => {})).texto);
+  expect(eco.imagenes).toEqual([{ type: "base64", media_type: "image/png", data: readFileSync(foto.ruta).toString("base64").length }]);
+  expect(eco.texto).toBe(
+    `¿Qué ves?\n\n<adjunto nombre="foto.png" tipo="image/png" ruta="${foto.ruta}">\nImagen adjunta a este mensaje.\n</adjunto>\n\n` +
+      `<adjunto nombre="nota.txt" tipo="text/plain" ruta="${nota.ruta}">\ncontenido de la nota\n</adjunto>`,
+  );
+  // El CLI guarda la conversación: el siguiente mensaje va sin la imagen.
+  mensajes.push({ rol: "asistente", texto: "Rojo.", llamadas: [] }, { rol: "usuario", texto: "gracias" });
+  const siguiente = JSON.parse((await proveedor.responder(peticion(mensajes), () => {})).texto);
+  expect(siguiente).toMatchObject({ recibidos: 2, texto: "gracias" });
+  expect(siguiente.imagenes).toBeUndefined();
 });
 
 test("transcripción con llamadas y resultados", () => {

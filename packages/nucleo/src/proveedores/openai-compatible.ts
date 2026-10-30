@@ -4,6 +4,7 @@
  */
 import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
+import { base64, imagenesAdjuntas, LIMITES_API, textoUsuario, verImagenes } from "../adjuntos";
 import {
   ErrorAbortado,
   ErrorProveedor,
@@ -125,18 +126,29 @@ export function traducirHerramientasOpenAI(herramientas: readonly EspecHerramien
   }));
 }
 
+/** Las imágenes recientes van como partes `image_url` con una data URL; el texto de los documentos, en el texto. */
 export function traducirMensajesOpenAI(sistema: string, mensajes: readonly Mensaje[]): OpenAI.ChatCompletionMessageParam[] {
   const salida: OpenAI.ChatCompletionMessageParam[] = sistema ? [{ role: "system", content: sistema }] : [];
+  const vistas = verImagenes(mensajes, LIMITES_API);
   // Algunas plantillas de chat locales exigen alternar user/assistant.
-  const usuario = (texto: string): void => {
+  const usuario = (texto: string, imagenes: OpenAI.ChatCompletionContentPartImage[] = []): void => {
     const ultimo = salida.at(-1);
-    if (ultimo?.role === "user" && typeof ultimo.content === "string") ultimo.content += `\n\n${texto}`;
-    else salida.push({ role: "user", content: texto });
+    if (ultimo?.role !== "user") {
+      salida.push({ role: "user", content: imagenes.length ? [...imagenes, { type: "text", text: texto }] : texto });
+    } else if (!imagenes.length && typeof ultimo.content === "string") {
+      ultimo.content += `\n\n${texto}`;
+    } else {
+      const previas = typeof ultimo.content === "string" ? [{ type: "text" as const, text: ultimo.content }] : ultimo.content;
+      ultimo.content = [...previas, ...imagenes, { type: "text", text: texto }];
+    }
   };
   for (const m of mensajes) {
     switch (m.rol) {
       case "usuario":
-        usuario(m.texto);
+        usuario(
+          textoUsuario(m, vistas),
+          imagenesAdjuntas(m, vistas).map((a) => ({ type: "image_url", image_url: { url: `data:${a.tipo};base64,${base64(a)}` } })),
+        );
         break;
       case "resumen":
         usuario(`[Resumen de la conversación anterior]\n${m.texto}`);

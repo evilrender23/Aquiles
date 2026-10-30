@@ -6,10 +6,12 @@
  */
 import { timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   codigosError,
+  MAX_ADJUNTOS,
+  MAX_BYTES_ADJUNTO,
   metodos,
   RUTA_RPC,
   VERSION_PROTOCOLO,
@@ -24,7 +26,9 @@ import {
   type Resultados,
 } from "@aquiles/protocolo";
 import type { ServerWebSocket } from "bun";
+import { type AdjuntoEntrante, borrarAdjuntos, carpetaAdjuntos, ErrorAdjunto, guardarAdjuntos, leerAdjunto } from "./adjuntos";
 import { AJUSTES_HERRAMIENTAS, AlmacenAjustes } from "./ajustes";
+import { FicheroYaExiste, guardarArtefacto, VistasArtefactos } from "./artefactos";
 import { AJUSTES_APRENDIZAJE, Aprendizaje, instruccionAprender } from "./aprendizaje";
 import { ejecutarTurno, type PeticionAprobacion, type RespuestaAprobacion, type ResultadoTurno } from "./bucle";
 import { ErrorCanal } from "./canales/canal";
@@ -37,6 +41,8 @@ import { ErrorHerramienta, type Herramienta, type Pregunta } from "./herramienta
 import { cerrarEstadoSesion } from "./herramientas/index";
 import { cerrarNavegador, herramientaNavegador } from "./herramientas/navegador";
 import { ErrorKanban, Kanban } from "./kanban";
+import { buscarModelos, Descargas, directorioModelos, ficherosRepo, modelosLocales as modelosDescargados } from "./locales/huggingface";
+import { instalarLlamaCpp, rutaLlamaServer } from "./locales/llamacpp";
 import { ClienteMcp } from "./mcp";
 import { ErrorMemoria } from "./memoria";
 import type { Motor, PeticionTurno } from "./motor";
@@ -44,15 +50,19 @@ import { Objetivos } from "./objetivos";
 import { Pasarela } from "./pasarela";
 import { crearCopia, crearPerfil, listarCopias, listarPerfiles, prepararRestauracion } from "./perfiles";
 import { ErrorPlugin, Plugins } from "./plugins";
-import { crearProveedor, establecerClave, listarProveedores, VARIABLES_CLAVE } from "./proveedores/index";
+import {
+  crearProveedor, establecerClave, esfuerzoValido, listarProveedores, servidorLlamaCpp, VARIABLES_CLAVE,
+} from "./proveedores/index";
 import { AlmacenSesiones, historial, info, type OpcionesSesion, type Sesion, titulo } from "./sesiones";
 import { ErrorSkill } from "./skills";
 import { herramientaDelegar, type LanzarSubagente } from "./subagentes";
 import { Voz } from "./voz";
-import type { Mensaje, Proveedor } from "./tipos";
+import type { AdjuntoGuardado, Mensaje, Proveedor } from "./tipos";
 
 const HERRAMIENTAS_LECTURA = ["leer", "buscar_texto", "buscar_ficheros"];
 const DIA_MS = 24 * 60 * 60 * 1000;
+/** Un prompt.enviar puede traer 10 adjuntos de 25 MB en base64 (un tercio más), y adjuntos.leer devuelve uno entero. */
+const MAX_MENSAJE_WS = Math.ceil((MAX_ADJUNTOS * MAX_BYTES_ADJUNTO * 4) / 3) + 1024 * 1024;
 
 export const ORIGENES_APP = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost", "http://localhost:1420"];
 
@@ -63,7 +73,7 @@ export interface OpcionesServidor {
   proveedor: string;
   modelo?: string;
   /** Crea proveedores por nombre y modelo (inyectable en tests). */
-  fabrica?: (nombre: string, modelo?: string) => Proveedor;
+  fabrica?: (nombre: string, modelo?: string, esfuerzo?: string) => Proveedor;
   herramientas: readonly Herramienta<any>[];
   cwdPorDefecto: string;
   version: string;
@@ -164,15 +174,16 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     aprendizaje: AJUSTES_APRENDIZAJE,
     herramientas: AJUSTES_HERRAMIENTAS,
   });
-  const fabrica = o.fabrica ?? ((nombre: string, modelo?: string) => crearProveedor(nombre, { modelo }));
-  /** Un proveedor por (nombre, modelo), compartido entre sesiones. */
+  const fabrica = o.fabrica ?? ((nombre: string, modelo?: string, esfuerzo?: string) => crearProveedor(nombre, { modelo, esfuerzo }));
+  /** Un proveedor por (nombre, modelo, esfuerzo), compartido entre sesiones. */
   const proveedores = new Map<string, Proveedor>();
-  const proveedorPara = (nombre: string, modelo?: string): Proveedor => {
-    const clave = `${nombre}|${modelo ?? ""}`;
+  const claveProveedor = (nombre: string, modelo?: string, esfuerzo?: string) => `${nombre}|${modelo ?? ""}|${esfuerzo ?? ""}`;
+  const proveedorPara = (nombre: string, modelo?: string, esfuerzo?: string): Proveedor => {
+    const clave = claveProveedor(nombre, modelo, esfuerzo);
     let p = proveedores.get(clave);
     if (!p) {
       try {
-        p = fabrica(nombre, modelo);
+        p = fabrica(nombre, modelo, esfuerzo);
       } catch (e) {
         throw new FalloRpc(codigosError.paramsInvalidos, e instanceof Error ? e.message : String(e));
       }
@@ -180,7 +191,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     }
     return p;
   };
-  const proveedorDe = (s: Sesion): Proveedor => proveedorPara(s.proveedor, s.modelo);
+  const proveedorDe = (s: Sesion): Proveedor => proveedorPara(s.proveedor, s.modelo, s.esfuerzo);
 
   const aprendizaje: Aprendizaje = new Aprendizaje({
     perfil: o.perfil,
@@ -211,6 +222,17 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
   curar();
   const relojCurador = setInterval(curar, DIA_MS);
   relojCurador.unref?.();
+  const vistas = new VistasArtefactos();
+  const descargas = new Descargas({
+    token: () => process.env.HF_TOKEN || undefined,
+    alProgreso: (d) => {
+      emitir({ tipo: "modelos.progreso", descarga: d });
+      if (d.estado !== "descargando") emitir({ tipo: "modelos.actualizados" });
+    },
+  });
+  const fallo = (e: unknown, codigo: number = codigosError.paramsInvalidos) =>
+    new FalloRpc(codigo, e instanceof Error ? e.message : String(e));
+
   const obtener = (sesionId: string): Sesion => {
     const s = sesiones.obtener(sesionId);
     if (!s) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
@@ -230,6 +252,8 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       modoAprobacion: x.modoAprobacion ?? a.modoAprobacion,
       proveedor: x.proveedor ?? a.proveedor,
       modelo: x.modelo ?? (x.proveedor ? undefined : a.modelo),
+      // El esfuerzo por defecto solo vale con el proveedor y el modelo por defecto, para los que se comprobó al guardarlo.
+      esfuerzo: x.esfuerzo ?? (x.proveedor || x.modelo ? undefined : a.esfuerzo || undefined),
     });
     log(`sesión ${s.id} en ${s.cwd} (${s.proveedor}${s.modelo ? ` ${s.modelo}` : ""})${s.origen ? ` [${s.origen.tipo}]` : ""}`);
     avisar(s);
@@ -248,7 +272,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
   const lanzarSubagente: LanzarSubagente = async (p) => {
     const padre = obtener(p.padre);
     const hija = crearSesion(p.cwd, {
-      proveedor: padre.proveedor, modelo: padre.modelo, modoAprobacion: padre.modoAprobacion,
+      proveedor: padre.proveedor, modelo: padre.modelo, esfuerzo: padre.esfuerzo, modoAprobacion: padre.modoAprobacion,
       titulo: `${p.nombre} · subagente`, origen: { tipo: "subagente", padre: padre.id },
     });
     emitir({ tipo: "subagente.inicio", sesionId: padre.id, subId: hija.id, tarea: p.tarea });
@@ -282,16 +306,22 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     ...(s.origen?.tipo === "subagente" ? [] : [delegar]),
   ];
 
+  /** Guarda los adjuntos de un mensaje en la carpeta de la sesión; uno que no vale es un error de parámetros. */
+  const guardarEn = (s: Sesion, entrantes: readonly AdjuntoEntrante[]): Promise<AdjuntoGuardado[]> =>
+    guardarAdjuntos(entrantes, carpetaAdjuntos(o.perfil, s.id)).catch((e) => {
+      throw e instanceof ErrorAdjunto ? new FalloRpc(codigosError.paramsInvalidos, e.message) : e;
+    });
+
   /**
-   * Añade el mensaje del usuario y ejecuta un turno en la sesión; la promesa acaba con el turno.
-   * El guardián, si está activo, aprueba lo claramente seguro antes de preguntar.
+   * Añade el mensaje del usuario (con sus adjuntos, ya guardados) y ejecuta un turno en la sesión; la promesa acaba
+   * con el turno. El guardián, si está activo, aprueba lo claramente seguro antes de preguntar.
    */
-  const ejecutarEn = (s: Sesion, texto: string, x: OpcionesEjecucion): Promise<ResultadoTurno> => {
+  const ejecutarEn = (s: Sesion, texto: string, x: OpcionesEjecucion, adjuntos?: AdjuntoGuardado[]): Promise<ResultadoTurno> => {
     if (s.turno) throw new FalloRpc(codigosError.sesionOcupada, "La sesión ya está trabajando; usa prompt.steer");
     // Sin esto, el primer proceso que se lanza en ella falla con un ENOENT que culpa al ejecutable.
     if (!existsSync(s.cwd)) throw new FalloRpc(codigosError.paramsInvalidos, `La carpeta de trabajo ya no existe: ${s.cwd}`);
     const proveedor = proveedorDe(s);
-    const usuario: Mensaje = { rol: "usuario", texto };
+    const usuario: Mensaje = { rol: "usuario", texto, ...(adjuntos?.length ? { adjuntos } : {}) };
     s.mensajes.push(usuario);
     sesiones.anotar(s, usuario);
     const aprende = s.origen?.tipo !== "subagente";
@@ -365,15 +395,26 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       });
   };
 
+  /** ejecutarEn con adjuntos recién guardados: si el turno no llega a empezar (sesión ocupada mientras se guardaban…), se borran. */
+  const ejecutarConAdjuntos = (s: Sesion, texto: string, x: OpcionesEjecucion, adjuntos?: AdjuntoGuardado[]): Promise<ResultadoTurno> => {
+    try {
+      return ejecutarEn(s, texto, x, adjuntos);
+    } catch (e) {
+      void borrarAdjuntos(adjuntos ?? []);
+      throw e;
+    }
+  };
+
   const motor: Motor = {
     async turno(p: PeticionTurno) {
       const s = p.sesionId ? obtener(p.sesionId) : crearSesion(p.nueva?.cwd, p.nueva ?? {});
       if (!p.sesionId) p.alEvento?.({ tipo: "sesion.actualizada", sesion: vista(s) });
-      const resultado = await ejecutarEn(s, p.texto, {
+      const adjuntos = p.adjuntos?.length ? await guardarEn(s, p.adjuntos) : undefined;
+      const resultado = await ejecutarConAdjuntos(s, p.texto, {
         aprobar: p.aprobar ? (q) => p.aprobar!(q) : async () => "denegar",
         preguntar: p.preguntar ? (q) => p.preguntar!(q) : async () => "No hay nadie para responder; decide tú.",
         alEvento: p.alEvento,
-      });
+      }, adjuntos);
       return { sesionId: s.id, resultado };
     },
     existeSesion: (id) => sesiones.obtener(id) !== undefined,
@@ -441,7 +482,13 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     },
     "proveedores.listar": async () => ({ proveedores: await listarProveedores(o.incluirSimulado) }),
     "ajustes.leer": () => ajustes.leer(),
-    "ajustes.guardar": (cambios) => {
+    "ajustes.guardar": async (cambios) => {
+      const antes = ajustes.leer();
+      if (cambios.esfuerzo !== undefined || cambios.proveedor !== undefined || cambios.modelo !== undefined) {
+        const proveedor = cambios.proveedor ?? antes.proveedor;
+        const modelo = cambios.modelo ?? (cambios.proveedor && cambios.proveedor !== antes.proveedor ? "" : antes.modelo);
+        cambios.esfuerzo = (await esfuerzoValido(proveedor, modelo || undefined, cambios.esfuerzo ?? antes.esfuerzo)) ?? "";
+      }
       const r = ajustes.guardar(cambios);
       if (!r.herramientas.navegador && navegador) {
         navegador = undefined;
@@ -469,15 +516,28 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       if (canal) void pasarela.reiniciar(canal).catch((e) => log(`canal ${canal}: ${e instanceof Error ? e.message : e}`));
       return { ok: true };
     },
-    "sesion.crear": ({ cwd, modoAprobacion, proveedor, modelo }) => vista(crearSesion(cwd, { modoAprobacion, proveedor, modelo })),
+    "sesion.crear": async ({ cwd, modoAprobacion, proveedor, modelo, esfuerzo }) => {
+      const a = ajustes.leer();
+      const nivel = esfuerzo ? await esfuerzoValido(proveedor ?? a.proveedor, modelo ?? (proveedor ? undefined : a.modelo), esfuerzo) : undefined;
+      return vista(crearSesion(cwd, { modoAprobacion, proveedor, modelo, ...(nivel ? { esfuerzo: nivel } : {}) }));
+    },
     "sesion.listar": () => ({ sesiones: sesiones.listar() }),
     "sesion.reanudar": ({ sesionId }) => {
       const s = obtener(sesionId);
       return { ...vista(s), historial: historial(s) };
     },
-    "sesion.ajustar": ({ sesionId, proveedor, modelo, modoAprobacion }) => {
+    "sesion.ajustar": async ({ sesionId, proveedor, modelo, esfuerzo, modoAprobacion }) => {
       const s = obtener(sesionId);
-      sesiones.ajustar(s, { proveedor, modelo: modelo ?? (proveedor && proveedor !== s.proveedor ? "" : undefined), modoAprobacion });
+      const nuevoModelo = modelo ?? (proveedor && proveedor !== s.proveedor ? "" : undefined);
+      const destinoProveedor = proveedor ?? s.proveedor;
+      const destinoModelo = nuevoModelo === undefined ? s.modelo : nuevoModelo || undefined;
+      // Con otro modelo, el nivel elegido se vuelve a comprobar: el nuevo puede no admitirlo.
+      const pedido = esfuerzo ?? (proveedor !== undefined || modelo !== undefined ? s.esfuerzo : undefined);
+      const nivel = pedido === undefined ? undefined : ((await esfuerzoValido(destinoProveedor, destinoModelo, pedido)) ?? "");
+      const antes = claveProveedor(s.proveedor, s.modelo, s.esfuerzo);
+      sesiones.ajustar(s, { proveedor, modelo: nuevoModelo, ...(nivel === undefined ? {} : { esfuerzo: nivel }), modoAprobacion });
+      // El proveedor anterior puede tener un proceso de esta sesión (claude, agy): se cierra.
+      if (antes !== claveProveedor(s.proveedor, s.modelo, s.esfuerzo) && !s.turno) await proveedores.get(antes)?.cerrar?.(s.id);
       avisar(s);
       return vista(s);
     },
@@ -496,18 +556,28 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
         for (const p of proveedores.values()) await p.cerrar?.(s.id);
       }
       if (!sesiones.borrar(sesionId)) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
+      if (/^[\w-]+$/.test(sesionId)) await rm(carpetaAdjuntos(o.perfil, sesionId), { recursive: true, force: true });
       indice.borrarSesion(sesionId);
       objetivos.fijar({ id: sesionId }, null);
       return { borrada: true };
     },
-    "prompt.enviar": ({ sesionId, texto }) => {
+    "prompt.enviar": async ({ sesionId, texto, adjuntos }) => {
       const s = obtener(sesionId);
       if (s.turno) throw new FalloRpc(codigosError.sesionOcupada, "La sesión ya está trabajando; usa prompt.steer");
+      const guardados = adjuntos?.length ? await guardarEn(s, adjuntos) : undefined;
       const orden = /^\/aprender(?:\s+([\s\S]+))?$/.exec(texto.trim());
-      if (orden && !orden[1]) return revisarComoTurno(s, texto);
+      if (orden && !orden[1] && !guardados) return revisarComoTurno(s, texto);
       if (orden) aprendizaje.aprendiendo.add(s.id);
-      void ejecutarEn(s, orden?.[1] ? instruccionAprender(orden[1].trim()) : texto, { aprobar: aprobarEnApp(s), preguntar: preguntarEnApp(s) });
+      // `/aprender` con adjuntos y sin más: la fuente son los adjuntos.
+      const pedido = orden ? instruccionAprender(orden[1]?.trim() || "los ficheros adjuntos a este mensaje") : texto;
+      void ejecutarConAdjuntos(s, pedido, { aprobar: aprobarEnApp(s), preguntar: preguntarEnApp(s) }, guardados);
       return { aceptado: true };
+    },
+    "adjuntos.leer": async ({ sesionId, id }) => {
+      const s = obtener(sesionId);
+      const adjunto = await leerAdjunto(carpetaAdjuntos(o.perfil, s.id), id);
+      if (!adjunto) throw new FalloRpc(codigosError.paramsInvalidos, `No hay ningún adjunto ${id} en esta sesión`);
+      return adjunto;
     },
     "prompt.steer": ({ sesionId, texto }) => {
       const s = sesiones.obtener(sesionId);
@@ -561,6 +631,75 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     "skills.versiones": ({ nombre }) => ({ versiones: comoParams(() => skills.versiones(nombre)) }),
     "skills.restaurarVersion": ({ nombre, version }) => conCambioDeSkills(() => skills.restaurarVersion(nombre, version)),
     "skills.curar": () => ({ cambios: curar() }),
+    "artefactos.vista": ({ tipo, contenido }) => ({ ruta: vistas.publicar(tipo, contenido) }),
+    "artefactos.guardar": async ({ sesionId, nombre, contenido, sobrescribir }) => {
+      const s = obtener(sesionId);
+      try {
+        return { ruta: await guardarArtefacto(s.cwd, nombre, contenido, sobrescribir) };
+      } catch (e) {
+        throw fallo(e, e instanceof FicheroYaExiste ? codigosError.yaExiste : codigosError.paramsInvalidos);
+      }
+    },
+    "modelos.buscar": async ({ consulta }) => {
+      try {
+        return { resultados: await buscarModelos(consulta, { token: process.env.HF_TOKEN || undefined }) };
+      } catch (e) {
+        throw fallo(e, codigosError.interno);
+      }
+    },
+    "modelos.repo": async ({ repo }) => {
+      try {
+        return await ficherosRepo(repo, { token: process.env.HF_TOKEN || undefined });
+      } catch (e) {
+        throw fallo(e);
+      }
+    },
+    "modelos.descargar": async ({ repo, fichero, proyector }) => {
+      let info: Awaited<ReturnType<typeof ficherosRepo>>;
+      try {
+        info = await ficherosRepo(repo, { token: process.env.HF_TOKEN || undefined });
+      } catch (e) {
+        throw fallo(e);
+      }
+      const f = info.ficheros.find((x) => x.nombre === fichero);
+      if (!f) throw new FalloRpc(codigosError.paramsInvalidos, `${repo} no tiene ${fichero}`);
+      const pr = proyector ? info.proyectores.find((x) => x.nombre === proyector) : undefined;
+      if (proyector && !pr) throw new FalloRpc(codigosError.paramsInvalidos, `${repo} no tiene ${proyector}`);
+      return { id: descargas.iniciar(repo, f, pr) };
+    },
+    "modelos.cancelar": ({ id }) => ({ cancelada: descargas.cancelar(id) }),
+    "modelos.borrar": async ({ id }) => {
+      // En Windows un fichero abierto no se puede borrar: si llama.cpp lo tiene cargado, se para antes.
+      if (servidorLlamaCpp().modeloCargado === id) await servidorLlamaCpp().parar();
+      try {
+        await descargas.borrar(id);
+      } catch (e) {
+        throw fallo(e);
+      }
+      emitir({ tipo: "modelos.actualizados" });
+      return { borrado: true as const };
+    },
+    "modelos.listar": async () => {
+      const ruta = rutaLlamaServer();
+      const cargado = servidorLlamaCpp().modeloCargado;
+      return {
+        carpeta: directorioModelos(),
+        locales: (await modelosDescargados()).map((m) => ({ id: m.id, repo: m.repo, nombre: m.nombre, bytes: m.bytes, imagenes: Boolean(m.proyector) })),
+        descargas: descargas.listar(),
+        motor: { ...(ruta ? { ruta } : {}), ...(cargado ? { cargado } : {}) },
+      };
+    },
+    "modelos.instalarMotor": async () => {
+      try {
+        await instalarLlamaCpp((t) => log(`winget: ${t.trim()}`));
+      } catch (e) {
+        throw fallo(e, codigosError.interno);
+      }
+      const ruta = rutaLlamaServer();
+      if (!ruta) throw new FalloRpc(codigosError.interno, "winget terminó pero no aparece llama-server");
+      emitir({ tipo: "modelos.actualizados" });
+      return { ruta };
+    },
     "buscar.sesiones": ({ consulta, limite }) => ({ resultados: indice.buscar(consulta, limite) }),
     "aprendizaje.listar": ({ todas }) => ({ propuestas: registro.propuestas(todas) }),
     "aprendizaje.decidir": ({ id, decision }) => {
@@ -747,6 +886,11 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     port: o.puerto,
     fetch(req, srv) {
       const url = new URL(req.url);
+      // Vistas de artefactos: sin token (la clave aleatoria de la ruta es el permiso) y aisladas por su CSP `sandbox`.
+      if (req.method === "GET") {
+        const vistaArtefacto = vistas.responder(url.pathname);
+        if (vistaArtefacto) return vistaArtefacto;
+      }
       if (url.pathname !== RUTA_RPC) return new Response("No encontrado", { status: 404 });
       const origen = req.headers.get("origin");
       if (origen && !origenes.includes(origen)) {
@@ -758,6 +902,11 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       return new Response("Se esperaba WebSocket", { status: 400 });
     },
     websocket: {
+      // Por defecto, 16 MB: un mensaje mayor cierra la conexión (1009).
+      maxPayloadLength: MAX_MENSAJE_WS,
+      // Con un cliente lento (modo remoto), tras un adjuntos.leer grande el búfer pasaría del límite por defecto
+      // (16 MB) y lo que se mandara detrás se descartaría.
+      backpressureLimit: MAX_MENSAJE_WS,
       open(ws) {
         clientes.add(ws);
         log(`cliente conectado (${clientes.size})`);
@@ -788,6 +937,8 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       await mcp.detener().catch(() => undefined);
       await cerrarNavegador().catch(() => undefined);
       aprendizaje.cerrar();
+      descargas.cancelarTodas();
+      await servidorLlamaCpp().parar().catch(() => undefined);
       for (const p of proveedores.values()) await p.cerrar?.();
       conocimiento.cerrar();
     },

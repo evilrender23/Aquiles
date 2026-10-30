@@ -12,6 +12,7 @@ import { randomInt } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ChatCanal, Evento, IdCanal, InfoCanal } from "@aquiles/protocolo";
+import { textoSinArtefactos } from "@aquiles/protocolo";
 import type { PeticionAprobacion, RespuestaAprobacion, ResultadoTurno } from "./bucle";
 import { type Botones, type Canal, ErrorCanal, type MensajeEntrante, mensajeDe } from "./canales/canal";
 import { CanalCorreo } from "./canales/correo";
@@ -199,6 +200,7 @@ export class Pasarela {
     if (!c.configurado()) throw new ErrorCanal(`${c.nombre} no está configurado`);
     const chatId = destino ?? (c.conversa ? this.datos[id]?.chats[0]?.id : "");
     if (chatId === undefined) throw new ErrorCanal(`No hay ningún chat de ${c.nombre} al que entregar: empareja uno en ${RUTA_EMPAREJAR}`);
+    texto = textoSinArtefactos(texto);
     await c.enviar(chatId, texto);
     if (c.conversa && this.chat(id, chatId)) this.estadoChat(id, chatId).entregado = texto.slice(0, MAX_CONTEXTO);
   }
@@ -442,8 +444,9 @@ export class Pasarela {
     this.responder(c, chatId, espera, valor, true);
   }
 
+  /** Los artefactos no se pueden ver en un chat: llega una referencia (están en la sesión, en la app). */
   private async enviar(c: Canal, chatId: string, texto: string): Promise<void> {
-    await c.enviar(chatId, texto).catch((e) => this.log(`no se pudo enviar a ${c.nombre} ${chatId}: ${mensajeDe(e)}`));
+    await c.enviar(chatId, textoSinArtefactos(texto)).catch((e) => this.log(`no se pudo enviar a ${c.nombre} ${chatId}: ${mensajeDe(e)}`));
   }
 
   private canal(id: IdCanal): Canal {

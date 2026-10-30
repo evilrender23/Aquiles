@@ -1,7 +1,8 @@
 /**
  * Imita `claude -p --input-format stream-json --output-format stream-json` para los tests del proveedor.
  * Según la última línea del mensaje: "herramienta" → llamada en tres trozos más un resultado inventado;
- * "agotado" → error de cuota; "lento" → empieza y espera a que lo interrumpan; otra → eco de lo recibido y de su arranque.
+ * "agotado" → error de cuota; "lento" → empieza y espera a que lo interrumpan; otra → eco de lo recibido (el texto y,
+ * si hay, las imágenes con el tamaño de su base64) y de su arranque.
  */
 export {};
 
@@ -24,7 +25,10 @@ for await (const linea of console) {
     continue;
   }
   recibidos += 1;
-  const texto: string = m.message.content;
+  // Con imágenes, `content` es una lista de bloques de la API de mensajes.
+  const contenido: string | { type: string; text?: string; source?: { type: string; media_type: string; data: string } }[] = m.message.content;
+  const texto = typeof contenido === "string" ? contenido : contenido.flatMap((b) => (b.type === "text" ? [b.text ?? ""] : [])).join("\n");
+  const imagenes = typeof contenido === "string" ? [] : contenido.flatMap((b) => (b.type === "image" ? [{ ...b.source, data: b.source?.data.length }] : []));
   const ultima = texto.split("\n").at(-1) ?? "";
   if (ultima.includes("herramienta")) {
     for (const t of ["Voy a leerlo.\n<herra", 'mienta nombre="leer">{"ruta":"a.txt"}</herramienta>', "\n<resultado>inventado</resultado>"]) delta(t);
@@ -36,7 +40,7 @@ for await (const linea of console) {
     lento = true;
     delta("Empiezo");
   } else {
-    const eco = JSON.stringify({ recibidos, texto, sistema: sistema.split("\n")[0], sinHerramientas });
+    const eco = JSON.stringify({ recibidos, texto, sistema: sistema.split("\n")[0], sinHerramientas, ...(imagenes.length ? { imagenes } : {}) });
     delta(eco);
     emitir({ type: "result", subtype: "success", is_error: false, result: eco, usage, modelUsage: { "claude-prueba-5-5": { contextWindow: 1_000_000 } } });
   }

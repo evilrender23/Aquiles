@@ -21,12 +21,16 @@ const INSTRUCCIONES_RESUMEN = [
   "Sé concreto (rutas, nombres, valores). No inventes nada. Escribe solo el resumen.",
 ].join("\n");
 
+/** Lo que cuesta una imagen, más o menos, en caracteres equivalentes (~1.600 tokens). */
+const CARACTERES_IMAGEN = 5600;
+
 /** Estimación barata: ~3,5 caracteres por token. */
 export function estimarTokens(sistema: string, mensajes: readonly Mensaje[]): number {
   let c = sistema.length;
   for (const m of mensajes) {
     c += m.rol === "herramienta" ? m.resultado.length + m.nombre.length : m.texto.length;
     if (m.rol === "asistente") c += JSON.stringify(m.llamadas).length;
+    if (m.rol === "usuario") for (const a of m.adjuntos ?? []) c += a.clase === "imagen" ? CARACTERES_IMAGEN : (a.texto?.length ?? 0) + 300;
   }
   return Math.ceil(c / 3.5);
 }

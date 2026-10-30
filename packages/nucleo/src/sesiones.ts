@@ -9,6 +9,8 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { InfoSesion, MensajeHistorial, ModoAprobacion, Uso } from "@aquiles/protocolo";
+import { infoAdjunto } from "./adjuntos";
+import { INSTRUCCIONES_ARTEFACTOS } from "./artefactos";
 import type { Huella } from "./herramientas/herramienta";
 import type { Mensaje } from "./tipos";
 
@@ -23,6 +25,8 @@ export interface Sesion {
   modoAprobacion: ModoAprobacion;
   proveedor: string;
   modelo?: string;
+  /** Nivel de esfuerzo de razonamiento elegido; si falta, el del modelo. */
+  esfuerzo?: string;
   /** Título puesto a mano; si falta, se usa el primer mensaje. */
   titulo?: string;
   /** Quién la abrió si no fue la app (tarea programada, chat de un canal, subagente). */
@@ -46,6 +50,7 @@ export interface OpcionesSesion {
   modoAprobacion?: ModoAprobacion;
   proveedor: string;
   modelo?: string;
+  esfuerzo?: string;
   titulo?: string;
   origen?: OrigenSesion;
 }
@@ -54,6 +59,8 @@ export interface Ajuste {
   modoAprobacion?: ModoAprobacion;
   proveedor?: string;
   modelo?: string;
+  /** "" = volver al del modelo. */
+  esfuerzo?: string;
   titulo?: string;
 }
 
@@ -74,7 +81,7 @@ export function sistemaBase(cwd: string, fecha = new Date()): string {
 type Linea =
   | {
       tipo: "inicio"; id: string; cwd: string; sistema: string; creada: string; modoAprobacion: ModoAprobacion;
-      proveedor?: string; modelo?: string; titulo?: string; origen?: OrigenSesion;
+      proveedor?: string; modelo?: string; esfuerzo?: string; titulo?: string; origen?: OrigenSesion;
     }
   | { tipo: "mensaje"; mensaje: Mensaje; fecha?: string }
   | ({ tipo: "ajuste" } & Ajuste)
@@ -104,8 +111,12 @@ export class AlmacenSesiones {
   crear(cwd: string, o: OpcionesSesion = { proveedor: this.proveedorPorDefecto }): Sesion {
     const ahora = new Date().toISOString();
     const modo = o.modoAprobacion ?? "preguntar-ejecutar";
-    const sistema = this.ganchos.sistema?.(cwd) ?? sistemaBase(cwd);
+    const base = this.ganchos.sistema?.(cwd) ?? sistemaBase(cwd);
+    // Los canales de chat no pueden enseñar artefactos, y un subagente responde a otro agente.
+    const conArtefactos = o.origen?.tipo !== "canal" && o.origen?.tipo !== "subagente";
+    const sistema = conArtefactos ? `${base}\n\n${INSTRUCCIONES_ARTEFACTOS}` : base;
     const s = nueva(crypto.randomUUID(), cwd, sistema, ahora, modo, o.proveedor, o.modelo);
+    if (o.esfuerzo) s.esfuerzo = o.esfuerzo;
     if (o.titulo) s.titulo = o.titulo;
     if (o.origen) s.origen = o.origen;
     this.enMemoria.set(s.id, s);
@@ -113,7 +124,8 @@ export class AlmacenSesiones {
       s,
       {
         tipo: "inicio", id: s.id, cwd, sistema: s.sistema, creada: ahora, modoAprobacion: modo, proveedor: o.proveedor,
-        ...(o.modelo ? { modelo: o.modelo } : {}), ...(o.titulo ? { titulo: o.titulo } : {}), ...(o.origen ? { origen: o.origen } : {}),
+        ...(o.modelo ? { modelo: o.modelo } : {}), ...(o.esfuerzo ? { esfuerzo: o.esfuerzo } : {}),
+        ...(o.titulo ? { titulo: o.titulo } : {}), ...(o.origen ? { origen: o.origen } : {}),
       },
       true,
     );
@@ -216,6 +228,7 @@ function aplicar(s: Sesion, a: Ajuste): void {
   if (a.modoAprobacion) s.modoAprobacion = a.modoAprobacion;
   if (a.proveedor) s.proveedor = a.proveedor;
   if (a.modelo !== undefined) s.modelo = a.modelo || undefined;
+  if (a.esfuerzo !== undefined) s.esfuerzo = a.esfuerzo || undefined;
   if (a.titulo) s.titulo = a.titulo;
 }
 
@@ -231,6 +244,7 @@ function cargar(ruta: string, proveedorPorDefecto: string): Sesion | undefined {
     }
     if (l.tipo === "inicio") {
       s = nueva(l.id, l.cwd, l.sistema, l.creada, l.modoAprobacion ?? "preguntar-ejecutar", l.proveedor ?? proveedorPorDefecto, l.modelo);
+      if (l.esfuerzo) s.esfuerzo = l.esfuerzo;
       if (l.titulo) s.titulo = l.titulo;
       if (l.origen) s.origen = l.origen;
     } else if (s && l.tipo === "mensaje") {
@@ -250,7 +264,8 @@ export function titulo(s: Sesion): string | undefined {
   if (s.titulo) return s.titulo;
   const primero = s.mensajes.find((m) => m.rol === "usuario");
   if (primero?.rol !== "usuario") return undefined;
-  const t = primero.texto.replace(/\s+/g, " ").trim();
+  // Un mensaje que solo lleva adjuntos se titula con sus nombres.
+  const t = (primero.texto.trim() || (primero.adjuntos ?? []).map((a) => a.nombre).join(", ")).replace(/\s+/g, " ").trim();
   return t.length > 60 ? `${t.slice(0, 59)}…` : t;
 }
 
@@ -258,7 +273,7 @@ export function info(s: Sesion): InfoSesion {
   return {
     sesionId: s.id, cwd: s.cwd, titulo: titulo(s), creada: s.creada, actualizada: s.actualizada,
     mensajes: s.mensajes.length, modoAprobacion: s.modoAprobacion, proveedor: s.proveedor,
-    ...(s.modelo ? { modelo: s.modelo } : {}), trabajando: s.turno !== undefined, ...(s.origen ? { origen: s.origen } : {}),
+    ...(s.modelo ? { modelo: s.modelo } : {}), ...(s.esfuerzo ? { esfuerzo: s.esfuerzo } : {}), trabajando: s.turno !== undefined, ...(s.origen ? { origen: s.origen } : {}),
     ...(s.turnoAbierto && !s.turno ? { interrumpida: true } : {}),
   };
 }
@@ -270,6 +285,8 @@ export function historial(s: Sesion): MensajeHistorial[] {
           rol: "herramienta", id: m.id, nombre: m.nombre, resultado: m.resultado.slice(0, 4000), error: m.error,
           ...(m.resumen ? { resumen: m.resumen } : {}), ...(m.diffs ? { diffs: m.diffs } : {}),
         }
-      : { rol: m.rol, texto: m.texto },
+      : m.rol === "usuario"
+        ? { rol: "usuario", texto: m.texto, ...(m.adjuntos?.length ? { adjuntos: m.adjuntos.map(infoAdjunto) } : {}) }
+        : { rol: m.rol, texto: m.texto },
   );
 }

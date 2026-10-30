@@ -54,3 +54,15 @@ test("renderizarMensaje marca los resultados con error", () => {
     '<resultado herramienta="leer" id="h1" error="si">\nNo existe\n</resultado>',
   );
 });
+
+test("renderizarMensaje (agy): los adjuntos van detrás del texto; las imágenes, solo como nota con la ruta", () => {
+  const texto = renderizarMensaje({
+    rol: "usuario",
+    texto: "mira esto",
+    adjuntos: [{ id: "a1", nombre: "foto.png", tipo: "image/png", bytes: 10, clase: "imagen", ruta: "C:/datos/a1-foto.png" }],
+  });
+  expect(texto).toBe(
+    'mira esto\n\n<adjunto nombre="foto.png" tipo="image/png" ruta="C:/datos/a1-foto.png">\n' +
+      "Imagen que no puedes ver desde aquí. Está guardada en esa ruta: usa tus herramientas si necesitas algo de ella.\n</adjunto>",
+  );
+});

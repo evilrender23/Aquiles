@@ -2,6 +2,7 @@
  * Proveedor de pruebas: responde con un guion fijo, sin red ni coste.
  * Cada paso recibe la petición y devuelve la respuesta; el texto se emite en trozos.
  */
+import { textoUsuario } from "../adjuntos";
 import { ErrorAbortado, type PeticionModelo, type Proveedor, type RespuestaModelo } from "../tipos";
 
 export type PasoSimulado = (p: PeticionModelo) => RespuestaModelo;
@@ -38,6 +39,7 @@ const FICHERO = /[\w./\\-]+\.\w{1,6}/;
  *   "pregunta"     → preguntar con opciones
  *   "tareas"       → lista de tareas
  *   "lee X"        → leer
+ *   con adjuntos   → cómo le llegan (la nota de texto con la ruta; este modelo no ve imágenes)
  *   otra cosa      → una respuesta en markdown
  */
 export function guionDemo(): PasoSimulado[] {
@@ -60,6 +62,10 @@ export function guionDemo(): PasoSimulado[] {
         }
         const lineas = ultimo.resultado.split("\n").length;
         return { texto: ultimo.error ? `No ha salido bien:\n\n> ${ultimo.resultado.split("\n")[0]}` : `Hecho: \`${ultimo.nombre}\` devolvió ${lineas} líneas.`, llamadas: [] };
+      }
+      if (ultimo?.rol === "usuario" && ultimo.adjuntos?.length) {
+        const recibido = textoUsuario(ultimo);
+        return { texto: `Me llega esto:\n\n\`\`\`\n${recibido.length > 3000 ? `${recibido.slice(0, 3000)}…` : recibido}\n\`\`\``, llamadas: [] };
       }
       if (/edita|cambia/i.test(texto) || /^lee\b/i.test(texto)) {
         return { texto: `Leo \`${ruta}\`.`, llamadas: [{ id, nombre: "leer", argumentos: { ruta } }] };

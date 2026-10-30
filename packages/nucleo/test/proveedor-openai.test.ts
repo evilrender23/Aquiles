@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import {
   presetsOpenAI,
   ProveedorOpenAICompatible,
@@ -6,6 +7,7 @@ import {
   traducirMensajesOpenAI,
 } from "../src/proveedores/openai-compatible";
 import { ErrorAbortado, ErrorProveedor, type Mensaje, type PeticionModelo } from "../src/tipos";
+import { adjuntosDePrueba } from "./ficheros-prueba";
 
 /** fetch falso: responde en orden y guarda URL y cuerpo de cada petición. */
 function fetchFalso(respuestas: Array<(senal: AbortSignal) => Response | Promise<Response>>) {
@@ -194,6 +196,30 @@ describe("ProveedorOpenAICompatible: traducción", () => {
       if (anterior === undefined) delete process.env.OPENAI_API_KEY;
       else process.env.OPENAI_API_KEY = anterior;
     }
+  });
+
+  test("adjuntos: la imagen como image_url con data URL y el texto del documento en <adjunto>", async () => {
+    const { foto, nota } = await adjuntosDePrueba();
+    const f = fetchFalso([sse([trozo({ content: "Rojo." }, "stop")])]);
+    const mensajes: Mensaje[] = [
+      { rol: "resumen", texto: "Antes hablamos." },
+      { rol: "usuario", texto: "¿Qué ves?", adjuntos: [foto, nota] },
+    ];
+    await proveedor(f).responder(peticion(mensajes), () => {});
+    expect(f.peticiones[0]!.cuerpo.messages[1]).toEqual({
+      role: "user",
+      content: [
+        // El resumen y el mensaje siguen fusionados en uno solo.
+        { type: "text", text: "[Resumen de la conversación anterior]\nAntes hablamos." },
+        { type: "image_url", image_url: { url: `data:image/png;base64,${readFileSync(foto.ruta).toString("base64")}` } },
+        {
+          type: "text",
+          text:
+            `¿Qué ves?\n\n<adjunto nombre="foto.png" tipo="image/png" ruta="${foto.ruta}">\nImagen adjunta a este mensaje.\n</adjunto>\n\n` +
+            `<adjunto nombre="nota.txt" tipo="text/plain" ruta="${nota.ruta}">\ncontenido de la nota\n</adjunto>`,
+        },
+      ],
+    });
   });
 });
 

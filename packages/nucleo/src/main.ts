@@ -20,7 +20,7 @@ import paquete from "../package.json";
 import { servirAcp } from "./acp";
 import { ejecutarCli } from "./cli";
 import { herramientasPorDefecto } from "./herramientas/index";
-import { crearProveedor } from "./proveedores/index";
+import { crearProveedor, servidorLlamaCpp } from "./proveedores/index";
 import { aplicarRestauracion, NOMBRE_PERFIL } from "./perfiles";
 import { directorioDatos, directorioPerfil } from "./rutas";
 import { iniciarServidor, ORIGENES_APP } from "./servidor";
@@ -95,6 +95,8 @@ if (!token) {
 }
 
 const extra = (process.env.AQUILES_ORIGENES ?? "").split(",").filter(Boolean);
+// Si el núcleo anterior murió con un modelo cargado (la app lo mata sin avisar), su llama-server sigue ocupando la GPU.
+servidorLlamaCpp();
 const servidor = iniciarServidor({
   puerto: Number(op.puerto),
   token,

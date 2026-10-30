@@ -155,3 +155,17 @@ test("transcripción para el revisor: recorta resultados y conserva el final", (
   expect(t).toContain("(recortado)");
   expect(t.length).toBeLessThan(1000);
 });
+
+test("transcripción para el revisor: nombra los adjuntos sin su texto", () => {
+  const t = transcripcionRevision([
+    {
+      rol: "usuario",
+      texto: "resume esto",
+      adjuntos: [
+        { id: "a", nombre: "informe.pdf", tipo: "application/pdf", bytes: 9, clase: "documento", ruta: "C:/x/a-informe.pdf", texto: "texto largo del informe" },
+        { id: "b", nombre: "foto.png", tipo: "image/png", bytes: 9, clase: "imagen", ruta: "C:/x/b-foto.png" },
+      ],
+    },
+  ]);
+  expect(t).toBe("[Usuario]\nresume esto\n(Adjuntos: informe.pdf, documento; foto.png, imagen)");
+});

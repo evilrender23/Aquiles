@@ -128,6 +128,8 @@ export interface OpcionesAgy {
   ejecutable?: string;
   /** Id de modelo de `agy models` (p. ej. `gemini-3.8-flash-high`). */
   modelo?: string;
+  /** `--effort` del CLI (sus niveles salen de `agy --help`); si falta, el que elija agy. */
+  esfuerzo?: string;
 }
 
 export class ProveedorAgy implements Proveedor {
@@ -149,7 +151,7 @@ export class ProveedorAgy implements Proveedor {
     const s = await this.sesion(p);
     const nuevos = p.mensajes.slice(s.enviados).filter((m) => m.rol !== "asistente");
     const partes = s.enviados === 0 ? [`${PREFACIO}\n\n${p.sistema}\n\n${instrucciones(p.herramientas)}\n\n---`] : [];
-    partes.push(...nuevos.map(renderizarMensaje));
+    partes.push(...nuevos.map((m) => renderizarMensaje(m)));
     s.enviados = p.mensajes.length;
     this.enviadosPrevios.set(p.sesionId, s.enviados);
     s.llamadas += 1;
@@ -250,6 +252,7 @@ export class ProveedorAgy implements Proveedor {
       "--disable-slash-commands",
       "--settings", await this.ajustes(),
       ...(this.opciones.modelo ? ["--model", this.opciones.modelo] : []),
+      ...(this.opciones.esfuerzo ? ["--effort", this.opciones.esfuerzo] : []),
       ...(conversacion ? ["--conversation", conversacion] : []),
       "-p=",
     ];

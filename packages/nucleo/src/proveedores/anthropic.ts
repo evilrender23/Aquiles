@@ -8,6 +8,7 @@
  */
 import { createHash, type Hash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
+import { base64, imagenesAdjuntas, LIMITES_API, textoUsuario, type VistaImagen, verImagenes } from "../adjuntos";
 import {
   ErrorAbortado,
   ErrorProveedor,
@@ -26,6 +27,8 @@ export interface OpcionesAnthropic {
   /** Por defecto, AQUILES_CLAVE_ANTHROPIC o ANTHROPIC_API_KEY. */
   clave?: string;
   modelo?: string;
+  /** `output_config.effort` (los niveles de cada modelo salen de la API de modelos); si falta, el del modelo. */
+  esfuerzo?: string;
   baseURL?: string;
   ventanaContexto?: number;
   /** Límite de salida si la petición no trae `maxTokensSalida`. */
@@ -58,14 +61,16 @@ export class ProveedorAnthropic implements Proveedor {
 
   async responder(p: PeticionModelo, alDelta: (texto: string) => void): Promise<RespuestaModelo> {
     if (p.senal.aborted) throw new ErrorAbortado();
-    const huellas = huellasPrefijo(p);
+    const vistas = verImagenes(p.mensajes, LIMITES_API);
+    const huellas = huellasPrefijo(p, vistas);
     const peticion: Anthropic.MessageCreateParamsStreaming = {
       model: this.modelo,
       max_tokens: p.maxTokensSalida ?? this.opciones.maxTokens ?? MAX_TOKENS,
       stream: true,
-      messages: traducirMensajesAnthropic(p.mensajes, huellas),
+      messages: traducirMensajesAnthropic(p.mensajes, huellas, vistas),
       ...(p.sistema ? { system: [{ type: "text", text: p.sistema, cache_control: CACHE }] } : {}),
       ...(p.herramientas.length ? { tools: traducirHerramientasAnthropic(p.herramientas) } : {}),
+      ...(this.opciones.esfuerzo ? { output_config: { effort: this.opciones.esfuerzo as NonNullable<Anthropic.OutputConfig["effort"]> } } : {}),
     };
     try {
       const flujo = await this.conectar().messages.create(peticion, { signal: p.senal });
@@ -111,23 +116,30 @@ export function traducirHerramientasAnthropic(herramientas: readonly EspecHerram
 /**
  * `huellas[i]` resume sistema + herramientas + `mensajes[0..i)`: la respuesta que se añada en la
  * posición i guarda esa huella, y al reenviarla se compara con la del historial de entonces.
+ * Una imagen que deja de reenviarse cambia lo enviado, así que su vista también cuenta.
  */
-function huellasPrefijo(p: PeticionModelo): string[] {
+function huellasPrefijo(p: PeticionModelo, vistas: ReadonlyMap<string, VistaImagen>): string[] {
   const h: Hash = createHash("sha256").update(JSON.stringify([p.sistema, p.herramientas]));
   const huellas: string[] = [];
   for (const m of p.mensajes) {
     huellas.push(h.copy().digest("base64url"));
-    h.update(JSON.stringify(m.rol === "asistente" ? [m.rol, m.texto, m.llamadas] : m));
+    const imagenes = m.rol === "usuario" ? (m.adjuntos ?? []).filter((a) => a.clase === "imagen").map((a) => vistas.get(a.id)) : [];
+    h.update(JSON.stringify(m.rol === "asistente" ? [m.rol, m.texto, m.llamadas] : imagenes.length ? [m, imagenes] : m));
   }
   huellas.push(h.digest("base64url"));
   return huellas;
 }
 
-export function traducirMensajesAnthropic(mensajes: readonly Mensaje[], huellas: readonly string[] = []): Anthropic.MessageParam[] {
+/** Las imágenes recientes van como bloques `image` en base64, delante del texto; el texto de los documentos, en el texto. */
+export function traducirMensajesAnthropic(
+  mensajes: readonly Mensaje[],
+  huellas: readonly string[] = [],
+  vistas: ReadonlyMap<string, VistaImagen> = verImagenes(mensajes, LIMITES_API),
+): Anthropic.MessageParam[] {
   const salida: Anthropic.MessageParam[] = [];
   // Quitar razonamiento de un turno obliga a quitarlo de todos los siguientes.
   let razonamientoValido = true;
-  const usuario = (bloque: Anthropic.TextBlockParam | Anthropic.ToolResultBlockParam): void => {
+  const usuario = (bloque: Anthropic.TextBlockParam | Anthropic.ToolResultBlockParam | Anthropic.ImageBlockParam): void => {
     const ultimo = salida.at(-1);
     if (ultimo?.role === "user" && Array.isArray(ultimo.content)) ultimo.content.push(bloque);
     else salida.push({ role: "user", content: [bloque] });
@@ -135,9 +147,14 @@ export function traducirMensajesAnthropic(mensajes: readonly Mensaje[], huellas:
 
   mensajes.forEach((m, i) => {
     switch (m.rol) {
-      case "usuario":
-        if (m.texto.trim()) usuario({ type: "text", text: m.texto });
+      case "usuario": {
+        for (const a of imagenesAdjuntas(m, vistas)) {
+          usuario({ type: "image", source: { type: "base64", media_type: a.tipo as Anthropic.Base64ImageSource["media_type"], data: base64(a) } });
+        }
+        const texto = textoUsuario(m, vistas);
+        if (texto.trim()) usuario({ type: "text", text: texto });
         break;
+      }
       case "resumen":
         usuario({ type: "text", text: `[Resumen de la conversación anterior]\n${m.texto}` });
         break;

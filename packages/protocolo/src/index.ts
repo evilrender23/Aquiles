@@ -8,7 +8,9 @@
  */
 import { z } from "zod";
 
-export const VERSION_PROTOCOLO = 7;
+export * from "./artefactos";
+
+export const VERSION_PROTOCOLO = 9;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -33,6 +35,24 @@ export type IdCanal = (typeof CANALES)[number];
 
 const idSesion = z.string().min(1);
 
+/** Hasta 10 adjuntos por mensaje y 25 MB cada uno. */
+export const MAX_ADJUNTOS = 10;
+export const MAX_BYTES_ADJUNTO = 25 * 1024 * 1024;
+
+/**
+ * Un fichero adjunto a un mensaje. La app de escritorio manda la ruta (el núcleo lo lee de disco); el navegador y el
+ * portapapeles mandan el contenido en base64. Exactamente uno de los dos.
+ */
+const adjunto = z
+  .object({
+    nombre: z.string().min(1).max(255),
+    /** Tipo MIME; si falta, se deduce de la extensión. */
+    tipo: z.string().max(200).optional(),
+    ruta: z.string().min(1).optional(),
+    datos: z.string().optional(),
+  })
+  .refine((a) => (a.ruta === undefined) !== (a.datos === undefined), "Cada adjunto lleva ruta o datos, uno de los dos");
+
 export const metodos = {
   "nucleo.info": z.object({}),
   /** Proveedores conocidos, si están disponibles ahora y sus modelos. */
@@ -42,6 +62,8 @@ export const metodos = {
   "ajustes.guardar": z.object({
     proveedor: z.string().min(1).optional(),
     modelo: z.string().optional(),
+    /** Nivel de esfuerzo de razonamiento; "" = el del modelo. */
+    esfuerzo: z.string().optional(),
     modoAprobacion: z.enum(MODOS_APROBACION).optional(),
     carpeta: z.string().min(1).optional(),
     aprendizaje: z
@@ -71,6 +93,7 @@ export const metodos = {
     modoAprobacion: z.enum(MODOS_APROBACION).optional(),
     proveedor: z.string().min(1).optional(),
     modelo: z.string().optional(),
+    esfuerzo: z.string().optional(),
   }),
   "sesion.listar": z.object({}),
   "sesion.reanudar": z.object({ sesionId: idSesion }),
@@ -79,11 +102,18 @@ export const metodos = {
     sesionId: idSesion,
     proveedor: z.string().min(1).optional(),
     modelo: z.string().optional(),
+    /** "" = el del modelo. Un nivel que el modelo no admite se ignora. */
+    esfuerzo: z.string().optional(),
     modoAprobacion: z.enum(MODOS_APROBACION).optional(),
   }),
   "sesion.renombrar": z.object({ sesionId: idSesion, titulo: z.string().min(1).max(120) }),
   "sesion.borrar": z.object({ sesionId: idSesion }),
-  "prompt.enviar": z.object({ sesionId: idSesion, texto: z.string().min(1) }),
+  /** Texto y, si hay, ficheros adjuntos (documentos, imágenes…). Puede ir sin texto si lleva adjuntos. */
+  "prompt.enviar": z
+    .object({ sesionId: idSesion, texto: z.string(), adjuntos: z.array(adjunto).max(MAX_ADJUNTOS).optional() })
+    .refine((p) => p.texto.trim().length > 0 || (p.adjuntos?.length ?? 0) > 0, "Hace falta texto o algún adjunto"),
+  /** Contenido de un adjunto guardado (para las miniaturas y para abrirlo), en base64. */
+  "adjuntos.leer": z.object({ sesionId: idSesion, id: z.string().min(1) }),
   "prompt.steer": z.object({ sesionId: idSesion, texto: z.string().min(1) }),
   "prompt.parar": z.object({ sesionId: idSesion }),
   /** Memoria del perfil; con `cwd`, también la del proyecto de esa carpeta. */
@@ -192,6 +222,28 @@ export const metodos = {
   /** Estadísticas de uso y línea temporal de lo aprendido. */
   "estadisticas.leer": z.object({ dias: z.number().int().min(1).max(365).optional() }),
   "buscar.sesiones": z.object({ consulta: z.string().min(1), limite: z.number().int().min(1).max(100).optional() }),
+  /**
+   * Publica un artefacto HTML o SVG para verlo en un iframe aislado: el núcleo lo sirve en `/vista/<clave>` (clave
+   * aleatoria, sin token) con CSP `sandbox`, fuera del origen de la app. Caduca a la hora o al publicar 50 más.
+   */
+  "artefactos.vista": z.object({ tipo: z.enum(["html", "svg"]), contenido: z.string().max(5_000_000) }),
+  /** Guarda un artefacto como fichero en la carpeta de trabajo de la sesión. Sin `sobrescribir`, falla si ya existe. */
+  "artefactos.guardar": z.object({
+    sesionId: idSesion,
+    nombre: z.string().min(1).max(200),
+    contenido: z.string().max(20_000_000),
+    sobrescribir: z.boolean().optional(),
+  }),
+  /** Modelos GGUF de Hugging Face (los ejecuta llama.cpp como proveedor `llamacpp`). */
+  "modelos.buscar": z.object({ consulta: z.string().min(1).max(200) }),
+  "modelos.repo": z.object({ repo: z.string().min(3).max(200) }),
+  /** `fichero` y `proyector` son el `nombre` de un FicheroModeloHF del repositorio; el núcleo resuelve partes y tamaños. */
+  "modelos.descargar": z.object({ repo: z.string().min(3).max(200), fichero: z.string().min(1), proyector: z.string().min(1).optional() }),
+  "modelos.cancelar": z.object({ id: z.string().min(1) }),
+  "modelos.borrar": z.object({ id: z.string().min(1) }),
+  "modelos.listar": z.object({}),
+  /** Instala llama.cpp con winget (paquete del usuario, sin administrador). Lo pide el usuario con un botón. */
+  "modelos.instalarMotor": z.object({}),
 };
 
 export type NombreMetodo = keyof typeof metodos;
@@ -209,11 +261,23 @@ export interface InfoProveedor {
   modelos: string[];
   /** Modelo que se usa si no se elige ninguno; ausente = el del propio proveedor. */
   modeloPorDefecto?: string;
+  /**
+   * Niveles de esfuerzo de razonamiento, tal como los declara el proveedor (su CLI, su catálogo o su API); nunca
+   * supuestos. Para un modelo valen los de `porModelo[modelo]` si existen, y si no los generales. Sin niveles, no hay
+   * selector. Sin `porDefecto`, el proveedor no dice cuál usa si no se pasa ninguno.
+   */
+  esfuerzo?: EsfuerzoModelo & { porModelo?: Record<string, EsfuerzoModelo> };
+}
+
+export interface EsfuerzoModelo {
+  niveles: string[];
+  porDefecto?: string;
 }
 
 export interface Ajustes {
   proveedor: string;
   modelo?: string;
+  esfuerzo?: string;
   modoAprobacion: ModoAprobacion;
   /** Carpeta de trabajo de las sesiones nuevas. */
   carpeta: string;
@@ -254,6 +318,8 @@ export interface InfoSesion {
   modoAprobacion: ModoAprobacion;
   proveedor: string;
   modelo?: string;
+  /** Esfuerzo elegido; ausente = el del modelo. */
+  esfuerzo?: string;
   /** Hay un turno en marcha. */
   trabajando: boolean;
   /** Quién la abrió si no fue la app: una tarea programada (cron) o un chat de un canal. */
@@ -293,8 +359,23 @@ export interface Diff {
   truncado?: boolean;
 }
 
+/** Un adjunto ya guardado por el núcleo (en <perfil>/adjuntos/<sesión>/). */
+export interface InfoAdjunto {
+  id: string;
+  nombre: string;
+  tipo: string;
+  bytes: number;
+  /** imagen = la ven los modelos que aceptan imágenes; documento = PDF u Office, del que se extrae el texto; texto = se lee tal cual. */
+  clase: "imagen" | "documento" | "texto" | "otro";
+  /** Caracteres de texto extraído que recibe el modelo (documentos y texto). */
+  caracteres?: number;
+  /** Ruta del fichero guardado. */
+  ruta: string;
+}
+
 export type MensajeHistorial =
-  | { rol: "usuario" | "asistente" | "resumen"; texto: string }
+  | { rol: "usuario"; texto: string; adjuntos?: InfoAdjunto[] }
+  | { rol: "asistente" | "resumen"; texto: string }
   | { rol: "herramienta"; id: string; nombre: string; resumen?: string; resultado: string; error: boolean; diffs?: Diff[] };
 
 export interface Resultados {
@@ -310,6 +391,7 @@ export interface Resultados {
   "sesion.renombrar": InfoSesion;
   "sesion.borrar": { borrada: true };
   "prompt.enviar": { aceptado: true };
+  "adjuntos.leer": { tipo: string; datos: string };
   "prompt.steer": { encolado: true };
   "prompt.parar": { parado: boolean };
   "memoria.leer": { usuario: BloqueMemoria; agente: BloqueMemoria; proyecto?: BloqueMemoria & { cwd: string }; alma: string };
@@ -325,6 +407,16 @@ export interface Resultados {
   "skills.restaurarVersion": InfoSkill;
   "skills.curar": { cambios: CambioCurador[] };
   "buscar.sesiones": { resultados: ResultadoBusqueda[] };
+  /** Ruta en el servidor del núcleo (`/vista/…`); la app le antepone http(s)://host:puerto de su conexión. */
+  "artefactos.vista": { ruta: string };
+  "artefactos.guardar": { ruta: string };
+  "modelos.buscar": { resultados: ResultadoModeloHF[] };
+  "modelos.repo": RepoModeloHF;
+  "modelos.descargar": { id: string };
+  "modelos.cancelar": { cancelada: boolean };
+  "modelos.borrar": { borrado: true };
+  "modelos.listar": EstadoModelosLocales;
+  "modelos.instalarMotor": { ruta: string };
   "aprendizaje.listar": { propuestas: Propuesta[] };
   "aprendizaje.decidir": Propuesta;
   "aprendizaje.revisar": { iniciada: boolean };
@@ -622,6 +714,66 @@ export interface Uso {
 
 export type MotivoFin = "fin" | "parado" | "limite" | "error";
 
+export interface ResultadoModeloHF {
+  repo: string;
+  descargas: number;
+  likes: number;
+  /** Hay que aceptar sus condiciones en huggingface.co y poner una clave de Hugging Face (Ajustes → Claves). */
+  protegido: boolean;
+  /** Hugging Face lo declara de imagen y texto (ve imágenes si se descarga su proyector). */
+  imagenes?: boolean;
+  actualizado?: string;
+}
+
+export interface FicheroModeloHF {
+  /** Ruta de la primera parte en el repositorio. */
+  nombre: string;
+  partes: string[];
+  bytes: number;
+  /** Del nombre del fichero (Q4_K_M, IQ3_XXS, BF16…). */
+  cuantizacion?: string;
+}
+
+export interface RepoModeloHF {
+  repo: string;
+  protegido: boolean;
+  /** Contexto de entrenamiento según los metadatos GGUF de Hugging Face. */
+  ventana?: number;
+  arquitectura?: string;
+  ficheros: FicheroModeloHF[];
+  /** Proyectores de visión (mmproj). */
+  proyectores: FicheroModeloHF[];
+}
+
+export interface ModeloLocalInfo {
+  /** `dueño/repo/ruta.gguf`: el `modelo` del proveedor `llamacpp`. */
+  id: string;
+  repo: string;
+  nombre: string;
+  bytes: number;
+  /** Tiene proyector de visión descargado: acepta imágenes. */
+  imagenes: boolean;
+}
+
+export interface ProgresoDescargaModelo {
+  id: string;
+  repo: string;
+  nombre: string;
+  bytes: number;
+  total: number;
+  estado: "descargando" | "terminada" | "error" | "cancelada";
+  error?: string;
+}
+
+export interface EstadoModelosLocales {
+  /** Carpeta donde se guardan (fuera del perfil, para que no entren en las copias). */
+  carpeta: string;
+  locales: ModeloLocalInfo[];
+  descargas: ProgresoDescargaModelo[];
+  /** llama.cpp instalado (ruta de llama-server) y modelo que tiene cargado ahora, si hay. */
+  motor: { ruta?: string; cargado?: string };
+}
+
 export interface TareaVisible {
   texto: string;
   estado: "pendiente" | "en-curso" | "hecha";
@@ -646,6 +798,10 @@ export type Evento =
   | { tipo: "mcp.actualizado" }
   | { tipo: "kanban.actualizado" }
   | { tipo: "plugins.actualizados" }
+  /** Progreso de una descarga de modelo (cada ~0,5 s y al acabar). */
+  | { tipo: "modelos.progreso"; descarga: ProgresoDescargaModelo }
+  /** Cambió la lista de modelos locales o el estado de llama.cpp. */
+  | { tipo: "modelos.actualizados" }
   | { tipo: "objetivo.evaluado"; sesionId: string; objetivo: ObjetivoSesion }
   /** El núcleo va a reiniciarse (cambio de perfil, restaurar copia): la interfaz debe reconectar. */
   | { tipo: "nucleo.reinicio"; motivo: string }
@@ -693,4 +849,6 @@ export const codigosError = {
   sesionNoExiste: 1001,
   sesionOcupada: 1002,
   sinTurno: 1003,
+  /** El fichero ya existe (artefactos.guardar sin `sobrescribir`). */
+  yaExiste: 1004,
 } as const;

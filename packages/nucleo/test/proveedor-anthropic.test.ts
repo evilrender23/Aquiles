@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { LIMITES_API } from "../src/adjuntos";
 import { ProveedorAnthropic, traducirMensajesAnthropic } from "../src/proveedores/anthropic";
 import { ErrorAbortado, ErrorProveedor, type Mensaje, type PeticionModelo } from "../src/tipos";
+import { adjuntosDePrueba } from "./ficheros-prueba";
 
 type Evento = Record<string, unknown> & { type: string };
 
@@ -235,6 +238,38 @@ describe("ProveedorAnthropic: traducción", () => {
       { rol: "usuario", texto: "sigue" },
     ]);
     expect(traducidos[1]).toEqual({ role: "assistant", content: [{ type: "text", text: "otro texto" }] });
+  });
+});
+
+describe("ProveedorAnthropic: adjuntos", () => {
+  test("la imagen va en base64 delante del texto, y el texto de los documentos dentro de <adjunto>", async () => {
+    const { foto, nota } = await adjuntosDePrueba();
+    const f = fetchFalso([sse([inicio(), ...texto(0, "Rojo."), ...fin("end_turn", 1)])]);
+    await proveedor(f).responder(peticion([{ rol: "usuario", texto: "¿Qué ves?", adjuntos: [foto, nota] }]), () => {});
+    const [usuario] = (f.cuerpos[0] as any).messages;
+    expect(usuario.content).toEqual([
+      { type: "image", source: { type: "base64", media_type: "image/png", data: readFileSync(foto.ruta).toString("base64") } },
+      {
+        type: "text",
+        text:
+          `¿Qué ves?\n\n<adjunto nombre="foto.png" tipo="image/png" ruta="${foto.ruta}">\nImagen adjunta a este mensaje.\n</adjunto>\n\n` +
+          `<adjunto nombre="nota.txt" tipo="text/plain" ruta="${nota.ruta}">\ncontenido de la nota\n</adjunto>`,
+        cache_control: { type: "ephemeral" },
+      },
+    ]);
+  });
+
+  test("como se reenvía todo en cada llamada, las imágenes antiguas se quedan en nota", async () => {
+    const { foto } = await adjuntosDePrueba();
+    const mensajes: Mensaje[] = [];
+    for (let i = 0; i < LIMITES_API.mensajes + 1; i++) {
+      mensajes.push({ rol: "usuario", texto: `foto ${i}`, adjuntos: [{ ...foto, id: `f${i}` }] }, { rol: "asistente", texto: "vista", llamadas: [] });
+    }
+    const traducidos = traducirMensajesAnthropic(mensajes);
+    const usuarios = traducidos.filter((m) => m.role === "user").map((m) => m.content as any[]);
+    expect(usuarios[0]!.map((b) => b.type)).toEqual(["text"]);
+    expect(usuarios[0]![0].text).toContain("Imagen de un mensaje anterior que ya no se reenvía.");
+    for (const u of usuarios.slice(1)) expect(u.map((b) => b.type)).toEqual(["image", "text"]);
   });
 });
 
