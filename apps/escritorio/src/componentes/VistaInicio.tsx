@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { esfuerzoTrasCambio } from "../estado/esfuerzo";
 import { carpetasRecientes } from "../estado/formato";
+import { useFuenteComandos } from "./Comandos";
 import { Compositor } from "./Compositor";
 import { SelectorCarpeta, SelectorEsfuerzo, SelectorModelo, SelectorPermisos } from "./Selectores";
 
@@ -24,6 +25,7 @@ export function VistaInicio() {
     async (consulta: string) => (carpeta ? (await llamar("ficheros.buscar", { cwd: carpeta, consulta })).ficheros : []),
     [carpeta, llamar],
   );
+  const comandos = useFuenteComandos();
   const listo = conexion === "conectada" && !!ajustes;
 
   return (
@@ -42,6 +44,7 @@ export function VistaInicio() {
           placeholder="Describe qué quieres que haga"
           textoEnviar="Empezar"
           buscarFicheros={buscarFicheros}
+          comandos={comandos}
           filas={3}
           deshabilitado={!listo}
           dictar={voz?.dictado ? async () => (await llamar("voz.dictar", {})).texto : undefined}

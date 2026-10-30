@@ -5,6 +5,7 @@ import { type ArtefactosSesion, recogerArtefactos, renderizable } from "../estad
 import { conversacionVacia } from "../estado/conversacion";
 import { esfuerzoTrasCambio } from "../estado/esfuerzo";
 import { ArtefactosHilo, type ContextoArtefactos, PanelArtefacto, type PestanaArtefacto } from "./Artefactos";
+import { useFuenteComandos } from "./Comandos";
 import { Compositor } from "./Compositor";
 import { Hilo } from "./Hilo";
 import { PanelObjetivo } from "./Objetivo";
@@ -62,6 +63,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
   const conectada = estado.conexion === "conectada";
   const cwd = sesion?.cwd;
   const buscarFicheros = useCallback(async (consulta: string) => (cwd ? (await llamar("ficheros.buscar", { cwd, consulta })).ficheros : []), [cwd, llamar]);
+  const comandos = useFuenteComandos(sesionId);
 
   // App monta una vista por sesión (key), así que esto empieza pegado abajo en cada una.
   const desplazable = useRef<HTMLDivElement>(null);
@@ -160,6 +162,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
             placeholder="Escribe una instrucción"
             textoEnviar="Enviar"
             buscarFicheros={buscarFicheros}
+            comandos={comandos}
             deshabilitado={!conectada || conversacion.cargando}
             trabajando={trabajando}
             alEnviar={(t, adjuntos) => enviar(sesionId, t, adjuntos)}

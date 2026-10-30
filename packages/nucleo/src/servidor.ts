@@ -29,9 +29,10 @@ import type { ServerWebSocket } from "bun";
 import { type AdjuntoEntrante, borrarAdjuntos, carpetaAdjuntos, ErrorAdjunto, guardarAdjuntos, leerAdjunto } from "./adjuntos";
 import { AJUSTES_HERRAMIENTAS, AlmacenAjustes } from "./ajustes";
 import { FicheroYaExiste, guardarArtefacto, VistasArtefactos } from "./artefactos";
-import { AJUSTES_APRENDIZAJE, Aprendizaje, instruccionAprender } from "./aprendizaje";
+import { AJUSTES_APRENDIZAJE, Aprendizaje } from "./aprendizaje";
 import { ejecutarTurno, type PeticionAprobacion, type RespuestaAprobacion, type ResultadoTurno } from "./bucle";
 import { ErrorCanal } from "./canales/canal";
+import { Comandos } from "./comandos";
 import { abrirConocimiento } from "./conocimiento";
 import { Programador } from "./cron";
 import { ErrorCron, interpretar, proximas } from "./cron-expresiones";
@@ -452,6 +453,11 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     .finally(() => programador.iniciar());
 
   const objetivos = new Objetivos({ motor, proveedorJuez: (id) => proveedorDe(obtener(id)), emitir, log });
+  const comandos = new Comandos({
+    skills, objetivos, aprendizaje, sesiones, proveedorDe, emitir, avisar,
+    turno: (s, texto, adjuntos) => void ejecutarConAdjuntos(s, texto, { aprobar: aprobarEnApp(s), preguntar: preguntarEnApp(s) }, adjuntos),
+    carpetaPorDefecto: () => ajustes.leer().carpeta,
+  });
   const kanban = new Kanban({ dir: o.perfil, motor, cwdPorDefecto: o.cwdPorDefecto });
   const plugins = new Plugins({ dir: o.perfil, alCambiar: () => emitir({ tipo: "plugins.actualizados" }), log });
   void plugins.cargar().catch((e) => log(`plugins: ${e instanceof Error ? e.message : e}`));
@@ -575,12 +581,10 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       // Cada `@ruta` que es un fichero de la carpeta de la sesión va como adjunto.
       const todos = await conMenciones(texto, s.cwd, adjuntos ?? []);
       const guardados = todos.length ? await guardarEn(s, todos) : undefined;
-      const orden = /^\/aprender(?:\s+([\s\S]+))?$/.exec(texto.trim());
-      if (orden && !orden[1] && !guardados) return revisarComoTurno(s, texto);
-      if (orden) aprendizaje.aprendiendo.add(s.id);
-      // `/aprender` con adjuntos y sin más: la fuente son los adjuntos.
-      const pedido = orden ? instruccionAprender(orden[1]?.trim() || "los ficheros adjuntos a este mensaje") : texto;
-      void ejecutarConAdjuntos(s, pedido, { aprobar: aprobarEnApp(s), preguntar: preguntarEnApp(s) }, guardados);
+      // `/nombre …`: un comando de Aquiles o de una skill (comandos.ts); si no es ninguno, va como texto.
+      if (!comandos.ejecutar(s, texto, guardados)) {
+        void ejecutarConAdjuntos(s, texto, { aprobar: aprobarEnApp(s), preguntar: preguntarEnApp(s) }, guardados);
+      }
       return { aceptado: true };
     },
     "adjuntos.leer": async ({ sesionId, id }) => {
@@ -711,14 +715,12 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       return { ruta };
     },
     "buscar.sesiones": ({ consulta, limite }) => ({ resultados: indice.buscar(consulta, limite) }),
-    // Provisionales: los conectan los módulos de documentos y de comandos.
+    "comandos.listar": ({ sesionId }) => ({ comandos: comandos.listar(sesionId ? obtener(sesionId) : undefined) }),
+    // Provisionales: los conecta el módulo de documentos.
     "documentos.leer": () => {
       throw new FalloRpc(codigosError.metodoNoExiste, "Todavía no disponible");
     },
     "documentos.exportar": () => {
-      throw new FalloRpc(codigosError.metodoNoExiste, "Todavía no disponible");
-    },
-    "comandos.listar": () => {
       throw new FalloRpc(codigosError.metodoNoExiste, "Todavía no disponible");
     },
     "ficheros.buscar": async ({ cwd, consulta, limite }) => {
@@ -836,40 +838,6 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     const r = comoParams(f);
     emitir({ tipo: "skills.actualizadas" });
     return r;
-  }
-
-  /** `/aprender` sin fuente: revisa la conversación entera ahora y lo cuenta como un turno. */
-  function revisarComoTurno(s: Sesion, texto: string): { aceptado: true } {
-    const usuario: Mensaje = { rol: "usuario", texto };
-    s.mensajes.push(usuario);
-    sesiones.anotar(s, usuario);
-    const control = new AbortController();
-    s.turno = control;
-    avisar(s);
-    void aprendizaje
-      .revisar(s, { completa: true })
-      .then((r) => {
-        const respuesta =
-          r.estado === "hecha"
-            ? [
-                r.aplicadas ? `He guardado ${r.aplicadas} ${r.aplicadas === 1 ? "cambio" : "cambios"}.` : "",
-                r.propuestas ? `Hay ${r.propuestas} ${r.propuestas === 1 ? "propuesta" : "propuestas"} esperando en Memoria → Propuestas.` : "",
-                r.texto.trim(),
-              ].filter(Boolean).join("\n\n")
-            : r.estado === "omitida"
-              ? `No he revisado nada: ${r.motivo}.`
-              : `La revisión falló: ${r.error}`;
-        emitir({ tipo: "mensaje.delta", sesionId: s.id, texto: respuesta });
-        const asistente: Mensaje = { rol: "asistente", texto: respuesta, llamadas: [] };
-        s.mensajes.push(asistente);
-        sesiones.anotar(s, asistente);
-        emitir({ tipo: "turno.fin", sesionId: s.id, motivo: "fin", texto: respuesta, uso: { entrada: 0, salida: 0 } });
-      })
-      .finally(() => {
-        if (s.turno === control) s.turno = undefined;
-        avisar(s);
-      });
-    return { aceptado: true };
   }
 
   const atender = async (bruto: string): Promise<RespuestaRpc | undefined> => {
