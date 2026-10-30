@@ -112,6 +112,43 @@ test("el núcleo pide aprobación a la interfaz y respeta la respuesta", async (
   ws.close();
 });
 
+test("una ventana que no atiende la petición (entrada rápida) no le gana a la que sí", async () => {
+  // Como rpc.ts de la app sin atendedor: contesta enseguida -32601.
+  const rapida = await conectar();
+  let declinadas = 0;
+  rapida.onmessage = (m) => {
+    const d = JSON.parse(String(m.data));
+    if (d.method && typeof d.id === "string") {
+      declinadas++;
+      rapida.send(JSON.stringify({ jsonrpc: "2.0", id: d.id, error: { code: -32601, message: `La interfaz no atiende ${d.method}` } }));
+    }
+  };
+  const ws = await conectar();
+  const c = rpc(ws, async (_metodo, _params) => {
+    await Bun.sleep(30);
+    return { decision: "permitir" };
+  });
+  const { result: s } = await c.llamar("sesion.crear", {});
+  await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "haz eco" });
+  expect(await c.esperarFin()).toMatchObject({ motivo: "fin", texto: "resultado: 1 líneas, error=false" });
+  expect(declinadas).toBe(1);
+  ws.close();
+
+  // Si ninguna la atiende, la herramienta falla con ese motivo en vez de esperar para siempre.
+  const sola = rpc(rapida);
+  rapida.onmessage = ((original) => (m: MessageEvent) => {
+    const d = JSON.parse(String(m.data));
+    if (d.method && typeof d.id === "string")
+      rapida.send(JSON.stringify({ jsonrpc: "2.0", id: d.id, error: { code: -32601, message: `La interfaz no atiende ${d.method}` } }));
+    else original?.call(rapida, m);
+  })(rapida.onmessage);
+  await Bun.sleep(20);
+  const { result: s2 } = await sola.llamar("sesion.crear", {});
+  await sola.llamar("prompt.enviar", { sesionId: s2.sesionId, texto: "haz eco" });
+  expect(await sola.esperarFin()).toMatchObject({ motivo: "fin", texto: "resultado: 1 líneas, error=true" });
+  rapida.close();
+});
+
 test("ajustes, ajustar, renombrar, borrar y sesion.actualizada", async () => {
   const ws = await conectar();
   const c = rpc(ws);
@@ -138,7 +175,8 @@ test("ajustes, ajustar, renombrar, borrar y sesion.actualizada", async () => {
   expect((await c.llamar("ajustes.clave", { proveedor: "simulado", clave: "x" })).error.code).toBe(-32602);
   await c.llamar("ajustes.guardar", { carpeta: cwd, modoAprobacion: "preguntar-ejecutar" });
   ws.close();
-});
+  // proveedores.listar pregunta de verdad a los CLI instalados (agy, claude, codex) y a Ollama: la primera vez tarda segundos.
+}, 30_000);
 
 test("errores JSON-RPC", async () => {
   const ws = await conectar();

@@ -120,7 +120,8 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
   const clientes = new Set<ServerWebSocket<unknown>>();
   const origenes = o.origenesPermitidos ?? ORIGENES_APP;
   const log = o.log ?? (() => {});
-  const pendientes = new Map<string, { ok: (r: unknown) => void; mal: (e: Error) => void }>();
+  /** Peticiones nuestras a la interfaz; `faltan` = clientes que aún pueden contestar. */
+  const pendientes = new Map<string, { ok: (r: unknown) => void; mal: (e: Error) => void; faltan: number }>();
   let siguiente = 0;
 
   const emitir = (evento: Evento) => {
@@ -149,7 +150,10 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     }
   };
 
-  /** Pide algo a la interfaz; responde el primer cliente que conteste. */
+  /**
+   * Pide algo a la interfaz; vale la primera respuesta de un cliente que la atienda. Un cliente que no la atiende
+   * (-32601: la ventana de entrada rápida, un editor por ACP…) no cuenta; solo si no la atiende ninguno, falla.
+   */
   const pedirCliente = <M extends NombrePeticionCliente>(
     metodo: M,
     params: PeticionesCliente[M]["params"],
@@ -158,7 +162,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     if (clientes.size === 0) return Promise.reject(new Error("No hay ninguna interfaz conectada para responder"));
     const id = `n${++siguiente}`;
     return new Promise((ok, mal) => {
-      pendientes.set(id, { ok: ok as (r: unknown) => void, mal });
+      pendientes.set(id, { ok: ok as (r: unknown) => void, mal, faltan: clientes.size });
       senal.addEventListener("abort", () => pendientes.delete(id) && mal(new Error("turno parado")), { once: true });
       const texto = JSON.stringify({ jsonrpc: "2.0", id, method: metodo, params });
       for (const ws of clientes) ws.send(texto);
@@ -862,6 +866,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     // Respuesta del cliente a una petición nuestra.
     if (typeof id === "string" && pendientes.has(id) && peticion.method === undefined) {
       const p = pendientes.get(id)!;
+      if (peticion.error?.code === codigosError.metodoNoExiste && --p.faltan > 0) return undefined;
       pendientes.delete(id);
       if (peticion.error) p.mal(new Error(peticion.error.message));
       else p.ok(peticion.result);
