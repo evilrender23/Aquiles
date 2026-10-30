@@ -136,6 +136,10 @@ fn lanzar(app: &AppHandle, token: &str, perfil: &str, generacion: u64, avisar: b
     if let Ok(carpeta) = app.path().home_dir() {
         orden = orden.current_dir(carpeta);
     }
+    #[cfg(target_os = "macos")]
+    if let Some(path) = path_de_la_shell() {
+        orden = orden.env("PATH", path);
+    }
     // Se leen en cada lanzamiento: una clave guardada en Ajustes vale tras el siguiente reinicio.
     for (nombre, variable) in llavero::CLAVES {
         if let Some(clave) = llavero::leer(nombre) {
@@ -171,6 +175,38 @@ fn lanzar(app: &AppHandle, token: &str, perfil: &str, generacion: u64, avisar: b
         }
     });
     Ok(hijo)
+}
+
+/// Abierta desde el Finder o el Dock, la app hereda un PATH mínimo (/usr/bin:/bin…) y el núcleo
+/// no encontraría `claude`, `codex`, `agy`, `git` ni lo de Homebrew. Se pide el de la shell del
+/// usuario una vez, con sus ficheros de inicio; las marcas separan el PATH de lo que impriman.
+#[cfg(target_os = "macos")]
+fn path_de_la_shell() -> Option<String> {
+    use std::process::{Command, Stdio};
+    use std::sync::OnceLock;
+    static PATH: OnceLock<Option<String>> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+        let mut hijo = Command::new(shell)
+            .args(["-ilc", "printf '<<PATH>>%s<<PATH>>' \"$PATH\""])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        let inicio = Instant::now();
+        while hijo.try_wait().ok()?.is_none() {
+            if inicio.elapsed() > Duration::from_secs(5) {
+                let _ = hijo.kill();
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let salida = String::from_utf8_lossy(&hijo.wait_with_output().ok()?.stdout).into_owned();
+        let path = salida.split("<<PATH>>").nth(1)?.trim();
+        (!path.is_empty()).then(|| path.to_string())
+    })
+    .clone()
 }
 
 fn listo(app: &AppHandle, generacion: u64, url: String, avisar: bool) {

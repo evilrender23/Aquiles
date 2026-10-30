@@ -1,6 +1,6 @@
 # Aquiles
 
-Agente personal para Windows con app de escritorio. Trabaja con tus ficheros y tu terminal, recuerda lo que aprende y puede ejecutar tareas por su cuenta. Tiene dos partes:
+Agente personal para Windows (y Mac) con app de escritorio. Trabaja con tus ficheros y tu terminal, recuerda lo que aprende y puede ejecutar tareas por su cuenta. Tiene dos partes:
 - el **núcleo**, que es el agente, en TypeScript sobre Bun;
 - la **app**, en Tauri 2 y React.
 
@@ -61,6 +61,36 @@ La app se mantiene al día sola: cuando `main` tiene commits nuevos, los compila
 - en Ajustes → Aplicación.
 
 Una copia suelta de la app (sin instalar) ofrece ahí «Instalar con actualizaciones».
+
+### En Mac
+
+En la Terminal, clona el repositorio y ejecuta el instalador:
+
+```bash
+git clone https://github.com/evilrender23/Aquiles.git
+bash Aquiles/instalar.sh
+```
+
+Si el repositorio es público, basta con una línea:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/evilrender23/Aquiles/main/instalar.sh | bash
+```
+
+Hace lo mismo que en Windows:
+1. Comprueba los requisitos: las herramientas de línea de comandos de Xcode (traen Git), Bun y Rust. Si falta alguno, pregunta antes de instalarlo.
+2. Descarga la rama `main` en `~/Library/Application Support/Aquiles/codigo`.
+3. La compila y la instala en `/Applications/Aquiles.app` (en `~/Applications` si no se puede escribir en `/Applications`).
+
+Se actualiza sola igual que en Windows. Opciones: `--repo`, `--rama`, `--destino` y `--app`.
+
+Para compilarla sin instalar: `bun run app:mac` deja `Aquiles.app` y un `.dmg` en `apps/escritorio/src-tauri/target/release/bundle/`. Va firmada solo en local (ad hoc), así que en otro Mac hay que abrirla la primera vez con clic derecho → Abrir.
+
+En Mac no hay todavía:
+- voz (usa System.Speech de Windows);
+- instalación automática de llama.cpp y Docker (si ya están en el PATH, se usan).
+
+El núcleo recibe el PATH de tu shell (`~/.zshrc` y compañía), así que encuentra `claude`, `codex`, `agy` y lo de Homebrew aunque abras la app desde el Dock. El control del navegador usa Microsoft Edge si está en Aplicaciones. Los datos van en `~/.config/Aquiles`.
 
 Para hablar con un modelo hace falta al menos una de estas cosas:
 - `agy`, `claude` o Codex instalado y con la sesión iniciada;

@@ -6,6 +6,9 @@
 //!   instalar en `%LOCALAPPDATA%\Aquiles` con el `instalar.ps1` que lleva dentro, y desde ahí sí.
 //! - Para saber si hay algo nuevo se hace `git fetch` en el clon: vale para un repo privado, con
 //!   las credenciales que ya tenga Git (Git Credential Manager, GitHub Desktop).
+//! - En Mac hace lo mismo `instalar.sh`: el clon en `~/Library/Application Support/Aquiles/codigo`,
+//!   la app en `/Applications/Aquiles.app` y `version.json` en su `Contents/Resources`, que dice
+//!   también dónde está `<Destino>`.
 //! - Para actualizar se lanza `codigo\instalar.ps1 -Actualizar -EsperarPid <este> -Relanzar`
 //!   oculto. Compila en `app.nuevo` y escribe `LISTO`; cuando la app sale, cambia las carpetas
 //!   y la vuelve a abrir. Aquí se va leyendo su registro y se emite el progreso.
@@ -26,19 +29,28 @@ use crate::{config, nucleo};
 
 const RAMA: &str = "main";
 /// El instalador va dentro de la app: una copia de desarrollo no tiene clon del que sacarlo.
+#[cfg(windows)]
 const INSTALADOR: &str = include_str!("../../../../instalar.ps1");
+#[cfg(not(windows))]
+const INSTALADOR: &str = include_str!("../../../../instalar.sh");
+const NOMBRE_INSTALADOR: &str = if cfg!(windows) { "instalar.ps1" } else { "instalar.sh" };
 const LIMITE_GIT: Duration = Duration::from_secs(45);
 const PRIMERA_COMPROBACION: Duration = Duration::from_secs(60);
 const CADA: Duration = Duration::from_secs(6 * 60 * 60);
 const LEER_REGISTRO_CADA: Duration = Duration::from_millis(500);
 /// Sin ventana de consola para powershell y git, ni para lo que lancen ellos.
+#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+#[cfg(windows)]
 const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 
 #[derive(Debug, PartialEq, Deserialize)]
 struct VersionInstalada {
     commit: String,
     rama: String,
+    /// Solo en Mac, donde la app no está dentro de `<Destino>`.
+    #[serde(default)]
+    destino: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -184,13 +196,32 @@ fn carpeta_del_exe() -> Option<PathBuf> {
     std::env::current_exe().ok()?.parent().map(Path::to_path_buf)
 }
 
+/// Junto al .exe en Windows; en Mac, en `Contents/Resources` del .app (el ejecutable está en `Contents/MacOS`).
 fn version_instalada() -> Option<VersionInstalada> {
-    interpretar_version(&fs::read_to_string(carpeta_del_exe()?.join("version.json")).ok()?)
+    let exe = carpeta_del_exe()?;
+    let ruta = if cfg!(target_os = "macos") { exe.parent()?.join("Resources") } else { exe };
+    interpretar_version(&fs::read_to_string(ruta.join("version.json")).ok()?)
 }
 
-/// El clon con el que se compara: `<Destino>\codigo`.
-fn clon() -> Option<PathBuf> {
-    carpeta_del_exe()?.parent().map(|destino| destino.join("codigo"))
+/// `<Destino>` de una versión instalada: el que diga `version.json` o, en Windows, el padre de `app\`.
+fn destino_instalado(version: &VersionInstalada) -> Option<PathBuf> {
+    version.destino.clone().or_else(|| carpeta_del_exe()?.parent().map(Path::to_path_buf))
+}
+
+/// Donde instala el instalador si no se le dice otra cosa.
+fn destino_por_defecto() -> Result<PathBuf, String> {
+    if cfg!(windows) {
+        let local = std::env::var_os("LOCALAPPDATA").ok_or("No se encuentra %LOCALAPPDATA%")?;
+        return Ok(PathBuf::from(local).join("Aquiles"));
+    }
+    let casa = std::env::var_os("HOME").ok_or("No se encuentra la carpeta de usuario")?;
+    Ok(PathBuf::from(casa).join("Library").join("Application Support").join("Aquiles"))
+}
+
+/// El .app en el que va este ejecutable (`Aquiles.app/Contents/MacOS/aquiles`).
+#[cfg(target_os = "macos")]
+fn paquete_app() -> Option<PathBuf> {
+    carpeta_del_exe()?.parent()?.parent().map(Path::to_path_buf)
 }
 
 fn buscar() -> Result<InfoActualizacion, String> {
@@ -198,7 +229,7 @@ fn buscar() -> Result<InfoActualizacion, String> {
     let Some(version) = version_instalada() else {
         return Ok(InfoActualizacion { actual: None, ultimo: String::new(), fecha: None, mensaje: None, hay_nueva: false, desarrollo: true });
     };
-    let clon = clon().ok_or("No se encuentra el código de Aquiles")?;
+    let clon = destino_instalado(&version).ok_or("No se encuentra el código de Aquiles")?.join("codigo");
     comparar(&clon, Some(version))
 }
 
@@ -219,33 +250,33 @@ fn comparar(clon: &Path, version: Option<VersionInstalada>) -> Result<InfoActual
     })
 }
 
-/// `<Destino>`: la carpeta que tiene `app\` (donde está este .exe) y `codigo\`. En una copia de
-/// desarrollo, donde la instala `instalar.ps1` por defecto: actualizarla es instalarse ahí.
+/// `<Destino>`: la carpeta que tiene `codigo\` (y en Windows `app\`, donde está este .exe). En una
+/// copia de desarrollo, donde instala el instalador por defecto: actualizarla es instalarse ahí.
 fn destino() -> Result<PathBuf, String> {
-    if version_instalada().is_none() {
-        let local = std::env::var_os("LOCALAPPDATA").ok_or("No se encuentra %LOCALAPPDATA%")?;
-        return Ok(PathBuf::from(local).join("Aquiles"));
-    }
-    let destino = carpeta_del_exe().and_then(|app| app.parent().map(Path::to_path_buf)).ok_or("No se encuentra la carpeta de Aquiles")?;
-    if !destino.join(r"codigo\instalar.ps1").exists() {
-        return Err(format!("Falta {}: vuelve a instalar Aquiles con instalar.ps1", destino.join(r"codigo\instalar.ps1").display()));
+    let Some(version) = version_instalada() else {
+        return destino_por_defecto();
+    };
+    let destino = destino_instalado(&version).ok_or("No se encuentra la carpeta de Aquiles")?;
+    let instalador = destino.join("codigo").join(NOMBRE_INSTALADOR);
+    if !instalador.exists() {
+        return Err(format!("Falta {}: vuelve a instalar Aquiles con {NOMBRE_INSTALADOR}", instalador.display()));
     }
     Ok(destino)
 }
 
-/// El `instalar.ps1` del clon o, si aún no lo hay (copia de desarrollo), el que lleva la app.
+/// El instalador del clon o, si aún no lo hay (copia de desarrollo), el que lleva la app.
 fn instalador(destino: &Path) -> Result<PathBuf, String> {
-    let del_clon = destino.join(r"codigo\instalar.ps1");
+    let del_clon = destino.join("codigo").join(NOMBRE_INSTALADOR);
     if del_clon.exists() {
         return Ok(del_clon);
     }
-    let temporal = std::env::temp_dir().join("aquiles-instalar.ps1");
+    let temporal = std::env::temp_dir().join(format!("aquiles-{NOMBRE_INSTALADOR}"));
     fs::write(&temporal, INSTALADOR).map_err(|e| format!("No se pudo preparar el instalador: {e}"))?;
     Ok(temporal)
 }
 
 fn registro(destino: &Path) -> PathBuf {
-    destino.join(r"registro\actualizacion.log")
+    destino.join("registro").join("actualizacion.log")
 }
 
 fn cambiar_estado(app: &AppHandle, estado: Estado) {
@@ -263,22 +294,40 @@ fn instalar(app: &AppHandle) -> Result<(), String> {
     let rama = version_instalada().map_or(RAMA.into(), |v| v.rama);
     // El de una actualización anterior no debe leerse como de esta.
     let _ = fs::remove_file(registro(&destino));
-    let mut orden = orden_oculta("powershell.exe");
-    orden
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-        .arg(instalador(&destino)?)
-        .args(["-Actualizar", "-Destino"])
-        .arg(&destino)
-        .args(["-Rama", &rama, "-EsperarPid", &std::process::id().to_string(), "-Relanzar"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+    let pid = std::process::id().to_string();
     #[cfg(windows)]
-    {
+    let mut orden = {
         use std::os::windows::process::CommandExt;
+        let mut orden = orden_oculta("powershell.exe");
+        orden
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+            .arg(instalador(&destino)?)
+            .args(["-Actualizar", "-Destino"])
+            .arg(&destino)
+            .args(["-Rama", &rama, "-EsperarPid", &pid, "-Relanzar"]);
         // Su propio grupo: sigue vivo cuando esta app sale, que es cuando cambia las carpetas.
         orden.creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
-    }
-    let instalador = orden.spawn().map_err(|e| format!("No se pudo lanzar instalar.ps1: {e}"))?;
+        orden
+    };
+    #[cfg(not(windows))]
+    let mut orden = {
+        use std::os::unix::process::CommandExt;
+        let mut orden = orden_oculta("/bin/bash");
+        orden
+            .arg(instalador(&destino)?)
+            .args(["--actualizar", "--destino"])
+            .arg(&destino)
+            .args(["--rama", &rama, "--esperar-pid", &pid, "--relanzar"]);
+        // La instalada se sustituye a sí misma; una copia de desarrollo va a /Applications.
+        #[cfg(target_os = "macos")]
+        if let Some(app) = version_instalada().and(paquete_app()) {
+            orden.arg("--app").arg(app);
+        }
+        orden.process_group(0);
+        orden
+    };
+    orden.stdout(Stdio::null()).stderr(Stdio::null());
+    let instalador = orden.spawn().map_err(|e| format!("No se pudo lanzar {NOMBRE_INSTALADOR}: {e}"))?;
     *estado = Estado::Compilando { paso: 0, total: 0, texto: "Empezando".into() };
     drop(estado);
     eprintln!("[aquiles] compilando la actualización (registro en {})", registro(&destino).display());
@@ -419,7 +468,7 @@ pub fn al_salir(app: &AppHandle) {
     let pendiente = matches!(*actualizacion.estado.lock().unwrap(), Estado::Compilando { .. } | Estado::Lista { .. });
     if pendiente && !actualizacion.aplicando.load(Ordering::SeqCst) {
         if let Ok(destino) = destino() {
-            let _ = fs::write(destino.join(r"registro\no-relanzar"), "");
+            let _ = fs::write(destino.join("registro").join("no-relanzar"), "");
         }
     }
 }
@@ -471,10 +520,13 @@ mod pruebas {
     #[test]
     fn version_json_con_y_sin_bom() {
         let texto = r#"{ "commit": "76c3759aa1", "fecha": "2026-10-30T12:59:20+01:00", "rama": "main", "repo": "C:\\Repos\\Aquiles" }"#;
-        let esperada = VersionInstalada { commit: "76c3759aa1".into(), rama: "main".into() };
+        let esperada = VersionInstalada { commit: "76c3759aa1".into(), rama: "main".into(), destino: None };
         assert_eq!(interpretar_version(texto), Some(esperada));
         assert!(interpretar_version(&format!("\u{feff}{texto}")).is_some());
         assert_eq!(interpretar_version("{}"), None);
+        // El de instalar.sh dice también dónde está <Destino>.
+        let mac = r#"{ "commit": "76c3759aa1", "rama": "main", "destino": "/Users/yo/Library/Application Support/Aquiles" }"#;
+        assert_eq!(interpretar_version(mac).unwrap().destino, Some(PathBuf::from("/Users/yo/Library/Application Support/Aquiles")));
     }
 
     #[test]
@@ -510,7 +562,7 @@ mod pruebas {
         en(&remoto, &["init", "-q", "-b", "main"]);
         let primero = commit(&remoto, "Primero");
         en(&base, &["clone", "-q", remoto.to_str().unwrap(), "clon"]);
-        let instalada = |commit: &str| Some(VersionInstalada { commit: commit.into(), rama: "main".into() });
+        let instalada = |commit: &str| Some(VersionInstalada { commit: commit.into(), rama: "main".into(), destino: None });
 
         let info = comparar(&copia, instalada(&primero)).unwrap();
         assert!(!info.hay_nueva && !info.desarrollo);

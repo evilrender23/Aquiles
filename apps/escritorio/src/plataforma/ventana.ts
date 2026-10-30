@@ -3,7 +3,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import { enTauri } from "./tauri";
 
-export const minimizar = () => (enTauri() ? getCurrentWindow().minimize() : Promise.resolve());
+/** En Mac la ventana lleva los semáforos del sistema sobre la barra propia (titleBarStyle Overlay). */
+export const esMac = enTauri() && navigator.userAgent.includes("Mac");
+
+export const minimizar =() => (enTauri() ? getCurrentWindow().minimize() : Promise.resolve());
 export const alternarMaximizar = () => (enTauri() ? getCurrentWindow().toggleMaximize() : Promise.resolve());
 export const cerrarVentana = () => (enTauri() ? getCurrentWindow().close() : Promise.resolve());
 

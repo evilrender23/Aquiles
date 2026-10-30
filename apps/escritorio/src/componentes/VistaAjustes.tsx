@@ -6,6 +6,7 @@ import { esfuerzoTrasCambio } from "../estado/esfuerzo";
 import type { PestanaAjustes } from "../estado/tipos";
 import { hayClaveLlavero } from "../plataforma/claves";
 import { enTauri } from "../plataforma/tauri";
+import { esMac } from "../plataforma/ventana";
 import { Actualizaciones, Arranque, Atajo, Copias, Perfiles, Remoto, SeccionPlugins } from "./Aplicacion";
 import { CampoCarpeta, OpcionesChip, OpcionesPermisos, ProveedorModelo } from "./Campos";
 import { SeccionMcp } from "./Mcp";
@@ -193,8 +194,8 @@ function General({ form, cambiar }: PropsPestana) {
         </Ajuste>
       </Grupo>
       {tauri && (
-        <Grupo titulo="Windows">
-          <Ajuste titulo="Arrancar con Windows" descripcion="Se queda en la bandeja al iniciar sesión, para que las tareas programadas y los canales sigan.">
+        <Grupo titulo={esMac ? "Mac" : "Windows"}>
+          <Ajuste titulo={esMac ? "Abrir al iniciar sesión" : "Arrancar con Windows"} descripcion={`Se queda en ${esMac ? "la barra de menús" : "la bandeja"} al iniciar sesión, para que las tareas programadas y los canales sigan.`}>
             <Arranque />
           </Ajuste>
           <Ajuste titulo="Entrada rápida" descripcion="Un atajo de teclado que abre una caja para dar una tarea desde cualquier sitio.">
@@ -235,7 +236,7 @@ function Modelos({ form, cambiar }: PropsPestana) {
           alEsfuerzo={(esfuerzo) => cambiar({ esfuerzo }, { esfuerzo })}
         />
       </Grupo>
-      <Grupo titulo="Claves de API" descripcion="Se guardan en el almacén de credenciales de Windows, no en ficheros.">
+      <Grupo titulo="Claves de API" descripcion={`Se guardan en ${esMac ? "el llavero de macOS" : "el almacén de credenciales de Windows"}, no en ficheros.`}>
         <div className="ajustes__claves">
           {conClave.map((p) => (
             <CampoClave key={p.id} id={p.id} nombre={p.nombre} disponible={p.disponible} />

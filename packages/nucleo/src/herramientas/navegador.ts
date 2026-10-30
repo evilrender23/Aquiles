@@ -182,6 +182,10 @@ export async function cerrarNavegador(): Promise<void> {
 }
 
 export function buscarEdge(): string | undefined {
+  if (process.platform === "darwin") {
+    const mac = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge";
+    return existsSync(mac) ? mac : undefined;
+  }
   const env = process.env;
   return [env["ProgramFiles(x86)"], env.ProgramFiles, env.LOCALAPPDATA]
     .filter((r): r is string => !!r)

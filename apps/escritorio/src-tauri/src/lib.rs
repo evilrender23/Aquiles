@@ -57,10 +57,14 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("no se pudo iniciar Aquiles")
-        .run(|app, evento| {
-            if let RunEvent::Exit = evento {
+        .run(|app, evento| match evento {
+            RunEvent::Exit => {
                 actualizaciones::al_salir(app);
                 nucleo::parar(app);
             }
+            // En Mac, el clic en el icono del Dock con la ventana escondida la vuelve a abrir.
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen { .. } => ventanas::mostrar_ventana_principal(app),
+            _ => {}
         });
 }

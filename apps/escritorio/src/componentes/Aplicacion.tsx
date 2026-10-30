@@ -31,6 +31,7 @@ import {
   remotoActual,
 } from "../plataforma/aplicacion";
 import { enTauri } from "../plataforma/tauri";
+import { esMac } from "../plataforma/ventana";
 import { ConfirmarBorrado } from "./Campos";
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -126,7 +127,7 @@ export function Arranque() {
   return (
     <>
       <Interruptor
-        aria-label="Arrancar con Windows"
+        aria-label={esMac ? "Abrir al iniciar sesión" : "Arrancar con Windows"}
         activo={!!activo}
         disabled={activo === undefined}
         alCambiar={async (a) => {
@@ -249,7 +250,8 @@ export function Actualizaciones() {
       <div className="aplicacion__fila">
         {info && <span className="aplicacion__dato">{info.desarrollo ? "Compilación de desarrollo" : info.actual ? `Versión ${info.actual}` : "Versión desconocida"}</span>}
         {info?.desarrollo ? (
-          // Una copia suelta no se actualiza: se instala desde main (%LOCALAPPDATA%\Aquiles) y esa sí.
+          // Una copia suelta no se actualiza: se instala desde main (%LOCALAPPDATA%\Aquiles o, en Mac,
+          // /Applications) y esa sí.
           estado.fase !== "compilando" &&
           estado.fase !== "lista" && (
             <Boton variante="acento" tamano="pequeno" onClick={() => void actuar(instalarActualizacion)}>

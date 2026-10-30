@@ -60,6 +60,15 @@ body {
   flex: 1 1 auto;
   align-self: stretch;
 }
+/* Mac: los semáforos del sistema quedan arriba a la izquierda, sobre la barra lateral. */
+.app--mac .lateral {
+  padding-top: 52px;
+}
+@media (max-width: 760px) {
+  .app--mac .barra-titulo {
+    padding-left: 84px;
+  }
+}
 
 .aviso-conexion {
   display: flex;

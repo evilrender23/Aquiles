@@ -12,6 +12,9 @@
     "cli": "bun packages/nucleo/src/main.ts --cli",
     "compilar:nucleo": "bun build packages/nucleo/src/main.ts --compile --outfile apps/escritorio/src-tauri/binaries/aquiles-nucleo-x86_64-pc-windows-msvc.exe",
     "escritorio": "bun run compilar:nucleo && cd apps/escritorio && bun run tauri dev",
+    "compilar:nucleo:mac": "bun build packages/nucleo/src/main.ts --compile --outfile apps/escritorio/src-tauri/binaries/aquiles-nucleo-aarch64-apple-darwin",
+    "escritorio:mac": "bun run compilar:nucleo:mac && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri dev",
+    "app:mac": "bun run compilar:nucleo:mac && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri build",
     "banco": "bun banco/ejecutar.ts"
   },
   "devDependencies": {

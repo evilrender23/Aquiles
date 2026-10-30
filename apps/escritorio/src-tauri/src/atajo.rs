@@ -133,6 +133,7 @@ mod pruebas {
     /// Con atajos de verdad del sistema (Ctrl+Alt+Shift+F9…F11). La segunda app hace de «otro
     /// programa» que ya tiene uno. `app.json` va a una carpeta temporal (AQUILES_HOME).
     #[test]
+    #[cfg_attr(not(windows), ignore = "en Mac el plugin de atajos no arranca fuera del hilo principal")]
     fn cambiar_registra_guarda_y_conserva_el_anterior() {
         let datos = std::env::temp_dir().join(format!("aquiles-atajo-{}", crate::nucleo::generar_token()));
         std::fs::create_dir_all(&datos).unwrap();

@@ -12,6 +12,7 @@ import { VistaHabilidades } from "./componentes/VistaHabilidades";
 import { VistaInicio } from "./componentes/VistaInicio";
 import { VistaMemoria } from "./componentes/VistaMemoria";
 import { ProveedorApp, useAcciones, useEstado } from "./estado/almacen";
+import { esMac } from "./plataforma/ventana";
 
 export function App() {
   return (
@@ -47,7 +48,7 @@ function Marco() {
   const ruta = estado.vista === "inicio" ? estado.ajustes?.carpeta : estado.vista === "ajustes" || estado.vista === "automatizaciones" || estado.vista === "estadisticas" ? undefined : sesion?.cwd;
 
   return (
-    <div className={clases("app", lateralAbierta && "app--lateral-abierta")}>
+    <div className={clases("app", lateralAbierta && "app--lateral-abierta", esMac && "app--mac")}>
       <BarraLateral alElegir={() => setLateralAbierta(false)} />
       <div className="app__velo" aria-hidden="true" onClick={() => setLateralAbierta(false)} />
       <div className="app__columna">
