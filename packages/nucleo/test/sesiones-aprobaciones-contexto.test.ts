@@ -13,7 +13,8 @@ describe("sesiones en disco", () => {
   test("guardar, recargar en otro almacén, compactar y listar", () => {
     const dir = mkdtempSync(join(tmpdir(), "aquiles-ses-"));
     const a = new AlmacenSesiones(dir);
-    const s = a.crear("C:/proyecto", "preguntar-siempre");
+    const s = a.crear("C:/proyecto", { modoAprobacion: "preguntar-siempre", proveedor: "agy" });
+    a.ajustar(s, { proveedor: "anthropic", modelo: "claude-opus-5-5" });
     const m1: Mensaje = { rol: "usuario", texto: "Arregla el test de fechas por favor" };
     const m2: Mensaje = { rol: "asistente", texto: "", llamadas: [{ id: "h1", nombre: "leer", argumentos: { ruta: "a.ts" } }] };
     s.mensajes.push(m1, m2);
@@ -24,6 +25,7 @@ describe("sesiones en disco", () => {
     const r = b.obtener(s.id)!;
     expect(r.mensajes).toEqual([m1, m2]);
     expect(r.modoAprobacion).toBe("preguntar-siempre");
+    expect(info(r)).toMatchObject({ proveedor: "anthropic", modelo: "claude-opus-5-5", trabajando: false });
     expect(r.sistema).toBe(s.sistema);
     expect(info(r).titulo).toBe("Arregla el test de fechas por favor");
 
@@ -40,7 +42,7 @@ describe("sesiones en disco", () => {
     const s = a.crear("C:/p");
     s.mensajes.push({ rol: "herramienta", id: "x", nombre: "leer", resultado: "z".repeat(5000), error: false });
     expect(historial(s)[0]).toMatchObject({ rol: "herramienta", nombre: "leer" });
-    expect((historial(s)[0] as { resultado: string }).resultado.length).toBe(2000);
+    expect((historial(s)[0] as { resultado: string }).resultado.length).toBe(4000);
   });
 });
 

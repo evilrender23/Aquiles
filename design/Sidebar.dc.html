@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Aquiles · Barra lateral</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 860px; box-sizing: border-box; padding: 24px 16px; display: flex; flex-direction: column; gap: 28px; background: #0A0C0B; color: #E9EDE7; font-family: 'Outfit', system-ui, sans-serif;">
+  <a href="Main.dc.html" aria-label="Aquiles, inicio" style="display: block; padding: 0 8px; text-decoration: none;">
+    <div aria-hidden="true" style="width: 222px; height: 136px; overflow: hidden;">
+      <div style="width: 278px; transform: scale(0.8); transform-origin: 0 0; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.17;">
+        <sc-for list="{{logo}}" as="row" hint-placeholder-count="6">
+          <div style="white-space: pre;"><sc-for list="{{row.segs}}" as="seg" hint-placeholder-count="8"><span style="{{seg.style}}">{{seg.t}}</span></sc-for></div>
+        </sc-for>
+      </div>
+    </div>
+  </a>
+
+  <a href="Inicio.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; border-radius: 999px; border: 1px solid #3A443D; color: #E9EDE7; text-decoration: none; font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>Nueva sesión</a>
+
+  <nav aria-label="Secciones" style="display: flex; flex-direction: column; gap: 4px;">
+    <sc-for list="{{items}}" as="item" hint-placeholder-count="5">
+      <sc-if value="{{item.active}}" hint-placeholder-val="{{false}}">
+        <a href="{{item.href}}" aria-current="page" style="display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 16px; border-radius: 999px; background: rgba(198,243,107,0.12); border: 1px solid rgba(198,243,107,0.45); color: #F2F4EF; text-decoration: none;">
+          <span style="font-size: 13px; font-weight: 700; color: #C6F36B;">{{item.n}}</span>
+          <span style="flex: 1 1 auto; font-size: 16px; font-weight: 600;">{{item.label}}</span>
+          <span style="font-size: 13px; font-weight: 700; color: #C6F36B;">{{item.count}}</span>
+        </a>
+      </sc-if>
+      <sc-if value="{{item.idle}}" hint-placeholder-val="{{true}}">
+        <a href="{{item.href}}" style="display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 16px; border-radius: 999px; border: 1px solid transparent; color: #E9EDE7; text-decoration: none;">
+          <span style="font-size: 13px; font-weight: 700; color: #9AA39C;">{{item.n}}</span>
+          <span style="flex: 1 1 auto; font-size: 16px; font-weight: 500;">{{item.label}}</span>
+          <span style="font-size: 13px; font-weight: 700; color: #C6F36B;">{{item.count}}</span>
+        </a>
+      </sc-if>
+    </sc-for>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; gap: 6px;">
+    <span style="padding: 0 16px 6px; font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Historial</span>
+    <nav aria-label="Historial de conversaciones" style="display: flex; flex-direction: column; padding: 0 4px;">
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <div>
+          <button type="button" aria-expanded="{{g.open}}" onClick="{{g.toggle}}" style="width: 100%; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 6px; border: 0; border-radius: 10px; background: transparent; color: #E9EDE7; font: 600 14px 'Outfit', sans-serif; cursor: pointer; text-align: left;">
+            <span aria-hidden="true" style="{{g.chevStyle}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+            <span style="flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{g.label}}</span>
+            <span style="font-size: 13px; font-weight: 500; color: #9AA39C;">{{g.count}}</span>
+          </button>
+          <sc-if value="{{g.open}}" hint-placeholder-val="{{false}}">
+            <div class="fold">
+              <sc-for list="{{g.children}}" as="c" hint-placeholder-count="3">
+                <a href="Main.dc.html" onClick="{{c.pick}}" aria-current="{{c.current}}" style="{{c.rowStyle}}">
+                  <svg aria-hidden="true" width="40" height="36" viewBox="0 0 40 36" fill="none" style="flex: 0 0 40px; overflow: visible;">
+                    <path class="branch" d="M14 0V36" stroke="{{c.contStroke}}" stroke-width="1.5" style="{{c.drawDelay}}"></path>
+                    <path class="branch" d="M14 -10V8Q14 18 24 18H34" stroke="{{c.stroke}}" stroke-width="1.5" stroke-linecap="round" style="{{c.drawDelay}}"></path>
+                  </svg>
+                  <span style="{{c.labelStyle}}">{{c.label}}</span>
+                </a>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </nav>
+  </div>
+
+  <div style="flex: 1 1 auto;"></div>
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: #141816; border: 1px solid #262D28; border-radius: 18px;">
+    <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #C6F36B; box-shadow: 0 0 12px rgba(198,243,107,0.6);"></span>
+    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+      <span style="font-size: 15px; font-weight: 600; color: #F2F4EF;">Pasarela activa</span>
+      <span style="font-size: 13px; color: #9AA39C;">Escritorio · Telegram · Correo</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["chat","skills","memory","auto","settings"],"default":"chat"},"$preview":{"width":260,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { open: { aquiles: true }, active: 'tauri' };
+  }
+
+  renderVals() {
+    const history = [
+      { id: 'aquiles', label: 'aquiles-app', children: [
+        { id: 'tauri', label: 'Migrar el shell a Tauri 2' },
+        { id: 'zustand', label: 'Refactor del store de Zustand' },
+        { id: 'ipc', label: 'Fuga de memoria en el puente IPC' }
+      ] },
+      { id: 'notas', label: 'notas-app', children: [
+        { id: 'notas-tauri', label: 'Migración a Tauri 2' },
+        { id: 'atajos', label: 'Atajos de teclado globales' }
+      ] },
+      { id: 'cron', label: 'Tareas programadas', children: [
+        { id: 'issues', label: 'Resumen diario de issues' },
+        { id: 'actas', label: 'Ordenar notas de reunión' }
+      ] },
+      { id: 'suelto', label: 'Sin proyecto', children: [
+        { id: 'telegram', label: 'Conectar el canal de Telegram' }
+      ] }
+    ];
+    const active = this.props.active ?? 'chat';
+    const base = [
+      { id: 'chat', label: 'Conversaciones', href: 'Main.dc.html', count: '' },
+      { id: 'skills', label: 'Habilidades', href: 'Habilidades.dc.html', count: '' },
+      { id: 'memory', label: 'Memoria', href: '#', count: '2' },
+      { id: 'auto', label: 'Automatizaciones', href: 'Automatizaciones.dc.html', count: '1' },
+      { id: 'settings', label: 'Ajustes', href: '#', count: '' }
+    ];
+    const tone = {
+      G: { color: '#AAAAAA' },
+      W: { color: '#FFFFFF' },
+      WG: { color: '#FFFFFF', background: '#AAAAAA' },
+      C: { color: '#55FFFF' },
+      CG: { color: '#55FFFF', background: '#AAAAAA' },
+      GT: { color: '#AAAAAA', background: '#00AAAA' },
+      T: { color: '#00AAAA' },
+      DT: { color: '#555555', background: '#00AAAA' },
+      D: { color: '#555555' }
+    };
+    const sp = (n) => ['G', ' '.repeat(n)];
+    const art = [
+      [sp(21), ['W', '▄'], sp(16)],
+      [sp(19), ['W', '▄'], sp(1), ['WG', '▓▓'], sp(15)],
+      [sp(18), ['WG', '▓▓'], sp(1), ['WG', '▒▒'], sp(15)],
+      [sp(7), ['C', '▄▀'], ['CG', '▓▓'], ['G', '        ▀ '], ['C', '██'], sp(15)],
+      [sp(1), ['C', '▄▀'], ['CG', '▓▓'], sp(1), ['CG', '▒▒'], sp(1), ['CG', '▒▒'], sp(1), ['CG', '▓'], ['C', '▄'], sp(1), ['C', '▄'], sp(2), ['C', '▄'], sp(2), ['CG', '▓▓'], sp(5), ['C', '▄▀'], ['CG', '▓▓'], sp(2), ['C', '▄▀'], ['CG', '▓▓']],
+      [['CG', '▒▒'], sp(1), ['CG', '▒▒'], sp(1), ['CG', '░░'], sp(1), ['CG', '░░'], sp(1), ['CG', '▒▒'], sp(1), ['CG', '▒▒'], sp(1), ['CG', '▒▓'], sp(1), ['CG', '▒▒'], sp(4), ['CG', '▒▒'], sp(1), ['CG', '▒▒'], sp(1), ['CG', '▒▒'], sp(1), ['CG', '▒▒']],
+      [['CG', '░░'], sp(1), ['CG', '░░'], ['G', ' ██ ██ '], ['CG', '░░'], sp(1), ['CG', '░░'], sp(1), ['CG', '░▒'], sp(1), ['CG', '░░'], sp(4), ['CG', '░░'], sp(1), ['CG', '░'], ['G', '▀ '], ['CG', '░░'], sp(1), ['CG', '░'], ['G', '▀']],
+      [['G', '██ ██ '], ['GT', '▓▓'], sp(1), ['GT', '▓▓'], ['G', ' ██ ██ '], ['GT', '▓▓'], ['G', ' ██ █▄ ██▀   ▀█▄▄ ']],
+      [['GT', '▓▓'], sp(1), ['GT', '▓▓'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▓▓'], sp(1), ['GT', '▓▓'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▓▓'], sp(1), ['GT', '▓▓'], sp(1), ['GT', '▓▓'], sp(1), ['GT', '▓'], ['G', '▄  ▄ '], ['GT', '▓'], ['G', '█']],
+      [['GT', '▒▒'], sp(1), ['GT', '▒▒'], sp(1), ['T', '▀'], ['GT', '░'], ['T', '▄'], ['GT', '░░'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '░░'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▒▒'], sp(1), ['GT', '▒▒']],
+      [['T', '▀'], ['GT', '░'], ['T', '▄'], ['GT', '░░'], sp(4), ['DT', '░░'], sp(1), ['T', '▀'], ['GT', '░'], ['T', '▄'], ['GT', '░'], ['T', '▀'], sp(1), ['T', '▀█'], sp(1), ['T', '▀'], ['GT', '░'], ['T', '▄'], ['GT', '░░'], sp(1), ['T', '▀'], ['GT', '░'], ['T', '▄'], ['GT', '░░'], sp(1), ['T', '▀'], ['GT', '░'], ['T', '▄'], ['GT', '░░']],
+      [sp(9), ['D', '▀'], ['DT', '▒'], sp(27)]
+    ];
+    return {
+      logo: art.map((row) => ({ segs: row.map(([k, t]) => ({ t, style: tone[k] })) })),
+      items: base.map((it, i) => ({ ...it, n: '0' + (i + 1), active: it.id === active, idle: it.id !== active })),
+      groups: history.map((g) => {
+        const open = !!this.state.open[g.id];
+        return {
+          ...g,
+          open,
+          count: String(g.children.length),
+          toggle: () => this.setState({ open: { ...this.state.open, [g.id]: !open } }),
+          chevStyle: { display: 'inline-flex', color: '#9AA39C', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 300ms cubic-bezier(.2,.7,.3,1)' },
+          children: g.children.map((c, i) => {
+            const on = c.id === this.state.active;
+            return {
+              ...c,
+              current: on ? 'page' : undefined,
+              pick: () => this.setState({ active: c.id }),
+              contStroke: i < g.children.length - 1 ? '#3A443D' : 'transparent',
+              drawDelay: { animationDelay: i * 90 + 'ms' },
+              stroke: on ? '#C6F36B' : '#3A443D',
+              rowStyle: { display: 'flex', alignItems: 'center', height: 36, paddingRight: 10, borderRadius: 10, textDecoration: 'none', background: on ? 'rgba(198,243,107,0.12)' : 'transparent' },
+              labelStyle: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, fontWeight: on ? 600 : 400, color: on ? '#F2F4EF' : '#9AA39C' }
+            };
+          })
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

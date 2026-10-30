@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Aquiles · Automatizaciones</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;background:#0A0C0B}
+a{color:#C6F36B}a:hover{color:#F2F4EF}
+.wb{background:transparent}.wb:hover{background:#141816}
+:focus-visible{outline:2px solid #C6F36B;outline-offset:3px}
+.branch{stroke-dasharray:60;stroke-dashoffset:0;animation:draw .4s cubic-bezier(.2,.7,.3,1) both}
+.fold{animation:fold .3s cubic-bezier(.2,.7,.3,1) both}
+@keyframes draw{from{stroke-dashoffset:60}to{stroke-dashoffset:0}}
+@keyframes fold{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.branch,.fold{animation:none}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; align-items: stretch; background: radial-gradient(1100px 560px at 70% -8%, #141816, #0A0C0B 70%); color: #E9EDE7; font-family: 'Outfit', system-ui, sans-serif;">
+
+  <div style="flex: 1 1 260px; max-width: 100%; border-right: 1px solid #262D28;">
+    <dc-import name="Sidebar" active="auto" hint-size="260px,900px"></dc-import>
+  </div>
+
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 8px 0 32px; border-bottom: 1px solid #262D28;">
+      <span style="font-size: 13px; color: #9AA39C;">~/proyectos/aquiles-app</span>
+      <div style="flex: 1 1 auto;"></div>
+      <button type="button" class="wb" aria-label="Minimizar" style="width: 40px; height: 32px; border: 0; border-radius: 8px; color: #E9EDE7; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg></button>
+      <button type="button" class="wb" aria-label="Maximizar" style="width: 40px; height: 32px; border: 0; border-radius: 8px; color: #E9EDE7; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg></button>
+      <button type="button" class="wb" aria-label="Cerrar" style="width: 40px; height: 32px; border: 0; border-radius: 8px; color: #E9EDE7; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+    </div>
+
+    <main style="flex: 1 1 auto; padding: 40px 48px 64px; display: flex; flex-direction: column; gap: 56px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px; max-width: 1080px;">
+        <div style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 14px;">
+          <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Tareas · Canales</span>
+          <h1 style="margin: 0; font-size: 72px; line-height: 0.92; font-weight: 800; letter-spacing: -0.045em; text-transform: uppercase; color: #F2F4EF;">Automatizaciones<span style="color: #C6F36B;">.</span></h1>
+        </div>
+        <button type="button" style="height: 56px; padding: 0 26px; border-radius: 999px; border: 0; background: linear-gradient(135deg, #D9FA8A, #8FD14F); box-shadow: 0 12px 48px rgba(198,243,107,0.35); color: #0A0C0B; font: 600 16px 'Outfit', sans-serif; display: inline-flex; align-items: center; gap: 10px; cursor: pointer;">Nueva tarea<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
+      </div>
+
+      <section style="display: flex; flex-direction: column; gap: 16px; max-width: 1080px;">
+        <h2 style="margin: 0; font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -0.02em; color: #F2F4EF;">Tareas programadas</h2>
+        <sc-for list="{{tasks}}" as="t" hint-placeholder-count="5">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding: 22px 28px; background: #141816; border: 1px solid #262D28; border-radius: 18px;">
+            <div style="width: 120px; display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-size: 40px; line-height: 44px; font-weight: 700; letter-spacing: -0.035em; color: #C6F36B;">{{t.time}}</span>
+              <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">{{t.days}}</span>
+            </div>
+            <div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.02em; color: #F2F4EF;">{{t.name}}</span>
+              <span style="font-size: 14px; color: #9AA39C;">{{t.skill}} · {{t.cron}}</span>
+            </div>
+            <span style="display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid #262D28; font-size: 14px; color: #E9EDE7;">{{t.channel}}</span>
+            <div style="width: 200px; display: flex; flex-direction: column; gap: 4px;">
+              <sc-if value="{{t.flag}}" hint-placeholder-val="{{false}}">
+                <span style="{{t.flagStyle}}">{{t.status}}</span>
+              </sc-if>
+              <span style="font-size: 13px; color: #9AA39C;">{{t.last}}</span>
+            </div>
+            <button type="button" role="switch" aria-checked="{{t.on}}" aria-label="{{t.name}}" onClick="{{t.toggle}}" style="{{t.track}}"><span style="{{t.knob}}"></span></button>
+          </div>
+        </sc-for>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 16px; max-width: 1080px;">
+        <h2 style="margin: 0; font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -0.02em; color: #F2F4EF;">Canales</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;">
+          <sc-for list="{{channels}}" as="c" hint-placeholder-count="6">
+            <div style="display: flex; flex-direction: column; gap: 18px; min-height: 180px; padding: 28px; background: #141816; border: 1px solid #262D28; border-radius: 18px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 15px; font-weight: 700; color: #C6F36B;">{{c.n}}</span>
+                <sc-if value="{{c.isDefault}}" hint-placeholder-val="{{false}}">
+                  <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Predeterminado</span>
+                </sc-if>
+              </div>
+              <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; justify-content: flex-end;">
+                <span style="font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.02em; color: #F2F4EF;">{{c.name}}</span>
+                <span style="font-size: 14px; color: #9AA39C;">{{c.detail}}</span>
+              </div>
+              <sc-if value="{{c.connected}}" hint-placeholder-val="{{true}}">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; color: #E9EDE7;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #C6F36B;"></span>Conectado</span>
+                  <a href="#" style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; text-decoration: underline; text-decoration-color: rgba(198,243,107,0.4); text-underline-offset: 4px;">Configurar<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a>
+                </div>
+              </sc-if>
+              <sc-if value="{{c.disconnected}}" hint-placeholder-val="{{false}}">
+                <button type="button" style="align-self: flex-start; height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid #3A443D; background: transparent; color: #E9EDE7; font: 600 13px 'Outfit', sans-serif; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;">Conectar</button>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { off: { weekly: true } };
+  }
+  renderVals() {
+    const off = this.state.off;
+    const tasks = [
+      { id: 'issues', time: '08:00', days: 'Lun–Vie', name: 'Resumen diario de issues', skill: 'resumen-issues-github', cron: '0 8 * * 1-5', channel: 'Telegram', last: 'Hoy · 41 s' },
+      { id: 'deps', time: '09:30', days: 'Lunes', name: 'Revisar dependencias de aquiles-app', skill: 'auditoria-dependencias', cron: '30 9 * * 1', channel: 'Escritorio', status: 'Aviso', level: 'warn', last: '27 oct · 2 vulnerabilidades' },
+      { id: 'notes', time: '18:00', days: 'Diario', name: 'Ordenar notas de reunión', skill: 'notas-de-reunion', cron: '0 18 * * *', channel: 'Correo', last: 'Ayer · 1 min 12 s' },
+      { id: 'backup', time: '23:00', days: 'Domingo', name: 'Copia de la memoria', skill: 'tarea interna', cron: '0 23 * * 0', channel: 'Escritorio', status: 'Fallo', level: 'fail', last: '26 oct · disco lleno' },
+      { id: 'weekly', time: '17:00', days: 'Viernes', name: 'Informe semanal de commits', skill: 'commits-convencionales', cron: '0 17 * * 5', channel: 'Telegram', last: '18 oct' }
+    ];
+    const tag = (level) => ({
+      alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 12px', borderRadius: 999,
+      fontSize: 12, fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase',
+      background: level === 'fail' ? '#F2F4EF' : 'transparent',
+      color: level === 'fail' ? '#0A0C0B' : '#F2F4EF',
+      border: '1px solid ' + (level === 'fail' ? '#F2F4EF' : '#3A443D')
+    });
+    const channels = [
+      { name: 'Escritorio', detail: 'Notificaciones y bandeja del sistema', connected: true, isDefault: true },
+      { name: 'Terminal', detail: 'aquiles chat', connected: true, isDefault: false },
+      { name: 'Telegram', detail: '@aquiles_casa_bot', connected: true, isDefault: false },
+      { name: 'Discord', detail: '', connected: false, isDefault: false },
+      { name: 'Slack', detail: '', connected: false, isDefault: false },
+      { name: 'Correo', detail: 'IMAP / SMTP', connected: true, isDefault: false }
+    ];
+    return {
+      tasks: tasks.map((t) => {
+        const on = !off[t.id];
+        return {
+          ...t, on,
+          flag: !!t.status,
+          flagStyle: tag(t.level),
+          toggle: () => this.setState({ off: { ...off, [t.id]: on } }),
+          track: { width: 52, height: 30, flex: '0 0 auto', padding: 3, borderRadius: 999, cursor: 'pointer', display: 'inline-flex', justifyContent: on ? 'flex-end' : 'flex-start', background: on ? '#C6F36B' : '#262D28', border: '1px solid ' + (on ? '#C6F36B' : '#3A443D') },
+          knob: { width: 22, height: 22, borderRadius: 999, background: on ? '#0A0C0B' : '#9AA39C' }
+        };
+      }),
+      channels: channels.map((c, i) => ({ ...c, n: '0' + (i + 1), disconnected: !c.connected }))
+    };
+  }
+}
+</script>
+</body>
+</html>

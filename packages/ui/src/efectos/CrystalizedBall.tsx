@@ -1,0 +1,944 @@
+/**
+ * CrystalizedBall (React Bits), preset «eclipse» en blanco, portado del tablero «Avatar · orbe»
+ * del lienzo Aquiles · NOX (WebGL2 directo). Con `ocupado` el borde chisporrotea más y se acelera.
+ * Con `estatico` (o sin WebGL2) dibuja solo el anillo, para no abrir un contexto por mensaje.
+ */
+import { useEffect, useRef, useState } from "react";
+import { clases } from "../clases";
+
+export interface PropsCrystalizedBall {
+  tamano?: number;
+  color?: string;
+  ocupado?: boolean;
+  /** Sin el marco negro redondeado. */
+  desnudo?: boolean;
+  estatico?: boolean;
+  className?: string;
+}
+
+interface Ajustes {
+  color: string;
+  size: number;
+  strands: number;
+  crackle: number;
+  flares: number;
+  glow: number;
+  sparks: number;
+  particleCount: number;
+  fill: number;
+  motion: "rise" | "fall" | "drift" | "orbit";
+  particleShape: "square" | "round";
+  depth: number;
+  sway: number;
+  twinkle: number;
+  haze: number;
+  speed: number;
+  dustSpeed: number;
+  intro: boolean;
+}
+
+function ajustes(color: string, ocupado: boolean): Ajustes {
+  return {
+    color,
+    size: 0.7,
+    strands: 4,
+    crackle: ocupado ? 0.95 : 0.5,
+    flares: ocupado ? 0.7 : 0.4,
+    glow: 0.7,
+    sparks: ocupado ? 0.8 : 0.35,
+    particleCount: 14000,
+    fill: 0.5,
+    motion: "orbit",
+    particleShape: "round",
+    depth: 0.7,
+    sway: 0.5,
+    twinkle: 0.5,
+    haze: 0.5,
+    speed: ocupado ? 1.7 : 1,
+    dustSpeed: ocupado ? 1.3 : 0.8,
+    intro: true,
+  };
+}
+
+export function CrystalizedBall({ tamano = 240, color = "#FFFFFF", ocupado = false, desnudo = false, estatico = false, className }: PropsCrystalizedBall) {
+  const caja = useRef<HTMLDivElement>(null);
+  const props = useRef({ color, ocupado });
+  const despertar = useRef<(() => void) | null>(null);
+  const [fallo, setFallo] = useState(false);
+
+  // Los cambios de props llegan al bucle de dibujo por la ref, sin reiniciar WebGL.
+  useEffect(() => {
+    props.current = { color, ocupado };
+    despertar.current?.();
+  }, [color, ocupado]);
+
+  useEffect(() => {
+    const contenedor = caja.current;
+    if (estatico || !contenedor) return;
+    // El lienzo se crea aquí y no en el JSX: tras loseContext() un lienzo no se puede reutilizar,
+    // y en desarrollo StrictMode monta, desmonta y vuelve a montar el efecto.
+    const canvas = document.createElement("canvas");
+    contenedor.appendChild(canvas);
+    const r = iniciarOrbe(contenedor, canvas, () => ajustes(props.current.color, props.current.ocupado));
+    if (!r) {
+      canvas.remove();
+      setFallo(true);
+      return;
+    }
+    despertar.current = r.despertar;
+    return () => {
+      despertar.current = null;
+      r.liberar();
+      canvas.remove();
+    };
+  }, [estatico]);
+
+  return (
+    <div
+      ref={caja}
+      aria-hidden="true"
+      className={clases("nx-orbe", !desnudo && "nx-orbe--marco", className)}
+      style={{ width: tamano, height: tamano, borderRadius: desnudo ? undefined : Math.round(tamano * 0.22) }}
+    >
+      {(estatico || fallo) && <span className="nx-orbe__anillo" />}
+    </div>
+  );
+}
+
+type Vec3 = [number, number, number];
+
+function iniciarOrbe(container: HTMLDivElement, canvas: HTMLCanvasElement, leer: () => Ajustes): { despertar: () => void; liberar: () => void } | null {
+  const gl = canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: true, antialias: false, depth: false });
+  if (!gl) return null;
+
+  const MAX_ARCS = 4;
+  const STATE_WIDTH = 256;
+  const INTRO_SECONDS = 2.2;
+  const MOTIONS = { rise: 0, fall: 1, drift: 2, orbit: 3 } as const;
+  const SHAPES = { square: 0, round: 1 } as const;
+  const WHITE: Vec3 = [1, 1, 1];
+  const BLACK: Vec3 = [0, 0, 0];
+
+  const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
+  const smooth = (e0: number, e1: number, v: number) => {
+    const t = clamp((v - e0) / (e1 - e0), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+  const easeOut = (t: number) => 1 - (1 - t) ** 3;
+  const mixColor = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const parseHex = (hex: string): Vec3 => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+    if (!m?.[1]) return [1, 1, 1];
+    const n = parseInt(m[1], 16);
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  };
+  const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const toGamma = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055);
+  const toOklab = (rgb: Vec3): Vec3 => {
+    const r = toLinear(rgb[0]);
+    const g = toLinear(rgb[1]);
+    const b = toLinear(rgb[2]);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ];
+  };
+  const fromOklab = ([L, a, b]: Vec3): Vec3 => {
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+    const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+    const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+    const c = (v: number) => clamp(toGamma(clamp(v, 0, 1)), 0, 1);
+    return [
+      c(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+      c(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+      c(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+    ];
+  };
+  const blend = (a: Vec3, b: Vec3, t: number) => fromOklab(mixColor(toOklab(a), toOklab(b), t));
+  const shift = (rgb: Vec3, hue: number, lightness: number, chroma: number) => {
+    const [L, a, b] = toOklab(rgb);
+    const c = Math.hypot(a, b) * chroma;
+    const h = Math.atan2(b, a) + (hue * Math.PI) / 180;
+    return fromOklab([clamp(L + lightness, 0, 1), c * Math.cos(h), c * Math.sin(h)]);
+  };
+  const buildPalette = (color: Vec3) => ({
+    rim: color,
+    rimHot: mixColor(color, WHITE, 0.72),
+    rimMid: mixColor(color, BLACK, 0.15),
+    rimDeep: mixColor(color, BLACK, 0.45),
+    spark: mixColor(color, WHITE, 0.45),
+    sparkGlow: shift(color, 0, -0.15, 1),
+    haze: mixColor(color, BLACK, 0.6),
+    edge: shift(color, 0, -0.3, 0.9),
+    tones: [shift(color, 0, -0.06, 1), shift(color, 16, -0.02, 1), shift(color, -16, -0.12, 1.05), shift(blend(color, WHITE, 0.25), 0, 0.04, 1), blend(color, WHITE, 0.7)],
+  });
+
+  const seeded = (start: number) => {
+    let state = start >>> 0;
+    return () => {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let t = state;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  const buildStrands = () => {
+    const random = seeded(99);
+    const bands: [number, number, number, number][] = [
+      [6, 12, 0.6, 1.6],
+      [18, 34, 1.5, 3.5],
+      [40, 70, 3, 7],
+      [80, 130, 6, 12],
+    ];
+    const data = { harmonics: [] as number[], rates: [] as number[], phases: [] as number[], flareHarmonics: [] as number[], flareRates: [] as number[], flarePhases: [] as number[] };
+    for (let s = 0; s < 8; s++) {
+      for (const [low, high, slow, fast] of bands) {
+        data.harmonics.push(Math.round(low + random() * (high - low)));
+        data.rates.push((slow + random() * (fast - slow)) * (random() < 0.5 ? -1 : 1));
+        data.phases.push(random() * Math.PI * 2);
+      }
+      for (let j = 0; j < 3; j++) {
+        data.flareHarmonics.push(4 + Math.floor(random() * 6));
+        data.flareRates.push((0.4 + random() * 0.8) * (random() < 0.5 ? -1 : 1));
+        data.flarePhases.push(random() * Math.PI * 2);
+      }
+      const lead = s === 0;
+      data.flareHarmonics.push(lead ? 0.75 : 0.95 + random() * 0.3);
+      data.flareRates.push(lead ? 1.15 : 0.8 + random() * 0.2);
+      data.flarePhases.push(lead ? 1 : 0.7 + random() * 0.25);
+    }
+    return data;
+  };
+
+  const buildDust = (count: number) => {
+    const random = seeded(1337);
+    const rows = Math.max(1, Math.ceil(count / STATE_WIDTH));
+    const home = new Float32Array(STATE_WIDTH * rows * 4);
+    const seed = new Float32Array(STATE_WIDTH * rows * 4);
+    let k = 0;
+    let guard = 0;
+    while (k < count && guard < count * 80) {
+      guard++;
+      let x: number;
+      let y: number;
+      let tone: number;
+      if (random() < 0.28) {
+        const angle = random() * Math.PI * 2;
+        const radius = 0.87 + Math.sqrt(random()) * 0.105;
+        x = Math.cos(angle) * radius;
+        y = Math.sin(angle) * radius;
+        if (random() > smooth(-0.6, 0.3, -y)) continue;
+        const q = random();
+        tone = q < 0.5 ? 3 : q < 0.8 ? 2 : 1;
+      } else {
+        x = random() * 2 - 1;
+        y = random() * 2 - 1;
+        const radius = Math.hypot(x, y);
+        if (radius > 0.975) continue;
+        const bowl = smooth(-0.25, 0.85, -y) ** 1.3;
+        const band = smooth(0.66, 0.96, radius) * smooth(-0.7, 0.3, -y);
+        const weight = Math.max(bowl, band * 0.9);
+        if (random() > 0.012 + 0.988 * weight) continue;
+        if (weight < 0.12) tone = 4;
+        else {
+          const q = random();
+          tone = q < 0.32 ? 0 : q < 0.52 ? 1 : q < 0.8 ? 2 : 3;
+        }
+      }
+      const chord = Math.sqrt(Math.max(0, 0.95 - x * x - y * y));
+      home[k * 4] = x;
+      home[k * 4 + 1] = y;
+      home[k * 4 + 2] = (random() * 2 - 1) * chord;
+      home[k * 4 + 3] = tone;
+      seed[k * 4] = tone === 4 ? 1.8 : random() < 0.22 ? 2.1 : 1.3;
+      seed[k * 4 + 1] = random();
+      seed[k * 4 + 2] = 2.5 + random() * 3.5;
+      seed[k * 4 + 3] = 0.16 + random() * 0.26;
+      k++;
+    }
+    return { home, seed, count: k, rows };
+  };
+
+  const passVertex = `#version 300 es
+out vec2 vUv;
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  vUv = p;
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}
+`;
+
+  const hashChunk = `
+uint scramble(uint v) {
+  v = v * 747796405u + 2891336453u;
+  uint w = ((v >> ((v >> 28u) + 4u)) ^ v) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+
+float random(uint v) {
+  return float(scramble(v)) * (1.0 / 4294967295.0);
+}
+`;
+
+  const dustChunk = `
+uniform float uDustTime;
+uniform vec2 uTurn;
+uniform float uMotion;
+uniform float uFill;
+
+vec3 settle(vec3 p, out float spread) {
+  float bend = exp2((0.5 - uFill) * 1.8);
+  float h = clamp((p.y + 1.0) * 0.5, 0.0, 1.0);
+  float y = 2.0 * pow(h, bend) - 1.0;
+  float from = sqrt(max(1.0 - p.y * p.y, 1e-4));
+  float to = sqrt(max(1.0 - y * y, 0.0));
+  spread = clamp(bend * pow(max(h, 1e-3), bend - 1.0) * to / from, 0.25, 1.0);
+  return vec3(p.xz * (to / from), y).xzy;
+}
+
+vec3 drift(vec4 home, vec4 seed, uint id, out float life, out float spread) {
+  vec3 p = settle(home.xyz, spread);
+  float t = uDustTime;
+  float u = fract(t / seed.z + seed.y);
+  life = sin(3.14159265 * u);
+  float travel = seed.w;
+  if (uMotion < 0.5) {
+    p.y += travel * (u - 0.5);
+  } else if (uMotion < 1.5) {
+    p.y -= travel * (u - 0.5);
+  } else if (uMotion < 2.5) {
+    p += 0.045 * vec3(
+      sin(t * 0.37 + seed.y * 17.0) + 0.5 * sin(t * 0.83 + seed.z * 5.0),
+      sin(t * 0.29 + seed.z * 11.0) + 0.5 * sin(t * 0.61 + seed.w * 7.0),
+      sin(t * 0.33 + seed.w * 23.0)
+    );
+  } else {
+    float loop = t * (0.6 + 0.9 * random(id * 7u + 3u)) * (random(id * 7u + 10u) < 0.5 ? -1.0 : 1.0) + seed.y * 6.2831853;
+    p.xy += (0.025 + 0.05 * random(id * 7u + 16u)) * vec2(cos(loop), sin(loop));
+  }
+  float wobble = 0.002 + 0.006 * random(id * 7u + 1u);
+  float w1 = 0.8 + 2.4 * random(id * 7u + 2u);
+  float w2 = 0.8 + 2.4 * random(id * 7u + 4u);
+  p += wobble * vec3(sin(t * w1 + seed.y * 40.0), cos(t * w2 + seed.z * 30.0), sin(t * (w1 + w2) * 0.5 + seed.w * 20.0));
+  float cy = cos(uTurn.x);
+  float sy = sin(uTurn.x);
+  p.xz = mat2(cy, -sy, sy, cy) * p.xz;
+  float cx = cos(uTurn.y);
+  float sx = sin(uTurn.y);
+  p.yz = mat2(cx, -sx, sx, cx) * p.yz;
+  return p;
+}
+`;
+
+  const fieldFragment = `#version 300 es
+precision highp float;
+
+uniform vec2 uCenter;
+uniform float uRadius;
+uniform float uDpr;
+uniform float uLine;
+uniform float uTime;
+uniform float uFrame;
+uniform float uBins;
+uniform float uStrands;
+uniform float uCrackle;
+uniform float uFlares;
+uniform float uGlow;
+uniform float uHaze;
+uniform float uFill;
+uniform float uPresence;
+uniform float uUnfold;
+uniform float uBloom;
+uniform float uInside;
+uniform float uEncode;
+uniform vec3 uRim;
+uniform vec3 uRimHot;
+uniform vec3 uRimMid;
+uniform vec3 uRimDeep;
+uniform vec3 uSpark;
+uniform vec3 uSparkGlow;
+uniform vec3 uHazeColor;
+uniform vec3 uEdgeColor;
+uniform vec4 uHeat;
+uniform vec4 uHarmonics[8];
+uniform vec4 uRates[8];
+uniform vec4 uPhases[8];
+uniform vec4 uFlareHarmonics[8];
+uniform vec4 uFlareRates[8];
+uniform vec4 uFlarePhases[8];
+uniform vec4 uArcs[4];
+
+out vec4 fragColor;
+${hashChunk}
+const float PI = 3.14159265;
+const float TAU = 6.28318531;
+const vec4 AMPS = vec4(0.35, 0.3, 0.22, 0.13);
+
+float bell(float d, float w) {
+  float x = d / w;
+  return exp(-x * x);
+}
+
+float pool(vec2 q) {
+  float t = length(q - vec2(0.0, mix(-1.0, -0.66, uFill))) / mix(0.8, 1.35, uFill);
+  return t < 0.6 ? mix(0.5, 0.22, t / 0.6) : mix(0.22, 0.0, clamp((t - 0.6) / 0.4, 0.0, 1.0));
+}
+
+void main() {
+  vec2 p = gl_FragCoord.xy / uDpr - uCenter;
+  float r = length(p);
+  float R = uRadius;
+  float theta = atan(p.y, p.x);
+  float lift = p.y / max(r, 1e-3);
+  float topDim = 1.0 - 0.35 * pow(max(lift, 0.0), 1.5);
+  vec3 col = vec3(0.0);
+  float hot = 0.0;
+  uint frame = uint(uFrame);
+
+  if (r < R) {
+    vec2 q = p / R;
+    float chord = sqrt(max(1.0 - dot(q, q), 0.0));
+    float haze = pool(q) * (0.55 + 0.45 * chord);
+    col += uHazeColor * haze * uHaze * uInside;
+    float e = length(q - vec2(0.0, 0.2)) / 1.2;
+    float edge = 0.5 * pow(smoothstep(0.62, 1.0, e), 1.4);
+    col += uEdgeColor * edge * uInside * (0.5 + 0.5 * uHaze);
+  }
+
+  float dr = r - R;
+  float halo = 1.0 - smoothstep(R * 0.05, R * 0.105, abs(dr - R * 0.0213));
+  col += uRimDeep * 0.18 * halo * topDim * uGlow * uBloom;
+  col += uRim * 0.12 * bell(dr + R * 0.0383, R * 0.032) * uGlow * uBloom;
+  col += uRim * 0.32 * bell(dr, max(R * 0.0117, uLine)) * uPresence * uUnfold;
+
+  float delta = mod(theta - uHeat.x + PI, TAU) - PI;
+  float heat = uHeat.z * uHeat.y * exp(-delta * delta / 0.3);
+  float crackle = uCrackle + heat * 0.9;
+  float amp = R * 0.016 * (0.3 + 1.4 * crackle) * uUnfold;
+  float jitterAmp = R * 0.0048 * (0.3 + 1.4 * uCrackle) * uUnfold * (1.0 + heat * 0.3);
+  float flareAmp = R * 0.064 * (0.4 + 1.2 * crackle) * uFlares * 1.6 * uUnfold;
+
+  if (abs(dr) < amp * 2.0 + flareAmp + R * 0.3) {
+    float step = TAU / uBins;
+    float binPos = (theta + PI) / step;
+    float bin0 = floor(binPos);
+    float binF = binPos - bin0;
+    float th0 = bin0 * step - PI;
+    float th1 = th0 + step;
+    uint b0 = uint(mod(bin0, uBins));
+    uint b1 = uint(mod(bin0 + 1.0, uBins));
+    float gain = min(1.0, 2.4 / max(uStrands, 1.0));
+    for (int k = 0; k < 8; k++) {
+      if (float(k) >= uStrands) break;
+      vec4 m = uHarmonics[k];
+      vec4 lead = uRates[k] * uTime + uPhases[k];
+      float wave0 = dot(AMPS, sin(m * th0 + lead));
+      float wave1 = dot(AMPS, sin(m * th1 + lead));
+      uint salt = uint(k) * 1013u + frame * 7919u;
+      vec4 shape = uFlareHarmonics[k];
+      vec4 look = uFlareRates[k];
+      vec4 tone = uFlarePhases[k];
+      float a = amp * shape.w;
+      float off0 = a * wave0 + jitterAmp * (random(b0 + salt) - 0.5);
+      float off1 = a * wave1 + jitterAmp * (random(b1 + salt) - 0.5);
+      float rc = R + mix(off0, off1, binF);
+      float grade = (off1 - off0) / (step * max(r, 1.0));
+      float d = abs(r - rc) * inversesqrt(1.0 + grade * grade);
+      float swell = 0.8 + 0.4 * (0.5 + 0.5 * sin(3.0 * theta + uTime * 0.7 + tone.x * 1.7));
+      float width = uLine * look.w * swell * (1.0 + heat * 0.25);
+      float core = exp(-d * d / (width * width));
+      float sheath = exp(-d * d / (width * width * 3.0));
+      float bright = tone.w * (1.0 + heat * 0.45) * uPresence;
+      col += (uRimHot * core * 0.8 + uRim * sheath * 0.32) * bright;
+      hot += core * bright;
+      vec3 fargs = shape.xyz * theta + look.xyz * uTime + tone.xyz;
+      float flare = max(0.0, (sin(fargs.x) + sin(fargs.y) + sin(fargs.z)) / 3.0);
+      flare = (flare * flare + heat * 0.35) * flareAmp;
+      float dw = abs(r - rc - flare);
+      float dm = abs(r - rc - flare * 0.6);
+      float dn = abs(r - rc - flare * 0.25);
+      vec3 glow = uRimDeep * (0.07 * bell(dw, R * 0.09) + 0.16 * bell(dw, R * 0.05));
+      glow += uRimMid * 0.28 * bell(dm, R * 0.027) + uRim * 0.38 * bell(dn, R * 0.013);
+      col += glow * gain * topDim * uGlow * uBloom * (1.0 + heat * 1.4);
+    }
+  }
+
+  for (int i = 0; i < 4; i++) {
+    vec4 arc = uArcs[i];
+    if (arc.w <= 0.002) continue;
+    float mid = arc.x + arc.y * 0.5;
+    vec2 center = R * 0.93 * vec2(cos(mid), sin(mid));
+    if (distance(p, center) > R * (abs(arc.y) * 0.6 + 0.1) + 12.0) continue;
+    float ar = R * 0.955;
+    vec2 a0 = ar * vec2(cos(arc.x), sin(arc.x));
+    vec2 a2 = ar * vec2(cos(arc.x + arc.y), sin(arc.x + arc.y));
+    vec2 a1 = R * (0.955 - arc.z) * vec2(cos(mid), sin(mid));
+    float dmin = 1e5;
+    float along = 0.0;
+    vec2 prev = a0;
+    for (int s = 1; s <= 10; s++) {
+      float u = float(s) / 10.0;
+      vec2 b = mix(mix(a0, a1, u), mix(a1, a2, u), u);
+      vec2 pa = p - prev;
+      vec2 ba = b - prev;
+      float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-5), 0.0, 1.0);
+      float dist = length(pa - ba * h);
+      if (dist < dmin) {
+        dmin = dist;
+        along = (float(s) - 1.0 + h) / 10.0;
+      }
+      prev = b;
+    }
+    float taper = sqrt(max(sin(PI * along), 0.0));
+    float arcWidth = uLine * (0.55 + 0.6 * taper);
+    float arcCore = exp(-dmin * dmin / (arcWidth * arcWidth));
+    float arcGlow = exp(-dmin * dmin / (arcWidth * arcWidth * 12.0));
+    col += (uSpark * 0.95 * arcCore + uSparkGlow * 0.4 * arcGlow) * arc.w * taper;
+    hot += arcCore * arc.w * taper * 0.6;
+  }
+
+  fragColor = vec4(col, hot) * uEncode;
+}
+`;
+
+  const dustVertex = `#version 300 es
+precision highp float;
+
+in float aIndex;
+
+uniform sampler2D tHome;
+uniform sampler2D tSeed;
+uniform vec2 uCenter;
+uniform vec2 uViewport;
+uniform float uRadius;
+uniform float uDpr;
+uniform float uDepth;
+uniform float uTwinkle;
+uniform float uPointScale;
+uniform float uReveal;
+uniform float uEncode;
+uniform vec3 uTones[5];
+uniform vec3 uRimTone;
+
+out vec3 vColor;
+out float vSize;
+${hashChunk}
+${dustChunk}
+void main() {
+  ivec2 cell = ivec2(int(mod(aIndex, ${STATE_WIDTH}.0)), int(floor(aIndex / ${STATE_WIDTH}.0)));
+  uint id = uint(aIndex);
+  vec4 home = texelFetch(tHome, cell, 0);
+  vec4 seed = texelFetch(tSeed, cell, 0);
+  float life;
+  float spread;
+  vec3 p = drift(home, seed, id, life, spread);
+  float len = length(p);
+  float inside = 1.0 - smoothstep(0.955, 0.985, length(p.xy));
+  if (len > 0.975) p *= 0.975 / len;
+
+  float front = p.z * 0.5 + 0.5;
+  float depthSize = mix(1.0, 0.7 + 0.6 * front, uDepth);
+  float depthLight = mix(1.0, 0.35 + 0.8 * front, uDepth);
+  float blink = sin(uDustTime * (2.0 + 6.0 * random(id * 7u + 5u)) + random(id * 7u + 6u) * 6.2831853);
+  float twinkle = mix(1.0, smoothstep(-0.9, -0.6, blink), uTwinkle);
+  float fade = smoothstep(0.04, 0.12, life);
+  float order = (home.y + 1.0) * 0.5 * 0.55 + random(id * 7u + 8u) * 0.25;
+  float reveal = smoothstep(order, order + 0.2, uReveal * 1.0);
+  float alpha = random(id * 7u + 9u) < 0.5 || home.w > 3.5 ? 1.0 : 0.6;
+
+  float size = seed.x * uPointScale * (0.35 + 0.95 * life) * depthSize * mix(0.5, 1.0, reveal);
+  vec2 screen = uCenter + p.xy * uRadius;
+  gl_Position = vec4(screen / uViewport * 2.0 - 1.0, 0.0, 1.0);
+  float px = size * uDpr;
+  gl_PointSize = px + 2.0;
+  vSize = px;
+
+  int tone = int(home.w + 0.5);
+  float rimLit = smoothstep(0.8, 0.97, length(p.xy));
+  vec3 color = uTones[tone] + uRimTone * rimLit * rimLit * 0.12;
+  vColor = color * alpha * fade * twinkle * depthLight * reveal * inside * sqrt(spread) * uEncode;
+}
+`;
+
+  const dustFragment = `#version 300 es
+precision highp float;
+
+uniform float uShape;
+
+in vec3 vColor;
+in float vSize;
+
+out vec4 fragColor;
+
+void main() {
+  vec2 q = (gl_PointCoord - 0.5) * (vSize + 2.0);
+  float half_ = max(vSize * 0.5, 0.5);
+  float cover;
+  if (uShape < 0.5) {
+    vec2 c = clamp(half_ - abs(q) + 0.5, 0.0, 1.0);
+    cover = c.x * c.y;
+  } else {
+    cover = clamp(half_ - length(q) + 0.5, 0.0, 1.0);
+  }
+  if (cover <= 0.0) discard;
+  fragColor = vec4(vColor * cover, 0.0);
+}
+`;
+
+  const compositeFragment = `#version 300 es
+precision highp float;
+
+uniform sampler2D tScene;
+uniform float uDecode;
+
+in vec2 vUv;
+out vec4 fragColor;
+
+vec3 soften(vec3 x) {
+  vec3 over = max(x - 0.6, 0.0);
+  return min(x, 0.6) + 0.4 * (1.0 - exp(-over / 0.4));
+}
+
+void main() {
+  vec4 scene = texture(tScene, vUv) * uDecode;
+  vec3 light = max(scene.rgb, 0.0);
+  float peak = max(light.r, max(light.g, light.b));
+  light += vec3(max(peak - 1.8, 0.0) * 0.25);
+  vec3 shown = soften(light);
+  fragColor = vec4(shown, max(shown.r, max(shown.g, shown.b)));
+}
+`;
+
+  interface Programa {
+    program: WebGLProgram;
+    uniforms: Record<string, { loc: WebGLUniformLocation | null; type: number }>;
+  }
+
+  // Alias: Biome toma `gl.useProgram` por un hook de React por su nombre.
+  const usarPrograma = gl.useProgram.bind(gl);
+
+  const compile = (type: number, source: string) => {
+    const shader = gl.createShader(type);
+    if (!shader) return null;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+    gl.deleteShader(shader);
+    return null;
+  };
+  const link = (vertexSource: string, fragmentSource: string): Programa | null => {
+    const vs = compile(gl.VERTEX_SHADER, vertexSource);
+    const fs = compile(gl.FRAGMENT_SHADER, fragmentSource);
+    const program = gl.createProgram();
+    if (!vs || !fs || !program) return null;
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      gl.deleteProgram(program);
+      return null;
+    }
+    const uniforms: Programa["uniforms"] = {};
+    const count = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS) as number;
+    for (let i = 0; i < count; i++) {
+      const info = gl.getActiveUniform(program, i);
+      if (!info) continue;
+      const name = info.name.replace(/\[0\]$/, "");
+      uniforms[name] = { loc: gl.getUniformLocation(program, name), type: info.type };
+    }
+    return { program, uniforms };
+  };
+  const setUniforms = (prog: Programa, values: Record<string, number | number[] | Float32Array>) => {
+    for (const name of Object.keys(values)) {
+      const u = prog.uniforms[name];
+      const v = values[name];
+      if (!u || v === undefined) continue;
+      switch (u.type) {
+        case gl.FLOAT:
+          gl.uniform1f(u.loc, v as number);
+          break;
+        case gl.FLOAT_VEC2:
+          gl.uniform2fv(u.loc, v as number[]);
+          break;
+        case gl.FLOAT_VEC3:
+          gl.uniform3fv(u.loc, v as number[]);
+          break;
+        case gl.FLOAT_VEC4:
+          gl.uniform4fv(u.loc, v as number[]);
+          break;
+        default:
+          gl.uniform1i(u.loc, v as number);
+      }
+    }
+  };
+
+  const field = link(passVertex, fieldFragment);
+  const dustProg = link(dustVertex, dustFragment);
+  const composite = link(passVertex, compositeFragment);
+  if (!field || !dustProg || !composite) return null;
+
+  const halfFloat = !!gl.getExtension("EXT_color_buffer_float") || !!gl.getExtension("EXT_color_buffer_half_float");
+  const encode = halfFloat ? 1 : 0.25;
+  const emptyVao = gl.createVertexArray();
+  const strandData = buildStrands();
+
+  const sceneTex = gl.createTexture();
+  const sceneFbo = gl.createFramebuffer();
+  const sizeScene = (w: number, h: number) => {
+    gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+    if (halfFloat) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  };
+
+  const dataTexture = (data: Float32Array, rows: number) => {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, STATE_WIDTH, rows, 0, gl.RGBA, gl.FLOAT, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    return tex;
+  };
+
+  const dustData = buildDust(leer().particleCount);
+  const homeTex = dataTexture(dustData.home, dustData.rows);
+  const seedTex = dataTexture(dustData.seed, dustData.rows);
+  const dustVao = gl.createVertexArray();
+  const indexBuffer = gl.createBuffer();
+  const indices = new Float32Array(dustData.count);
+  for (let i = 0; i < dustData.count; i++) indices[i] = i;
+  gl.bindVertexArray(dustVao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+  const aIndex = gl.getAttribLocation(dustProg.program, "aIndex");
+  gl.enableVertexAttribArray(aIndex);
+  gl.vertexAttribPointer(aIndex, 1, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  const random = seeded(913);
+  const arcData = new Float32Array(MAX_ARCS * 4);
+  const arcs: { start: number; span: number; curl: number; life: number; duration: number; drift: number; strength: number }[] = [];
+  let width = 1;
+  let height = 1;
+  let dpr = 1;
+  let raf = 0;
+  let last = performance.now();
+  let rimTime = 0;
+  let dustTime = 0;
+  let swayClock = 0;
+  let introClock = 0;
+  let nextArc = 0.3;
+  let visible = true;
+  let alive = true;
+
+  const spawnArc = (angle: number, strength: number) => {
+    if (arcs.length >= MAX_ARCS) return;
+    arcs.push({
+      start: angle,
+      span: (0.05 + random() * 0.07) * (random() < 0.5 ? -1 : 1),
+      curl: 0.02 + random() * 0.04,
+      life: 0,
+      duration: 0.2 + random() * 0.2,
+      drift: (random() - 0.5) * 0.3,
+      strength,
+    });
+  };
+
+  const frame = (now: number) => {
+    raf = 0;
+    if (!alive) return;
+    const s = leer();
+    const dt = Math.min(0.05, Math.max(1 / 240, (now - last) / 1000));
+    last = now;
+    const moving = !reduced;
+    introClock = s.intro && !reduced ? Math.min(1, introClock + dt / INTRO_SECONDS) : 1;
+    const presence = easeOut(smooth(0, 0.42, introClock));
+    const unfold = easeOut(smooth(0, 0.32, introClock));
+    const charge = Math.sin(Math.PI * smooth(0.22, 0.78, introClock)) * 0.35;
+    const radius = Math.max(8, (clamp(s.size, 0.1, 1.5) * Math.min(width, height)) / 2);
+
+    if (moving) {
+      const step = dt * Math.max(0, s.speed) * 2;
+      rimTime += step;
+      dustTime += dt * Math.max(0, s.dustSpeed);
+      swayClock += dt * Math.max(0, s.dustSpeed);
+      const crackleNow = clamp(s.crackle, 0, 1.5);
+      if (s.sparks > 0.01 && introClock > 0.55) {
+        nextArc -= step * s.sparks * 2 * (0.6 + crackleNow * 0.6);
+        if (nextArc <= 0) {
+          const angle = random() < 0.7 ? Math.PI / 2 + (random() - 0.5) * 1.5 : random() * Math.PI * 2;
+          spawnArc(angle, 0.8);
+          nextArc = 0.15 + random() * 0.6;
+        }
+      }
+      for (let i = arcs.length - 1; i >= 0; i--) {
+        const arc = arcs[i]!;
+        arc.life += step;
+        arc.start += arc.drift * step;
+        if (arc.life >= arc.duration) arcs.splice(i, 1);
+      }
+    }
+    for (let i = 0; i < MAX_ARCS; i++) {
+      const arc = arcs[i];
+      arcData[i * 4] = arc ? arc.start : 0;
+      arcData[i * 4 + 1] = arc ? arc.span : 0;
+      arcData[i * 4 + 2] = arc ? arc.curl : 0;
+      arcData[i * 4 + 3] = arc ? Math.sin((Math.PI * arc.life) / arc.duration) * arc.strength : 0;
+    }
+
+    const palette = buildPalette(parseHex(s.color));
+    const center = [width / 2, height / 2];
+    const swing = clamp(s.sway, 0, 1);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFbo);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+
+    usarPrograma(field.program);
+    setUniforms(field, {
+      uCenter: center,
+      uRadius: radius,
+      uDpr: dpr,
+      uLine: Math.max(0.6, radius * 0.0035),
+      uTime: rimTime,
+      uFrame: Math.floor(rimTime * 24) % 100000,
+      uBins: clamp(Math.round((Math.PI * 2 * radius) / 2.6), 240, 900),
+      uStrands: Math.round(clamp(s.strands, 1, 8)),
+      uCrackle: clamp(s.crackle, 0, 1) + charge,
+      uFlares: clamp(s.flares, 0, 1),
+      uGlow: clamp(s.glow, 0, 2) * (1 + charge),
+      uHaze: clamp(s.haze, 0, 2),
+      uFill: clamp(s.fill, 0, 1),
+      uPresence: presence,
+      uUnfold: unfold,
+      uBloom: presence * presence,
+      uInside: smooth(0.2, 0.95, introClock),
+      uEncode: encode,
+      uRim: palette.rim,
+      uRimHot: palette.rimHot,
+      uRimMid: palette.rimMid,
+      uRimDeep: palette.rimDeep,
+      uSpark: palette.spark,
+      uSparkGlow: palette.sparkGlow,
+      uHazeColor: palette.haze,
+      uEdgeColor: palette.edge,
+      uHeat: [0, 0, 0, 0],
+      uHarmonics: strandData.harmonics,
+      uRates: strandData.rates,
+      uPhases: strandData.phases,
+      uFlareHarmonics: strandData.flareHarmonics,
+      uFlareRates: strandData.flareRates,
+      uFlarePhases: strandData.flarePhases,
+      uArcs: arcData,
+    });
+    gl.bindVertexArray(emptyVao);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    usarPrograma(dustProg.program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, homeTex);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, seedTex);
+    setUniforms(dustProg, {
+      tHome: 0,
+      tSeed: 1,
+      uDustTime: dustTime,
+      uTurn: [swing * 0.42 * Math.sin(swayClock * 0.23), swing * 0.12 * Math.sin(swayClock * 0.17 + 1.3)],
+      uMotion: MOTIONS[s.motion],
+      uFill: clamp(s.fill, 0, 1),
+      uCenter: center,
+      uViewport: [width, height],
+      uRadius: radius,
+      uDpr: dpr,
+      uDepth: clamp(s.depth, 0, 1),
+      uTwinkle: clamp(s.twinkle, 0, 1),
+      uPointScale: Math.max(1, radius / 491),
+      uReveal: smooth(0.18, 1, introClock),
+      uEncode: encode,
+      uTones: palette.tones.flat(),
+      uRimTone: palette.rim,
+      uShape: SHAPES[s.particleShape],
+    });
+    gl.bindVertexArray(dustVao);
+    gl.drawArrays(gl.POINTS, 0, dustData.count);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.disable(gl.BLEND);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    usarPrograma(composite.program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+    setUniforms(composite, { tScene: 0, uDecode: 1 / encode });
+    gl.bindVertexArray(emptyVao);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    if (visible && (moving || introClock < 1)) raf = requestAnimationFrame(frame);
+  };
+
+  const start = () => {
+    if (raf || !visible || !alive) return;
+    last = performance.now();
+    raf = requestAnimationFrame(frame);
+  };
+
+  const resize = () => {
+    width = Math.max(1, container.clientWidth);
+    height = Math.max(1, container.clientHeight);
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(height * dpr));
+    sizeScene(canvas.width, canvas.height);
+    start();
+  };
+
+  const resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(container);
+  const intersectionObserver = new IntersectionObserver(([entry]) => {
+    visible = entry?.isIntersecting ?? true;
+    start();
+  });
+  intersectionObserver.observe(container);
+  const onVisibility = () => {
+    if (!document.hidden) start();
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+  resize();
+
+  return {
+    despertar: start,
+    liberar: () => {
+      alive = false;
+      cancelAnimationFrame(raf);
+      resizeObserver.disconnect();
+      intersectionObserver.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+      for (const t of [sceneTex, homeTex, seedTex]) gl.deleteTexture(t);
+      gl.deleteFramebuffer(sceneFbo);
+      gl.deleteBuffer(indexBuffer);
+      gl.deleteVertexArray(dustVao);
+      gl.deleteVertexArray(emptyVao);
+      for (const p of [field, dustProg, composite]) gl.deleteProgram(p.program);
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
+    },
+  };
+}

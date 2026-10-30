@@ -25,22 +25,72 @@ export class ProveedorSimulado implements Proveedor {
       alDelta(trozo);
     }
     if (p.senal.aborted) throw new ErrorAbortado();
-    return r;
+    return { uso: { entrada: 1200, salida: 80 }, ...r };
   }
 }
 
-/** Guion de demostración: pide leer el fichero que mencione el usuario y luego lo resume. */
+const FICHERO = /[\w./\\-]+\.\w{1,6}/;
+
+/**
+ * Guion de demostración para probar la interfaz sin gastar cuota. Según lo que pida el usuario:
+ *   "edita X"      → lee X y le añade una línea (genera un diff)
+ *   "ejecuta CMD"  → terminal (pide permiso)
+ *   "pregunta"     → preguntar con opciones
+ *   "tareas"       → lista de tareas
+ *   "lee X"        → leer
+ *   otra cosa      → una respuesta en markdown
+ */
 export function guionDemo(): PasoSimulado[] {
   return [
     (p) => {
-      const ultimo = [...p.mensajes].reverse().find((m) => m.rol === "usuario");
-      const ruta = ultimo?.rol === "usuario" ? (ultimo.texto.match(/[\w./\\-]+\.\w+/)?.[0] ?? "README.md") : "README.md";
-      return { texto: `Voy a leer ${ruta}.`, llamadas: [{ id: "sim-1", nombre: "leer", argumentos: { ruta } }] };
-    },
-    (p) => {
-      const r = [...p.mensajes].reverse().find((m) => m.rol === "herramienta");
-      const lineas = r?.rol === "herramienta" ? r.resultado.split("\n").length : 0;
-      return { texto: `He leído el fichero: tiene ${lineas} líneas.`, llamadas: [] };
+      const ultimo = p.mensajes.at(-1);
+      const pedido = [...p.mensajes].reverse().find((m) => m.rol === "usuario");
+      const texto = pedido?.rol === "usuario" ? pedido.texto : "";
+      const ruta = texto.match(FICHERO)?.[0] ?? "README.md";
+      const id = `sim-${p.mensajes.length}`;
+
+      if (ultimo?.rol === "herramienta") {
+        if (/edita|cambia/i.test(texto) && ultimo.nombre === "leer" && !ultimo.error) {
+          const contenido = ultimo.resultado
+            .split("\n")
+            .filter((l) => /^\d+\t/.test(l))
+            .map((l) => l.replace(/^\d+\t/, ""))
+            .join("\n");
+          return { texto: "Añado una línea al final.", llamadas: [{ id, nombre: "escribir", argumentos: { ruta, contenido: `${contenido}\nLínea añadida por la demo.\n` } }] };
+        }
+        const lineas = ultimo.resultado.split("\n").length;
+        return { texto: ultimo.error ? `No ha salido bien:\n\n> ${ultimo.resultado.split("\n")[0]}` : `Hecho: \`${ultimo.nombre}\` devolvió ${lineas} líneas.`, llamadas: [] };
+      }
+      if (/edita|cambia/i.test(texto) || /^lee\b/i.test(texto)) {
+        return { texto: `Leo \`${ruta}\`.`, llamadas: [{ id, nombre: "leer", argumentos: { ruta } }] };
+      }
+      const comando = texto.match(/ejecuta\s+(.+)/i)?.[1];
+      if (comando) return { texto: "", llamadas: [{ id, nombre: "terminal", argumentos: { comando: comando.replace(/^`|`$/g, "") } }] };
+      if (/pregunta/i.test(texto)) {
+        return { texto: "", llamadas: [{ id, nombre: "preguntar", argumentos: { pregunta: "¿Qué formato prefieres?", opciones: ["Markdown", "Texto plano", "JSON"] } }] };
+      }
+      if (/tareas/i.test(texto)) {
+        return {
+          texto: "",
+          llamadas: [{ id, nombre: "tareas", argumentos: { tareas: [{ texto: "Leer el código", estado: "hecha" }, { texto: "Arreglar el fallo", estado: "en-curso" }, { texto: "Ejecutar los tests", estado: "pendiente" }] } }],
+        };
+      }
+      return {
+        texto: [
+          "## Respuesta de prueba",
+          "",
+          "Esto es **markdown** con una lista:",
+          "",
+          "- un elemento con `código`",
+          "- otro con un [enlace](https://example.com)",
+          "",
+          "```ts",
+          'const saludo = "hola";',
+          "console.log(saludo);",
+          "```",
+        ].join("\n"),
+        llamadas: [],
+      };
     },
   ];
 }

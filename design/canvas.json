@@ -1,0 +1,22 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-30T14:00:00Z"},
+  "title": "Aquiles · NOX",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1300, "title": "Conversación", "expand": "fill", "is_interactive": true},
+    "Habilidades.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 1200, "title": "Habilidades", "expand": "fill", "is_interactive": true},
+    "Automatizaciones.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 1200, "title": "Automatizaciones y canales", "expand": "fill", "is_interactive": true},
+    "Sidebar.dc.html": {"x": 0, "y": 1420, "w": 260, "h": 900, "title": "Barra lateral (componente)", "is_interactive": true},
+    "Inicio.dc.html": {"x": 4560, "y": 0, "w": 1440, "h": 940, "title": "Inicio · nueva sesión", "expand": "fill", "is_interactive": true},
+    "Orb.dc.html": {"x": 340, "y": 1420, "w": 240, "h": 240, "title": "Avatar · orbe (componente)"}
+  },
+  "order": ["Main.dc.html", "Habilidades.dc.html", "Automatizaciones.dc.html", "Sidebar.dc.html", "Inicio.dc.html", "Orb.dc.html"],
+  "notes": {
+    "titulo": {"x": 0, "y": -300, "text": "Aquiles · marca NOX", "kind": "title1", "maxW": 4480}
+  },
+  "designSystems": [
+    {"title": "NOX Design System", "namespace": "nox", "artifact": "https://claude.ai/artifact/4pCob9mgqehySYEKRUXLcV", "version": "1793325195-94cc", "copiedAt": "2026-10-30T14:00:00Z"}
+  ]
+}

@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { escribir } from "../src/herramientas/escribir";
+import { leer } from "../src/herramientas/leer";
 import { ProveedorSimulado } from "../src/proveedores/simulado";
 import { ErrorProveedor, type Proveedor } from "../src/tipos";
 import { herramientaEco, turno } from "./turno-prueba";
@@ -124,6 +126,20 @@ test("salida larga: se guarda aparte y el modelo recibe cabeza, aviso y cola", a
   const res = mensajes.find((m) => m.rol === "herramienta");
   expect(res?.rol === "herramienta" && res.resultado.length).toBeLessThan(13_000);
   expect(res?.rol === "herramienta" && res.resultado).toContain("salida completa en C:/salidas/e1.txt");
+});
+
+test("las herramientas de escritura llevan el diff en el evento y en el historial", async () => {
+  const p = new ProveedorSimulado([
+    () => ({ texto: "", llamadas: [{ id: "l", nombre: "leer", argumentos: { ruta: "nota.txt" } }] }),
+    () => ({ texto: "", llamadas: [{ id: "w", nombre: "escribir", argumentos: { ruta: "nota.txt", contenido: "El código es 4472.\n" } }] }),
+    () => ({ texto: "listo", llamadas: [] }),
+  ]);
+  const { eventos, mensajes } = await turno(p, { herramientas: [leer, escribir] });
+  const fin = eventos.find((e) => e.tipo === "herramienta.fin" && e.nombre === "escribir");
+  expect(fin?.tipo === "herramienta.fin" && fin.diffs?.[0]).toMatchObject({ ruta: "nota.txt", nuevo: false, anadidas: 1, quitadas: 1 });
+  const res = mensajes.find((m) => m.rol === "herramienta" && m.nombre === "escribir");
+  expect(res?.rol === "herramienta" && res.diffs?.length).toBe(1);
+  expect(res?.rol === "herramienta" && res.resumen).toBe("nota.txt");
 });
 
 test("límite de iteraciones y fallo del proveedor", async () => {

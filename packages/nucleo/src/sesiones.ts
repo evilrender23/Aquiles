@@ -1,9 +1,10 @@
 /**
  * Sesiones: estado en memoria + un JSONL por sesión en `<perfil>/sesiones/<id>.jsonl`.
- * Líneas: {"tipo":"inicio",…}, {"tipo":"mensaje","mensaje":…} y {"tipo":"compactacion","mensajes":[…]}
- * (esta última sustituye el historial entero). Una última línea cortada se ignora al cargar.
+ * Líneas: {"tipo":"inicio",…}, {"tipo":"mensaje","mensaje":…}, {"tipo":"ajuste",…} (proveedor, modelo,
+ * permisos o título) y {"tipo":"compactacion","mensajes":[…]} (sustituye el historial entero).
+ * Una última línea cortada se ignora al cargar.
  */
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { InfoSesion, MensajeHistorial, ModoAprobacion } from "@aquiles/protocolo";
 import type { Huella } from "./herramientas/herramienta";
@@ -18,6 +19,10 @@ export interface Sesion {
   creada: string;
   actualizada: string;
   modoAprobacion: ModoAprobacion;
+  proveedor: string;
+  modelo?: string;
+  /** Título puesto a mano; si falta, se usa el primer mensaje. */
+  titulo?: string;
   /** Claves de "permitir siempre" concedidas en esta sesión. */
   permitidos: Set<string>;
   lecturas: Map<string, Huella>;
@@ -25,6 +30,19 @@ export interface Sesion {
   /** Mensajes escritos por el usuario mientras el turno trabaja; entran en el siguiente paso. */
   steer: string[];
   turno?: AbortController;
+}
+
+export interface OpcionesSesion {
+  modoAprobacion?: ModoAprobacion;
+  proveedor: string;
+  modelo?: string;
+}
+
+export interface Ajuste {
+  modoAprobacion?: ModoAprobacion;
+  proveedor?: string;
+  modelo?: string;
+  titulo?: string;
 }
 
 export function sistemaBase(cwd: string, fecha = new Date()): string {
@@ -41,23 +59,29 @@ export function sistemaBase(cwd: string, fecha = new Date()): string {
 }
 
 type Linea =
-  | { tipo: "inicio"; id: string; cwd: string; sistema: string; creada: string; modoAprobacion: ModoAprobacion }
+  | { tipo: "inicio"; id: string; cwd: string; sistema: string; creada: string; modoAprobacion: ModoAprobacion; proveedor?: string; modelo?: string }
   | { tipo: "mensaje"; mensaje: Mensaje }
+  | ({ tipo: "ajuste" } & Ajuste)
   | { tipo: "compactacion"; mensajes: Mensaje[] };
 
 export class AlmacenSesiones {
   private enMemoria = new Map<string, Sesion>();
 
   /** `directorio` null: solo en memoria (tests). */
-  constructor(private directorio: string | null) {
+  constructor(private directorio: string | null, private proveedorPorDefecto = "agy") {
     if (directorio) mkdirSync(directorio, { recursive: true });
   }
 
-  crear(cwd: string, modoAprobacion: ModoAprobacion = "preguntar-ejecutar"): Sesion {
+  crear(cwd: string, o: OpcionesSesion = { proveedor: this.proveedorPorDefecto }): Sesion {
     const ahora = new Date().toISOString();
-    const s = nueva(crypto.randomUUID(), cwd, sistemaBase(cwd), ahora, modoAprobacion);
+    const modo = o.modoAprobacion ?? "preguntar-ejecutar";
+    const s = nueva(crypto.randomUUID(), cwd, sistemaBase(cwd), ahora, modo, o.proveedor, o.modelo);
     this.enMemoria.set(s.id, s);
-    this.escribir(s, { tipo: "inicio", id: s.id, cwd, sistema: s.sistema, creada: ahora, modoAprobacion }, true);
+    this.escribir(
+      s,
+      { tipo: "inicio", id: s.id, cwd, sistema: s.sistema, creada: ahora, modoAprobacion: modo, proveedor: o.proveedor, ...(o.modelo ? { modelo: o.modelo } : {}) },
+      true,
+    );
     return s;
   }
 
@@ -65,10 +89,9 @@ export class AlmacenSesiones {
   obtener(id: string): Sesion | undefined {
     const s = this.enMemoria.get(id);
     if (s) return s;
-    if (!this.directorio || !/^[\w-]+$/.test(id)) return undefined;
-    const ruta = join(this.directorio, `${id}.jsonl`);
-    if (!existsSync(ruta)) return undefined;
-    const cargada = cargar(ruta);
+    const ruta = this.ruta(id);
+    if (!ruta || !existsSync(ruta)) return undefined;
+    const cargada = cargar(ruta, this.proveedorPorDefecto);
     if (cargada) this.enMemoria.set(id, cargada);
     return cargada;
   }
@@ -81,6 +104,22 @@ export class AlmacenSesiones {
     this.escribir(s, { tipo: "compactacion", mensajes: s.mensajes });
   }
 
+  ajustar(s: Sesion, a: Ajuste): void {
+    aplicar(s, a);
+    this.escribir(s, { tipo: "ajuste", ...a });
+  }
+
+  /** Borra la sesión de memoria y de disco. */
+  borrar(id: string): boolean {
+    const s = this.enMemoria.get(id);
+    this.enMemoria.delete(id);
+    s?.turno?.abort();
+    const ruta = this.ruta(id);
+    if (!ruta || !existsSync(ruta)) return s !== undefined;
+    rmSync(ruta, { force: true });
+    return true;
+  }
+
   listar(): InfoSesion[] {
     const vistas = new Map<string, InfoSesion>();
     if (this.directorio) {
@@ -88,7 +127,7 @@ export class AlmacenSesiones {
         if (!f.endsWith(".jsonl")) continue;
         const id = f.slice(0, -6);
         if (this.enMemoria.has(id)) continue;
-        const s = cargar(join(this.directorio, f));
+        const s = cargar(join(this.directorio, f), this.proveedorPorDefecto);
         if (s) vistas.set(id, info(s));
       }
     }
@@ -98,6 +137,11 @@ export class AlmacenSesiones {
 
   enCurso(): Sesion[] {
     return [...this.enMemoria.values()];
+  }
+
+  private ruta(id: string): string | undefined {
+    if (!this.directorio || !/^[\w-]+$/.test(id)) return undefined;
+    return join(this.directorio, `${id}.jsonl`);
   }
 
   private escribir(s: Sesion, linea: Linea, crear = false): void {
@@ -110,14 +154,23 @@ export class AlmacenSesiones {
   }
 }
 
-function nueva(id: string, cwd: string, sistema: string, creada: string, modoAprobacion: ModoAprobacion): Sesion {
+function nueva(
+  id: string, cwd: string, sistema: string, creada: string, modoAprobacion: ModoAprobacion, proveedor: string, modelo?: string,
+): Sesion {
   return {
-    id, cwd, sistema, mensajes: [], creada, actualizada: creada, modoAprobacion,
+    id, cwd, sistema, mensajes: [], creada, actualizada: creada, modoAprobacion, proveedor, ...(modelo ? { modelo } : {}),
     permitidos: new Set(), lecturas: new Map(), estado: new Map(), steer: [],
   };
 }
 
-function cargar(ruta: string): Sesion | undefined {
+function aplicar(s: Sesion, a: Ajuste): void {
+  if (a.modoAprobacion) s.modoAprobacion = a.modoAprobacion;
+  if (a.proveedor) s.proveedor = a.proveedor;
+  if (a.modelo !== undefined) s.modelo = a.modelo || undefined;
+  if (a.titulo) s.titulo = a.titulo;
+}
+
+function cargar(ruta: string, proveedorPorDefecto: string): Sesion | undefined {
   let s: Sesion | undefined;
   for (const bruto of readFileSync(ruta, "utf8").split("\n")) {
     if (!bruto.trim()) continue;
@@ -127,15 +180,18 @@ function cargar(ruta: string): Sesion | undefined {
     } catch {
       continue; // última línea a medio escribir
     }
-    if (l.tipo === "inicio") s = nueva(l.id, l.cwd, l.sistema, l.creada, l.modoAprobacion ?? "preguntar-ejecutar");
-    else if (s && l.tipo === "mensaje") s.mensajes.push(l.mensaje);
+    if (l.tipo === "inicio") {
+      s = nueva(l.id, l.cwd, l.sistema, l.creada, l.modoAprobacion ?? "preguntar-ejecutar", l.proveedor ?? proveedorPorDefecto, l.modelo);
+    } else if (s && l.tipo === "mensaje") s.mensajes.push(l.mensaje);
     else if (s && l.tipo === "compactacion") s.mensajes = l.mensajes;
+    else if (s && l.tipo === "ajuste") aplicar(s, l);
   }
   if (s) s.actualizada = statSync(ruta).mtime.toISOString();
   return s;
 }
 
 export function titulo(s: Sesion): string | undefined {
+  if (s.titulo) return s.titulo;
   const primero = s.mensajes.find((m) => m.rol === "usuario");
   if (primero?.rol !== "usuario") return undefined;
   const t = primero.texto.replace(/\s+/g, " ").trim();
@@ -145,14 +201,18 @@ export function titulo(s: Sesion): string | undefined {
 export function info(s: Sesion): InfoSesion {
   return {
     sesionId: s.id, cwd: s.cwd, titulo: titulo(s), creada: s.creada, actualizada: s.actualizada,
-    mensajes: s.mensajes.length, modoAprobacion: s.modoAprobacion,
+    mensajes: s.mensajes.length, modoAprobacion: s.modoAprobacion, proveedor: s.proveedor,
+    ...(s.modelo ? { modelo: s.modelo } : {}), trabajando: s.turno !== undefined,
   };
 }
 
 export function historial(s: Sesion): MensajeHistorial[] {
   return s.mensajes.map((m) =>
     m.rol === "herramienta"
-      ? { rol: "herramienta", nombre: m.nombre, resultado: m.resultado.slice(0, 2000), error: m.error }
+      ? {
+          rol: "herramienta", id: m.id, nombre: m.nombre, resultado: m.resultado.slice(0, 4000), error: m.error,
+          ...(m.resumen ? { resumen: m.resumen } : {}), ...(m.diffs ? { diffs: m.diffs } : {}),
+        }
       : { rol: m.rol, texto: m.texto },
   );
 }

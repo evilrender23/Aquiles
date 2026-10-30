@@ -1,0 +1,423 @@
+/* ── Botón ─────────────────────────────────────────── */
+.nx-boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  font: 600 15px/1 var(--font-sans);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 140ms var(--ease),
+    border-color 140ms var(--ease),
+    color 140ms var(--ease),
+    filter 140ms var(--ease);
+}
+.nx-boton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.nx-boton--principal {
+  height: 56px;
+  padding: 0 26px;
+  gap: 10px;
+  border: 0;
+  background: var(--gradiente-lima);
+  box-shadow: var(--glow-lime);
+  color: var(--on-lime);
+  font-size: 16px;
+}
+.nx-boton--principal:hover:not(:disabled) {
+  filter: brightness(1.06);
+  color: var(--on-lime);
+}
+.nx-boton--principal:disabled {
+  box-shadow: none;
+}
+.nx-boton--secundario {
+  border-color: var(--line-strong);
+  font-size: 13px;
+  letter-spacing: var(--tracking-boton);
+  text-transform: uppercase;
+}
+.nx-boton--secundario:hover:not(:disabled),
+.nx-boton--contorno:hover:not(:disabled),
+.nx-boton--chip:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+.nx-boton--acento {
+  border-color: var(--lime-borde);
+  background: var(--lime-tinte);
+  color: var(--ink-strong);
+}
+.nx-boton--acento:hover:not(:disabled) {
+  background: rgba(198, 243, 107, 0.18);
+}
+.nx-boton--contorno {
+  border-color: var(--line-strong);
+}
+.nx-boton--fantasma {
+  padding: 0 16px;
+  color: var(--ink-muted);
+}
+.nx-boton--fantasma:hover:not(:disabled) {
+  color: var(--ink-strong);
+}
+.nx-boton--chip {
+  padding: 0 16px;
+  border-color: var(--line);
+  font-weight: 500;
+  font-size: 14px;
+}
+.nx-boton--alto {
+  height: 48px;
+}
+.nx-boton--pequeno {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+.nx-boton--ancho {
+  width: 100%;
+}
+
+/* ── Botón de icono ────────────────────────────────── */
+.nx-boton-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 140ms var(--ease),
+    color 140ms var(--ease);
+}
+.nx-boton-icono:hover:not(:disabled) {
+  background: var(--line);
+}
+.nx-boton-icono:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.nx-boton-icono--pequeno {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+  color: var(--ink-muted);
+}
+.nx-boton-icono--pequeno:hover:not(:disabled) {
+  color: var(--ink-strong);
+}
+.nx-boton-icono--ventana {
+  width: 40px;
+  height: 32px;
+  border-radius: 8px;
+}
+.nx-boton-icono--ventana:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+
+/* ── Chip / insignia ───────────────────────────────── */
+.nx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: 500 13px/1 var(--font-sans);
+  white-space: nowrap;
+}
+.nx-chip--destacado {
+  border-color: var(--lime-borde);
+  background: var(--lime-tinte);
+}
+button.nx-chip {
+  height: 36px;
+  padding: 0 14px;
+  color: var(--ink-muted);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background-color 140ms var(--ease),
+    border-color 140ms var(--ease),
+    color 140ms var(--ease);
+}
+button.nx-chip:hover:not(:disabled) {
+  color: var(--ink-strong);
+}
+button.nx-chip[aria-pressed="true"],
+button.nx-chip[aria-checked="true"] {
+  border-color: var(--lime-borde);
+  background: var(--lime-tinte);
+  color: var(--ink-strong);
+}
+button.nx-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* ── Etiqueta (mayúsculas con tracking) ────────────── */
+.nx-etiqueta {
+  font: var(--type-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.nx-etiqueta--lima {
+  color: var(--lime);
+}
+
+/* ── Titular ───────────────────────────────────────── */
+.nx-titular {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: var(--tracking-display-l);
+  text-transform: uppercase;
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
+}
+.nx-titular--l {
+  font-size: clamp(44px, 6vw, 72px);
+}
+.nx-titular--m {
+  font-size: clamp(32px, 4.2vw, 56px);
+}
+.nx-titular__clave {
+  color: var(--lime);
+}
+
+/* ── Tarjeta ───────────────────────────────────────── */
+.nx-tarjeta {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-tile);
+  background: var(--surface-raised);
+}
+.nx-tarjeta--destacada {
+  border-color: var(--lime-borde);
+}
+.nx-tarjeta--punteada {
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+}
+
+/* ── Bloque de código ──────────────────────────────── */
+.nx-codigo {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--cut);
+  color: var(--ink-muted);
+  font: 400 13px/1.6 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+}
+.nx-codigo--fuerte {
+  padding: 14px 18px;
+  color: var(--ink-strong);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+/* ── Campo y selector ──────────────────────────────── */
+.nx-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.nx-campo__caja {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 6px 0 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--cut);
+  transition: border-color 140ms var(--ease);
+}
+.nx-campo__caja:focus-within {
+  border-color: var(--lime-borde);
+}
+.nx-campo__caja:has(> .nx-campo__entrada:disabled) {
+  opacity: 0.55;
+}
+.nx-campo__entrada {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink-strong);
+  font: 400 16px/1 var(--font-sans);
+}
+.nx-campo--mono .nx-campo__entrada {
+  font: 400 14px/1 var(--font-mono);
+}
+.nx-campo__entrada:focus-visible {
+  outline: none;
+}
+select.nx-campo__entrada {
+  appearance: none;
+  padding-right: 34px;
+  cursor: pointer;
+}
+select.nx-campo__entrada option {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+.nx-campo__chevron {
+  position: absolute;
+  right: 16px;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+.nx-campo__error {
+  font: var(--type-body-s);
+  color: var(--ink-strong);
+}
+
+/* ── Medidor ───────────────────────────────────────── */
+.nx-medidor {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  overflow: hidden;
+}
+.nx-medidor > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--lime);
+  transition: width 400ms var(--ease);
+}
+
+/* ── Desplegable (menú anclado) ────────────────────── */
+.nx-desplegable {
+  position: relative;
+  display: inline-flex;
+}
+.nx-desplegable__panel {
+  position: absolute;
+  z-index: 30;
+  min-width: 260px;
+  max-width: min(420px, calc(100vw - 32px));
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-tile);
+  background: var(--surface-raised);
+  animation: nx-fold 0.2s var(--ease) both;
+}
+.nx-desplegable__panel--arriba {
+  bottom: calc(100% + 8px);
+}
+.nx-desplegable__panel--abajo {
+  top: calc(100% + 8px);
+}
+.nx-desplegable__panel--derecha {
+  right: 0;
+}
+.nx-desplegable__panel--izquierda {
+  left: 0;
+}
+.nx-desplegable__grupo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 12px 6px;
+}
+.nx-desplegable__motivo {
+  font: 400 13px/1.3 var(--font-sans);
+  color: var(--ink-muted);
+}
+.nx-opcion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  font: 500 14px/1.2 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.nx-opcion:hover:not(:disabled),
+.nx-opcion:focus-visible {
+  background: var(--line);
+  outline: none;
+}
+.nx-opcion[aria-checked="true"] {
+  color: var(--ink-strong);
+}
+.nx-opcion:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.nx-opcion__texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nx-opcion__marca {
+  flex: none;
+  color: var(--lime);
+}
+
+/* Chip como opción de radio: <label class="nx-chip nx-chip--opcion"><input type="radio" class="nx-sr">… */
+label.nx-chip--opcion {
+  position: relative;
+  height: 36px;
+  padding: 0 14px;
+  color: var(--ink-muted);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background-color 140ms var(--ease),
+    border-color 140ms var(--ease),
+    color 140ms var(--ease);
+}
+label.nx-chip--opcion:hover {
+  color: var(--ink-strong);
+}
+label.nx-chip--opcion:has(:checked) {
+  border-color: var(--lime-borde);
+  background: var(--lime-tinte);
+  color: var(--ink-strong);
+}
+label.nx-chip--opcion:has(:focus-visible) {
+  outline: 2px solid var(--lime);
+  outline-offset: 3px;
+}

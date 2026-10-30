@@ -1,0 +1,306 @@
+/* Efectos de React Bits elegidos para Aquiles, tal como los adaptó el lienzo NOX. */
+
+/* ── BlurText: cada token entra desenfocado ────────── */
+.nx-tok {
+  display: inline-block;
+  white-space: pre-wrap;
+  animation: nx-blur-in 0.65s var(--ease) both;
+}
+.nx-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.18em;
+  background: var(--lime);
+  animation: nx-caret 1s steps(1) infinite;
+}
+@keyframes nx-blur-in {
+  from {
+    filter: blur(17px);
+    opacity: 0;
+  }
+  to {
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+@keyframes nx-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ── LatticeLoader: cuadrícula 4×4 en barrido diagonal ─ */
+.nx-lattice {
+  display: inline-grid;
+  flex: none;
+  grid-template-columns: repeat(4, 6px);
+  grid-auto-rows: 6px;
+}
+.nx-lattice > i {
+  display: block;
+  background: var(--lime);
+}
+.nx-lattice--activa > i {
+  background: var(--ink);
+  opacity: 0.05;
+  animation: nx-lat 0.9s linear infinite;
+}
+@keyframes nx-lat {
+  0% {
+    opacity: 0.05;
+  }
+  12% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.05;
+  }
+  100% {
+    opacity: 0.05;
+  }
+}
+
+/* ── ThoughtLine ───────────────────────────────────── */
+.nx-pensamiento {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  color: var(--ink);
+  font: 500 15px/1.2 var(--font-sans);
+}
+.nx-pensamiento__boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+button.nx-pensamiento__boton {
+  cursor: pointer;
+}
+.nx-pensamiento__etiquetas {
+  display: inline-grid;
+}
+.nx-pensamiento__etiquetas > span {
+  grid-area: 1 / 1;
+  width: max-content;
+  transition:
+    opacity 350ms var(--ease-out),
+    filter 350ms var(--ease-out);
+}
+.nx-pensamiento__tiempo {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+.nx-pensamiento__chevron {
+  display: inline-flex;
+  color: var(--ink-muted);
+  transition: transform 200ms var(--ease-out);
+}
+.nx-pensamiento__traza {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 350ms var(--ease-out);
+}
+.nx-pensamiento__traza--abierta {
+  grid-template-rows: 1fr;
+}
+.nx-pensamiento__traza > div {
+  min-height: 0;
+  overflow: hidden;
+}
+.nx-pensamiento__pasos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 0 4px 34px;
+  font-size: 14px;
+  font-weight: 400;
+}
+.nx-pensamiento__paso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+}
+.nx-pensamiento__paso--actual {
+  color: var(--ink);
+}
+.nx-pensamiento__marca {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-muted);
+}
+.nx-punto {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lime);
+}
+.nx-shim {
+  background: linear-gradient(100deg, rgba(233, 237, 231, 0.45) 30%, var(--ink) 50%, rgba(233, 237, 231, 0.45) 70%);
+  background-size: 250% 100%;
+  background-position: 125% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: nx-shim 1.8s linear infinite;
+}
+@keyframes nx-shim {
+  to {
+    background-position: -125% 0;
+  }
+}
+
+/* ── BranchedMenu: historial en árbol ──────────────── */
+.nx-ramas {
+  display: flex;
+  flex-direction: column;
+  padding: 0 4px;
+}
+.nx-ramas__grupo {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  font: 600 14px/1 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.nx-ramas__grupo:hover {
+  background: var(--surface-raised);
+}
+.nx-ramas__chevron {
+  display: inline-flex;
+  color: var(--ink-muted);
+  transition: transform 300ms var(--ease);
+}
+.nx-ramas__chevron--abierto {
+  transform: rotate(90deg);
+}
+.nx-ramas__nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nx-ramas__cuenta {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.nx-ramas__hijo {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding-right: 6px;
+  border-radius: var(--radius-control);
+}
+.nx-ramas__hijo--actual {
+  background: var(--lime-tinte);
+}
+.nx-ramas__trazo {
+  flex: 0 0 40px;
+  overflow: visible;
+}
+.nx-rama {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 0;
+  animation: nx-draw 0.4s var(--ease) both;
+}
+@keyframes nx-draw {
+  from {
+    stroke-dashoffset: 60;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── Logo ASCII ────────────────────────────────────── */
+.nx-logo {
+  display: block;
+  width: 222px;
+  height: 136px;
+  overflow: hidden;
+}
+.nx-logo__arte {
+  width: 278px;
+  transform: scale(0.8);
+  transform-origin: 0 0;
+  font: 400 12px/1.17 var(--font-logo);
+}
+.nx-logo__arte > div {
+  white-space: pre;
+}
+
+/* ── CrystalizedBall ───────────────────────────────── */
+.nx-orbe {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+}
+.nx-orbe--marco {
+  background: #000000;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.nx-orbe > canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.nx-orbe__anillo {
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.25);
+}
+
+/* ── GradientASCII ─────────────────────────────────── */
+.nx-gradiente-ascii {
+  position: absolute;
+  overflow: hidden;
+}
+.nx-gradiente-ascii > canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nx-tok,
+  .nx-caret,
+  .nx-rama,
+  .nx-shim {
+    animation: none;
+  }
+  .nx-lattice--activa > i {
+    animation: none;
+    opacity: 0.6;
+  }
+}

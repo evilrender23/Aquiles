@@ -1,4 +1,4 @@
-import type { Uso } from "@aquiles/protocolo";
+import type { Diff, Uso } from "@aquiles/protocolo";
 
 export interface LlamadaHerramienta {
   id: string;
@@ -20,7 +20,16 @@ export type Mensaje =
       /** Datos opacos que un proveedor necesita recibir de vuelta (p. ej. bloques de razonamiento firmados). */
       opaco?: { proveedor: string; datos: unknown };
     }
-  | { rol: "herramienta"; id: string; nombre: string; resultado: string; error: boolean }
+  | {
+      rol: "herramienta";
+      id: string;
+      nombre: string;
+      resultado: string;
+      error: boolean;
+      /** Solo para la interfaz (los proveedores no lo envían): la línea de la tarjeta y los cambios en ficheros. */
+      resumen?: string;
+      diffs?: Diff[];
+    }
   | { rol: "resumen"; texto: string };
 
 export interface EspecHerramienta {

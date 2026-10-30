@@ -30,7 +30,7 @@ export async function ejecutarCli(o: OpcionesCli): Promise<void> {
     sesion = id ? almacen.obtener(id) : undefined;
     if (!sesion) throw new Error(`No hay sesión que reanudar (${o.reanudar})`);
   }
-  sesion ??= almacen.crear(o.cwd, o.modoAprobacion);
+  sesion ??= almacen.crear(o.cwd, { modoAprobacion: o.modoAprobacion, proveedor: o.proveedor.nombre, modelo: o.proveedor.modelo });
   const s = sesion;
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });

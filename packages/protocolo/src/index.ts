@@ -8,7 +8,7 @@
  */
 import { z } from "zod";
 
-export const VERSION_PROTOCOLO = 2;
+export const VERSION_PROTOCOLO = 3;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -19,18 +19,68 @@ export const RUTA_RPC = "/rpc";
 export const MODOS_APROBACION = ["preguntar-siempre", "preguntar-ejecutar", "libre-proyecto"] as const;
 export type ModoAprobacion = (typeof MODOS_APROBACION)[number];
 
+const idSesion = z.string().min(1);
+
 export const metodos = {
   "nucleo.info": z.object({}),
-  "sesion.crear": z.object({ cwd: z.string().min(1).optional(), modoAprobacion: z.enum(MODOS_APROBACION).optional() }),
+  /** Proveedores conocidos, si están disponibles ahora y sus modelos. */
+  "proveedores.listar": z.object({}),
+  /** Ajustes por defecto del perfil (los usan las sesiones nuevas). */
+  "ajustes.leer": z.object({}),
+  "ajustes.guardar": z.object({
+    proveedor: z.string().min(1).optional(),
+    modelo: z.string().optional(),
+    modoAprobacion: z.enum(MODOS_APROBACION).optional(),
+    carpeta: z.string().min(1).optional(),
+  }),
+  /** Clave de API para este proceso (no se guarda: la app la guarda en el llavero y la pasa al arrancar). */
+  "ajustes.clave": z.object({ proveedor: z.string().min(1), clave: z.string() }),
+  "sesion.crear": z.object({
+    cwd: z.string().min(1).optional(),
+    modoAprobacion: z.enum(MODOS_APROBACION).optional(),
+    proveedor: z.string().min(1).optional(),
+    modelo: z.string().optional(),
+  }),
   "sesion.listar": z.object({}),
-  "sesion.reanudar": z.object({ sesionId: z.string().min(1) }),
-  "prompt.enviar": z.object({ sesionId: z.string().min(1), texto: z.string().min(1) }),
-  "prompt.steer": z.object({ sesionId: z.string().min(1), texto: z.string().min(1) }),
-  "prompt.parar": z.object({ sesionId: z.string().min(1) }),
+  "sesion.reanudar": z.object({ sesionId: idSesion }),
+  /** Cambia proveedor, modelo o permisos de una sesión (vale desde el siguiente turno). */
+  "sesion.ajustar": z.object({
+    sesionId: idSesion,
+    proveedor: z.string().min(1).optional(),
+    modelo: z.string().optional(),
+    modoAprobacion: z.enum(MODOS_APROBACION).optional(),
+  }),
+  "sesion.renombrar": z.object({ sesionId: idSesion, titulo: z.string().min(1).max(120) }),
+  "sesion.borrar": z.object({ sesionId: idSesion }),
+  "prompt.enviar": z.object({ sesionId: idSesion, texto: z.string().min(1) }),
+  "prompt.steer": z.object({ sesionId: idSesion, texto: z.string().min(1) }),
+  "prompt.parar": z.object({ sesionId: idSesion }),
 };
 
 export type NombreMetodo = keyof typeof metodos;
 export type Params<M extends NombreMetodo> = z.infer<(typeof metodos)[M]>;
+
+export interface InfoProveedor {
+  /** Lo que se pasa como `proveedor` (agy, anthropic, ollama…). */
+  id: string;
+  nombre: string;
+  disponible: boolean;
+  /** Por qué no está disponible (falta la clave, no está instalado, no responde…). */
+  motivo?: string;
+  necesitaClave: boolean;
+  /** Modelos conocidos; vacío = se escribe el id a mano. */
+  modelos: string[];
+  /** Modelo que se usa si no se elige ninguno; ausente = el del propio proveedor. */
+  modeloPorDefecto?: string;
+}
+
+export interface Ajustes {
+  proveedor: string;
+  modelo?: string;
+  modoAprobacion: ModoAprobacion;
+  /** Carpeta de trabajo de las sesiones nuevas. */
+  carpeta: string;
+}
 
 export interface InfoSesion {
   sesionId: string;
@@ -40,17 +90,45 @@ export interface InfoSesion {
   actualizada: string;
   mensajes: number;
   modoAprobacion: ModoAprobacion;
+  proveedor: string;
+  modelo?: string;
+  /** Hay un turno en marcha. */
+  trabajando: boolean;
+}
+
+/** Cambios de una herramienta de escritura en un fichero, como diff por bloques con 3 líneas de contexto. */
+export interface Diff {
+  ruta: string;
+  /** El fichero no existía antes. */
+  nuevo: boolean;
+  anadidas: number;
+  quitadas: number;
+  bloques: {
+    /** Primera línea del bloque en el fichero antes / después (desde 1). */
+    lineaAntes: number;
+    lineaDespues: number;
+    lineas: { tipo: "+" | "-" | " "; texto: string }[];
+  }[];
+  /** Se recortó por ser demasiado largo. */
+  truncado?: boolean;
 }
 
 export type MensajeHistorial =
   | { rol: "usuario" | "asistente" | "resumen"; texto: string }
-  | { rol: "herramienta"; nombre: string; resultado: string; error: boolean };
+  | { rol: "herramienta"; id: string; nombre: string; resumen?: string; resultado: string; error: boolean; diffs?: Diff[] };
 
 export interface Resultados {
   "nucleo.info": { version: string; protocolo: number; proveedor: string; modelo?: string };
+  "proveedores.listar": { proveedores: InfoProveedor[] };
+  "ajustes.leer": Ajustes;
+  "ajustes.guardar": Ajustes;
+  "ajustes.clave": { ok: true };
   "sesion.crear": InfoSesion;
   "sesion.listar": { sesiones: InfoSesion[] };
   "sesion.reanudar": InfoSesion & { historial: MensajeHistorial[] };
+  "sesion.ajustar": InfoSesion;
+  "sesion.renombrar": InfoSesion;
+  "sesion.borrar": { borrada: true };
   "prompt.enviar": { aceptado: true };
   "prompt.steer": { encolado: true };
   "prompt.parar": { parado: boolean };
@@ -86,7 +164,8 @@ export type Evento =
   | { tipo: "mensaje.delta"; sesionId: string; texto: string }
   | { tipo: "herramienta.inicio"; sesionId: string; id: string; nombre: string; argumentos: unknown; resumen?: string }
   | { tipo: "herramienta.progreso"; sesionId: string; id: string; texto: string }
-  | { tipo: "herramienta.fin"; sesionId: string; id: string; nombre: string; resultado: string; error: boolean }
+  | { tipo: "herramienta.fin"; sesionId: string; id: string; nombre: string; resultado: string; error: boolean; diffs?: Diff[] }
+  | { tipo: "sesion.actualizada"; sesion: InfoSesion }
   | { tipo: "tareas"; sesionId: string; tareas: TareaVisible[] }
   | { tipo: "contexto.uso"; sesionId: string; tokens: number; ventana?: number }
   | { tipo: "contexto.compactado"; sesionId: string; metodo: "poda" | "resumen"; antes: number; despues: number }

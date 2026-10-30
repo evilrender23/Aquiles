@@ -22,10 +22,12 @@ import {
   type Resultados,
 } from "@aquiles/protocolo";
 import type { ServerWebSocket } from "bun";
+import { AlmacenAjustes } from "./ajustes";
 import { ejecutarTurno } from "./bucle";
 import type { Herramienta } from "./herramientas/herramienta";
 import { cerrarEstadoSesion } from "./herramientas/index";
-import { AlmacenSesiones, historial, info } from "./sesiones";
+import { crearProveedor, establecerClave, listarProveedores } from "./proveedores/index";
+import { AlmacenSesiones, historial, info, type Sesion } from "./sesiones";
 import type { Proveedor } from "./tipos";
 
 export const ORIGENES_APP = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost", "http://localhost:1420"];
@@ -33,12 +35,18 @@ export const ORIGENES_APP = ["http://tauri.localhost", "https://tauri.localhost"
 export interface OpcionesServidor {
   puerto: number;
   token: string;
-  proveedor: Proveedor;
+  /** Proveedor por defecto si el perfil aún no tiene ajustes. */
+  proveedor: string;
+  modelo?: string;
+  /** Crea proveedores por nombre y modelo (inyectable en tests). */
+  fabrica?: (nombre: string, modelo?: string) => Proveedor;
   herramientas: readonly Herramienta<any>[];
   cwdPorDefecto: string;
   version: string;
-  /** Carpeta del perfil (sesiones/, salidas/); null = solo memoria. */
+  /** Carpeta del perfil (sesiones/, salidas/, ajustes.json); null = solo memoria. */
   perfil: string | null;
+  /** Ofrecer el proveedor simulado en proveedores.listar (desarrollo). */
+  incluirSimulado?: boolean;
   origenesPermitidos?: readonly string[];
   log?: (mensaje: string) => void;
 }
@@ -55,7 +63,7 @@ class FalloRpc extends Error {
 }
 
 export function iniciarServidor(o: OpcionesServidor): Servidor {
-  const sesiones = new AlmacenSesiones(o.perfil ? join(o.perfil, "sesiones") : null);
+  const sesiones = new AlmacenSesiones(o.perfil ? join(o.perfil, "sesiones") : null, o.proveedor);
   const clientes = new Set<ServerWebSocket<unknown>>();
   const origenes = o.origenesPermitidos ?? ORIGENES_APP;
   const log = o.log ?? (() => {});
@@ -84,35 +92,111 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
   };
 
   const salidas = o.perfil ? join(o.perfil, "salidas") : null;
+  const ajustes = new AlmacenAjustes(o.perfil ? join(o.perfil, "ajustes.json") : null, {
+    proveedor: o.proveedor,
+    ...(o.modelo ? { modelo: o.modelo } : {}),
+    modoAprobacion: "preguntar-ejecutar",
+    carpeta: o.cwdPorDefecto,
+  });
+  const fabrica = o.fabrica ?? ((nombre: string, modelo?: string) => crearProveedor(nombre, { modelo }));
+  /** Un proveedor por (nombre, modelo), compartido entre sesiones. */
+  const proveedores = new Map<string, Proveedor>();
+  const proveedorDe = (s: Sesion): Proveedor => {
+    const clave = `${s.proveedor}|${s.modelo ?? ""}`;
+    let p = proveedores.get(clave);
+    if (!p) {
+      try {
+        p = fabrica(s.proveedor, s.modelo);
+      } catch (e) {
+        throw new FalloRpc(codigosError.paramsInvalidos, e instanceof Error ? e.message : String(e));
+      }
+      proveedores.set(clave, p);
+    }
+    return p;
+  };
+  const obtener = (sesionId: string): Sesion => {
+    const s = sesiones.obtener(sesionId);
+    if (!s) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
+    return s;
+  };
+  const avisar = (s: Sesion) => emitir({ tipo: "sesion.actualizada", sesion: info(s) });
 
   const manejadores: { [M in NombreMetodo]: (params: any) => Resultados[M] | Promise<Resultados[M]> } = {
-    "nucleo.info": () => ({ version: o.version, protocolo: VERSION_PROTOCOLO, proveedor: o.proveedor.nombre, modelo: o.proveedor.modelo }),
-    "sesion.crear": ({ cwd, modoAprobacion }) => {
-      const s = sesiones.crear(cwd ?? o.cwdPorDefecto, modoAprobacion);
-      log(`sesión ${s.id} en ${s.cwd}`);
+    "nucleo.info": () => {
+      const a = ajustes.leer();
+      return { version: o.version, protocolo: VERSION_PROTOCOLO, proveedor: a.proveedor, ...(a.modelo ? { modelo: a.modelo } : {}) };
+    },
+    "proveedores.listar": async () => ({ proveedores: await listarProveedores(o.incluirSimulado) }),
+    "ajustes.leer": () => ajustes.leer(),
+    "ajustes.guardar": (cambios) => ajustes.guardar(cambios),
+    "ajustes.clave": ({ proveedor, clave }) => {
+      try {
+        establecerClave(proveedor, clave);
+      } catch (e) {
+        throw new FalloRpc(codigosError.paramsInvalidos, e instanceof Error ? e.message : String(e));
+      }
+      for (const [k, p] of proveedores) {
+        if (!k.startsWith(`${proveedor}|`)) continue;
+        void p.cerrar?.();
+        proveedores.delete(k);
+      }
+      return { ok: true };
+    },
+    "sesion.crear": ({ cwd, modoAprobacion, proveedor, modelo }) => {
+      const a = ajustes.leer();
+      const elegido = proveedor ?? a.proveedor;
+      const s = sesiones.crear(cwd ?? a.carpeta, {
+        modoAprobacion: modoAprobacion ?? a.modoAprobacion,
+        proveedor: elegido,
+        modelo: modelo ?? (proveedor ? undefined : a.modelo),
+      });
+      log(`sesión ${s.id} en ${s.cwd} (${s.proveedor}${s.modelo ? ` ${s.modelo}` : ""})`);
+      avisar(s);
       return info(s);
     },
     "sesion.listar": () => ({ sesiones: sesiones.listar() }),
     "sesion.reanudar": ({ sesionId }) => {
-      const s = sesiones.obtener(sesionId);
-      if (!s) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
+      const s = obtener(sesionId);
       return { ...info(s), historial: historial(s) };
     },
-    "prompt.enviar": ({ sesionId, texto }) => {
+    "sesion.ajustar": ({ sesionId, proveedor, modelo, modoAprobacion }) => {
+      const s = obtener(sesionId);
+      sesiones.ajustar(s, { proveedor, modelo: modelo ?? (proveedor && proveedor !== s.proveedor ? "" : undefined), modoAprobacion });
+      avisar(s);
+      return info(s);
+    },
+    "sesion.renombrar": ({ sesionId, titulo }) => {
+      const s = obtener(sesionId);
+      sesiones.ajustar(s, { titulo: titulo.trim() });
+      avisar(s);
+      return info(s);
+    },
+    "sesion.borrar": async ({ sesionId }) => {
       const s = sesiones.obtener(sesionId);
-      if (!s) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
+      if (s) {
+        s.turno?.abort();
+        await cerrarEstadoSesion(s.estado);
+        for (const p of proveedores.values()) await p.cerrar?.(s.id);
+      }
+      if (!sesiones.borrar(sesionId)) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
+      return { borrada: true };
+    },
+    "prompt.enviar": ({ sesionId, texto }) => {
+      const s = obtener(sesionId);
       if (s.turno) throw new FalloRpc(codigosError.sesionOcupada, "La sesión ya está trabajando; usa prompt.steer");
+      const proveedor = proveedorDe(s);
       const usuario = { rol: "usuario" as const, texto };
       s.mensajes.push(usuario);
       sesiones.anotar(s, usuario);
       const control = new AbortController();
       s.turno = control;
+      avisar(s);
       void ejecutarTurno({
         sesionId: s.id,
         cwd: s.cwd,
         sistema: s.sistema,
         mensajes: s.mensajes,
-        proveedor: o.proveedor,
+        proveedor,
         herramientas: o.herramientas,
         emitir,
         senal: control.signal,
@@ -134,6 +218,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
         .then((r) => log(`turno ${s.id}: ${r.motivo}${r.error ? ` (${r.error})` : ""}`))
         .finally(() => {
           if (s.turno === control) s.turno = undefined;
+          avisar(s);
         });
       return { aceptado: true };
     },
@@ -222,7 +307,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
         await cerrarEstadoSesion(s.estado);
       }
       servidor.stop(true);
-      await o.proveedor.cerrar?.();
+      for (const p of proveedores.values()) await p.cerrar?.();
     },
   };
 }

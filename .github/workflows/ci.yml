@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  nucleo-e-interfaz:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run tipos
+      - run: bun run lint
+      - run: bun test
+      - run: bun banco/ejecutar.ts --validar
+      - run: bun run build
+        working-directory: apps/escritorio
+
+  app-tauri:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run compilar:nucleo
+      - run: bun run build
+        working-directory: apps/escritorio
+      # El test del llavero toca el almacén de credenciales del sistema: se salta en CI.
+      - run: cargo test -- --skip llavero
+        working-directory: apps/escritorio/src-tauri

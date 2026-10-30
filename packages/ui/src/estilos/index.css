@@ -1,0 +1,8 @@
+/* Fuentes empaquetadas (sin CDN: la CSP de la app solo permite 'self'). Licencia OFL-1.1. */
+@import "@fontsource-variable/outfit/index.css";
+@import "@fontsource/geist-mono/300.css";
+
+@import "./tokens.css";
+@import "./base.css";
+@import "./componentes.css";
+@import "./efectos.css";

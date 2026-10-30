@@ -41,13 +41,12 @@ if (!MODOS_APROBACION.includes(modo)) {
   process.exit(2);
 }
 
-const proveedor = crearProveedor(op.proveedor!, { modelo: op.modelo });
 const herramientas = herramientasPorDefecto();
 const perfil = directorioPerfil(op.perfil);
 
 if (op.cli) {
   await ejecutarCli({
-    proveedor, herramientas, cwd: op.cwd!, perfil, modoAprobacion: modo,
+    proveedor: crearProveedor(op.proveedor!, { modelo: op.modelo }), herramientas, cwd: op.cwd!, perfil, modoAprobacion: modo,
     reanudar: op.continuar ? "ultima" : op.reanudar,
   });
   process.exit(0);
@@ -64,15 +63,17 @@ const extra = (process.env.AQUILES_ORIGENES ?? "").split(",").filter(Boolean);
 const servidor = iniciarServidor({
   puerto: Number(op.puerto),
   token,
-  proveedor,
+  proveedor: op.proveedor!,
+  modelo: op.modelo,
   herramientas,
   cwdPorDefecto: op.cwd!,
   version: paquete.version,
   perfil,
+  incluirSimulado: op.proveedor === "simulado" || process.env.AQUILES_DESARROLLO === "1",
   origenesPermitidos: [...ORIGENES_APP, ...extra],
   log,
 });
-log(`v${paquete.version}, proveedor ${proveedor.nombre}${proveedor.modelo ? ` (${proveedor.modelo})` : ""}, carpeta ${op.cwd}, perfil ${perfil}`);
+log(`v${paquete.version}, proveedor por defecto ${op.proveedor}${op.modelo ? ` (${op.modelo})` : ""}, carpeta ${op.cwd}, perfil ${perfil}`);
 console.log(`${LINEA_LISTO} port=${servidor.puerto}`);
 
 const salir = async () => {

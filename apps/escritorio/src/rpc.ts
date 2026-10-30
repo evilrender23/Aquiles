@@ -69,7 +69,10 @@ export class ClienteRpc {
       const id = datos.id;
       const f = this.atendedores.get(datos.method);
       const enviar = (r: object) => this.ws.send(JSON.stringify({ jsonrpc: "2.0", id, ...r }));
-      if (!f) return enviar({ error: { code: -32601, message: `La interfaz no atiende ${datos.method}` } });
+      if (!f) {
+        enviar({ error: { code: -32601, message: `La interfaz no atiende ${datos.method}` } });
+        return;
+      }
       f(datos.params as unknown).then(
         (result) => enviar({ result }),
         (e: unknown) => enviar({ error: { code: -32603, message: e instanceof Error ? e.message : String(e) } }),

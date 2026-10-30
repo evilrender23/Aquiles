@@ -3,9 +3,11 @@
  * cuando toca), devolverle los resultados y repetir hasta que responda sin pedir ninguna.
  * Entre pasos: mensajes de steer del usuario y compactación del contexto.
  */
-import type { Evento, ModoAprobacion, MotivoFin, Uso } from "@aquiles/protocolo";
+import { relative } from "node:path";
+import type { Diff, Evento, ModoAprobacion, MotivoFin, Uso } from "@aquiles/protocolo";
 import { clavePermiso, decidir } from "./aprobaciones";
 import { compactarSiHaceFalta } from "./contexto";
+import { calcularDiff } from "./diff";
 import {
   especDe,
   ErrorHerramienta,
@@ -142,7 +144,6 @@ export async function ejecutarTurno(o: OpcionesTurno): Promise<ResultadoTurno> {
     let respuesta: RespuestaModelo;
     try {
       await compactar(false);
-      emitir({ tipo: "contexto.uso", sesionId: o.sesionId, tokens: tokensReales ?? 0, ventana: proveedor.ventanaContexto });
       respuesta = await llamar();
     } catch (e) {
       if (e instanceof ErrorAbortado || o.senal.aborted) return fin("parado");
@@ -153,6 +154,7 @@ export async function ejecutarTurno(o: OpcionesTurno): Promise<ResultadoTurno> {
       uso.salida += respuesta.uso.salida;
       uso.razonamiento = (uso.razonamiento ?? 0) + (respuesta.uso.razonamiento ?? 0);
       tokensReales = respuesta.uso.entrada;
+      emitir({ tipo: "contexto.uso", sesionId: o.sesionId, tokens: tokensReales, ...(proveedor.ventanaContexto ? { ventana: proveedor.ventanaContexto } : {}) });
     }
     texto = respuesta.texto;
     anadir({
@@ -181,7 +183,8 @@ async function ejecutarLlamada(
     tipo: "herramienta.inicio", sesionId: o.sesionId, id: llamada.id, nombre: llamada.nombre, argumentos: llamada.argumentos,
     ...(resumen ? { resumen } : {}),
   });
-  const responder = (resultado: string, error: boolean) => {
+  const responder = (resultado: string, error: boolean, diffs?: Diff[]) => {
+    const conDiffs = diffs?.length ? { diffs } : {};
     o.emitir({
       tipo: "herramienta.fin",
       sesionId: o.sesionId,
@@ -189,8 +192,9 @@ async function ejecutarLlamada(
       nombre: llamada.nombre,
       resultado: resultado.length > MAX_RESULTADO_EVENTO ? `${resultado.slice(0, MAX_RESULTADO_EVENTO)}…` : resultado,
       error,
+      ...conDiffs,
     });
-    return { rol: "herramienta" as const, id: llamada.id, nombre: llamada.nombre, resultado, error };
+    return { rol: "herramienta" as const, id: llamada.id, nombre: llamada.nombre, resultado, error, ...(resumen ? { resumen } : {}), ...conDiffs };
   };
 
   if (!h || !args) return responder(`Herramienta desconocida: ${llamada.nombre}. Disponibles: ${[...porNombre.keys()].join(", ")}`, true);
@@ -219,6 +223,9 @@ async function ejecutarLlamada(
     notificar: (n) => o.emitir({ tipo: "tareas", sesionId: o.sesionId, tareas: n.tareas }),
     progreso: (t) => o.emitir({ tipo: "herramienta.progreso", sesionId: o.sesionId, id: llamada.id, texto: t }),
   };
+  // Foto de los ficheros que va a tocar una herramienta de escritura, para enseñar el diff.
+  const rutas = h.nivel === "escritura" ? (h.rutas?.(args.data, o.cwd) ?? []) : [];
+  const antes = new Map(await Promise.all(rutas.map(async (r) => [r, await leerTexto(r)] as const)));
   try {
     let resultado = await h.ejecutar(args.data, ctx);
     if (resultado.length > MAX_RESULTADO_MODELO && o.guardarSalida) {
@@ -226,11 +233,29 @@ async function ejecutarLlamada(
       const omitidos = resultado.length - 12_000;
       resultado = `${resultado.slice(0, 8000)}\n…[${omitidos} caracteres omitidos; salida completa en ${ruta}: léela con leer usando desde/lineas]…\n${resultado.slice(-4000)}`;
     }
-    return responder(resultado, false);
+    const diffs: Diff[] = [];
+    for (const [r, previo] of antes) {
+      const despues = await leerTexto(r);
+      if (despues !== undefined && despues !== previo) diffs.push(calcularDiff(relative(o.cwd, r) || r, previo, despues));
+    }
+    return responder(resultado, false, diffs);
   } catch (e) {
     if (e instanceof ErrorHerramienta) return responder(e.message, true);
     if (e instanceof ErrorAbortado || o.senal.aborted) return responder("Turno parado durante la ejecución.", true);
     return responder(`Error interno de ${h.nombre}: ${e instanceof Error ? e.message : String(e)}`, true);
+  }
+}
+
+/** Contenido de texto de un fichero, o undefined si no existe, es grande o binario. */
+async function leerTexto(ruta: string): Promise<string | undefined> {
+  try {
+    const f = Bun.file(ruta);
+    if (!(await f.exists()) || f.size > 1024 * 1024) return undefined;
+    const bytes = await f.bytes();
+    if (bytes.subarray(0, 8192).includes(0)) return undefined;
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return undefined;
   }
 }
 

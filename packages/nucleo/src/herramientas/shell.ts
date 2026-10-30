@@ -126,6 +126,7 @@ const CABEZA = 10_000;
 const COLA = 20_000;
 const MAX_RETENIDO = 1_000_000;
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: quitar secuencias ANSI exige buscar ESC y BEL.
 const ANSI = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]/g;
 
 /** Quita secuencias ANSI, normaliza CRLF y aplica los retornos de carro (barras de progreso). */

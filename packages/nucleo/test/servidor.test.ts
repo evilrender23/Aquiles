@@ -27,7 +27,10 @@ beforeAll(async () => {
       return { texto: "Leo.", llamadas: [{ id: "l1", nombre: "leer", argumentos: { ruta: "hola.txt" } }] };
     },
   ]);
-  servidor = iniciarServidor({ puerto: 0, token: TOKEN, proveedor, herramientas: [leer, herramientaEco()], cwdPorDefecto: cwd, version: "0.0.0", perfil });
+  servidor = iniciarServidor({
+    puerto: 0, token: TOKEN, proveedor: "simulado", fabrica: () => proveedor, herramientas: [leer, herramientaEco()],
+    cwdPorDefecto: cwd, version: "0.0.0", perfil, incluirSimulado: true,
+  });
 });
 afterAll(() => servidor.detener());
 
@@ -77,7 +80,7 @@ test("rechaza token malo y origen ajeno", async () => {
 test("turno completo, persistencia y reanudar", async () => {
   const ws = await conectar();
   const c = rpc(ws);
-  expect((await c.llamar("nucleo.info", {})).result).toMatchObject({ proveedor: "simulado", protocolo: 2 });
+  expect((await c.llamar("nucleo.info", {})).result).toMatchObject({ proveedor: "simulado", protocolo: 3 });
   const { result: s } = await c.llamar("sesion.crear", {});
   expect(s).toMatchObject({ cwd, modoAprobacion: "preguntar-ejecutar" });
   expect((await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "lee hola.txt" })).result).toEqual({ aceptado: true });
@@ -103,6 +106,30 @@ test("el núcleo pide aprobación a la interfaz y respeta la respuesta", async (
   await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "haz eco" });
   expect(await c.esperarFin()).toMatchObject({ motivo: "fin", texto: "resultado: 1 líneas, error=true" });
   expect(pedidas[0]).toMatchObject({ metodo: "aprobacion.pedir", params: { sesionId: s.sesionId, herramienta: "eco", resumen: "eco rm -rf x" } });
+  ws.close();
+});
+
+test("ajustes, ajustar, renombrar, borrar y sesion.actualizada", async () => {
+  const ws = await conectar();
+  const c = rpc(ws);
+  expect((await c.llamar("ajustes.leer", {})).result).toEqual({ proveedor: "simulado", modoAprobacion: "preguntar-ejecutar", carpeta: cwd });
+  const otra = await mkdtemp(join(tmpdir(), "aquiles-otra-"));
+  expect((await c.llamar("ajustes.guardar", { carpeta: otra, modoAprobacion: "libre-proyecto" })).result).toMatchObject({ carpeta: otra });
+  const { result: s } = await c.llamar("sesion.crear", {});
+  expect(s).toMatchObject({ cwd: otra, modoAprobacion: "libre-proyecto", proveedor: "simulado", trabajando: false });
+
+  const a = (await c.llamar("sesion.ajustar", { sesionId: s.sesionId, modoAprobacion: "preguntar-siempre", modelo: "x" })).result;
+  expect(a).toMatchObject({ modoAprobacion: "preguntar-siempre", modelo: "x" });
+  expect((await c.llamar("sesion.renombrar", { sesionId: s.sesionId, titulo: "Mi sesión" })).result.titulo).toBe("Mi sesión");
+  expect(c.eventos.filter((e) => e.tipo === "sesion.actualizada").length).toBeGreaterThanOrEqual(3);
+
+  const reabierta = (await c.llamar("sesion.reanudar", { sesionId: s.sesionId })).result;
+  expect(reabierta).toMatchObject({ titulo: "Mi sesión", modelo: "x", modoAprobacion: "preguntar-siempre" });
+  expect((await c.llamar("sesion.borrar", { sesionId: s.sesionId })).result).toEqual({ borrada: true });
+  expect((await c.llamar("sesion.reanudar", { sesionId: s.sesionId })).error.code).toBe(1001);
+  expect((await c.llamar("proveedores.listar", {})).result.proveedores.some((p: any) => p.id === "simulado" && p.disponible)).toBe(true);
+  expect((await c.llamar("ajustes.clave", { proveedor: "simulado", clave: "x" })).error.code).toBe(-32602);
+  await c.llamar("ajustes.guardar", { carpeta: cwd, modoAprobacion: "preguntar-ejecutar" });
   ws.close();
 });
 

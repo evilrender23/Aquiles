@@ -16,6 +16,12 @@ use tauri_plugin_shell::ShellExt;
 
 const LINEA_LISTO: &str = "AQUILES_READY port=";
 const SERVICIO_LLAVERO: &str = "Aquiles";
+/// Proveedor del núcleo → variable de entorno con su clave (ver packages/nucleo/src/proveedores/index.ts).
+const CLAVES: [(&str, &str); 3] = [
+    ("anthropic", "AQUILES_CLAVE_ANTHROPIC"),
+    ("openrouter", "OPENROUTER_API_KEY"),
+    ("openai", "OPENAI_API_KEY"),
+];
 
 struct Nucleo {
     token: String,
@@ -87,8 +93,11 @@ fn lanzar_nucleo(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(carpeta) = app.path().home_dir() {
         orden = orden.current_dir(carpeta);
     }
-    if let Ok(clave) = entrada("anthropic").and_then(|e| e.get_password().map_err(|e| e.to_string())) {
-        orden = orden.env("AQUILES_CLAVE_ANTHROPIC", clave);
+    // Claves guardadas en el llavero → variables que leen los proveedores del núcleo.
+    for (proveedor, variable) in CLAVES {
+        if let Ok(clave) = entrada(proveedor).and_then(|e| e.get_password().map_err(|e| e.to_string())) {
+            orden = orden.env(variable, clave);
+        }
     }
     let (mut eventos, hijo) = orden.spawn()?;
     app.manage(Nucleo {
@@ -133,6 +142,7 @@ fn lanzar_nucleo(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![conexion_nucleo, guardar_clave, hay_clave, borrar_clave])
         .setup(|app| lanzar_nucleo(app))
         .build(tauri::generate_context!())

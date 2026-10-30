@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Aquiles · Conversación</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;background:#0A0C0B}
+a{color:#C6F36B}a:hover{color:#F2F4EF}
+.wb{background:transparent}.wb:hover{background:#141816}
+.ib{background:transparent}.ib:hover{background:#262D28}
+textarea::placeholder{color:#9AA39C}
+:focus-visible{outline:2px solid #C6F36B;outline-offset:3px}
+.branch{stroke-dasharray:60;stroke-dashoffset:0;animation:draw .4s cubic-bezier(.2,.7,.3,1) both}
+.fold{animation:fold .3s cubic-bezier(.2,.7,.3,1) both}
+@keyframes draw{from{stroke-dashoffset:60}to{stroke-dashoffset:0}}
+@keyframes fold{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.branch,.fold{animation:none}}
+.lat{opacity:.05;animation:lat .9s linear infinite}
+@keyframes lat{0%{opacity:.05}12%{opacity:1}40%{opacity:.05}100%{opacity:.05}}
+.shim{background:linear-gradient(100deg,rgba(233,237,231,.45) 30%,#E9EDE7 50%,rgba(233,237,231,.45) 70%);background-size:250% 100%;background-position:125% 0;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:shim 1.8s linear infinite}
+@keyframes shim{to{background-position:-125% 0}}
+.pulse{animation:pulse 1.6s cubic-bezier(.77,0,.175,1) infinite}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion: reduce){.lat{animation:none;opacity:.6}.shim{animation:none}.pulse{animation-duration:2.4s}}
+.tok{display:inline-block;white-space:pre;animation:blurIn .65s cubic-bezier(.2,.7,.3,1) both}
+.caret{display:inline-block;width:2px;height:1.1em;margin-left:2px;vertical-align:-0.18em;background:#C6F36B;animation:caret 1s steps(1) infinite}
+@keyframes blurIn{from{filter:blur(17px);opacity:0}to{filter:blur(0);opacity:1}}
+@keyframes caret{50%{opacity:0}}
+@media (prefers-reduced-motion: reduce){.tok,.caret{animation:none}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; align-items: stretch; background: radial-gradient(1100px 560px at 70% -8%, #141816, #0A0C0B 70%); color: #E9EDE7; font-family: 'Outfit', system-ui, sans-serif;">
+
+  <div style="flex: 1 1 260px; max-width: 100%; border-right: 1px solid #262D28;">
+    <dc-import name="Sidebar" active="chat" hint-size="260px,900px"></dc-import>
+  </div>
+
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 8px 0 32px; border-bottom: 1px solid #262D28;">
+      <span style="font-size: 13px; color: #9AA39C;">~/proyectos/aquiles-app</span>
+      <div style="flex: 1 1 auto;"></div>
+      <button type="button" class="wb" aria-label="Minimizar" style="width: 40px; height: 32px; border: 0; border-radius: 8px; color: #E9EDE7; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg></button>
+      <button type="button" class="wb" aria-label="Maximizar" style="width: 40px; height: 32px; border: 0; border-radius: 8px; color: #E9EDE7; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg></button>
+      <button type="button" class="wb" aria-label="Cerrar" style="width: 40px; height: 32px; border: 0; border-radius: 8px; color: #E9EDE7; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+    </div>
+
+    <main style="flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+      <section style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column;">
+        <div style="padding: 40px 48px 28px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px;">
+          <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+            <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Sesión · feat/tauri-2</span>
+            <h1 style="margin: 0; font-size: 56px; line-height: 0.92; font-weight: 800; letter-spacing: -0.045em; text-transform: uppercase; color: #F2F4EF;">Migrar el shell a <span style="color: #C6F36B;">Tauri 2</span><span style="color: #C6F36B;">.</span></h1>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" style="height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid #3A443D; background: transparent; color: #E9EDE7; font: 600 13px 'Outfit', sans-serif; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"></path><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>Bifurcar</button>
+            <button type="button" style="height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid #3A443D; background: transparent; color: #E9EDE7; font: 600 13px 'Outfit', sans-serif; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>Detener</button>
+          </div>
+        </div>
+
+        <div style="padding: 8px 48px 40px; display: flex; flex-direction: column; gap: 28px; max-width: 860px; box-sizing: border-box; width: 100%;">
+
+          <article style="align-self: flex-end; max-width: 620px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
+            <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Tú · 10:42</span>
+            <div style="padding: 18px 22px; background: #141816; border: 1px solid #262D28; border-radius: 18px; font-size: 16px; line-height: 26px; color: #E9EDE7;">
+              Quiero dejar Electron. Migra el shell a Tauri 2 manteniendo el puente IPC tipado en TypeScript, y que el build de Windows siga funcionando.
+            </div>
+          </article>
+
+          <article style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+              <dc-import name="Orb" px="{{s40}}" busy="{{orbBusy}}" hint-size="40px,40px"></dc-import>
+              <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Aquiles · 10:43</span>
+              <span style="display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 999px; background: rgba(198,243,107,0.12); border: 1px solid rgba(198,243,107,0.45); font-size: 13px; font-weight: 500; color: #E9EDE7;">migrar-electron-tauri</span>
+            </div>
+            <div style="position: relative; display: flex; flex-direction: column; align-items: flex-start; font-size: 15px; line-height: 1.2; font-weight: 500; color: #E9EDE7;">
+              <button type="button" aria-expanded="{{t1.open}}" onClick="{{t1.toggle}}" style="display: inline-flex; align-items: center; gap: 10px; min-height: 36px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; white-space: nowrap;">
+                <span aria-hidden="true" style="display: inline-grid; grid-template-columns: repeat(4, 6px); grid-auto-rows: 6px; flex: none;"><sc-for list="{{t1.cells}}" as="cl" hint-placeholder-count="16"><span class="{{cl.cls}}" style="{{cl.style}}"></span></sc-for></span>
+                <span aria-hidden="true" style="display: inline-grid;">
+                  <span style="{{t1.workStyle}}"><span class="{{t1.shimCls}}">{{t1.label}}</span></span>
+                  <span style="{{t1.doneStyle}}">{{t1.doneLabel}}</span>
+                </span>
+                <span aria-hidden="true" style="{{t1.timerStyle}}">{{t1.timer}}</span>
+                <span aria-hidden="true" style="{{t1.chevStyle}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></span>
+              </button>
+              <span class="sr" role="status">{{t1.announce}}</span>
+              <div style="{{t1.traceStyle}}">
+                <div style="min-height: 0; overflow: hidden;">
+                  <div style="display: flex; flex-direction: column; gap: 8px; padding: 6px 0 4px 34px; font-size: 14px; font-weight: 400;">
+                    <sc-for list="{{t1.steps}}" as="st" hint-placeholder-count="3">
+                      <div class="fold" style="display: flex; align-items: center; gap: 8px;">
+                        <span aria-hidden="true" style="display: inline-grid; place-items: center; width: 14px; height: 14px; color: #9AA39C;">
+                          <sc-if value="{{st.done}}" hint-placeholder-val="{{true}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"></path></svg></sc-if>
+                          <sc-if value="{{st.current}}" hint-placeholder-val="{{false}}"><i class="pulse" style="display: block; width: 6px; height: 6px; border-radius: 50%; background: #C6F36B;"></i></sc-if>
+                        </span>
+                        <span style="{{st.textStyle}}">{{st.text}}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p style="margin: 0; font-size: 18px; line-height: 29px; color: #E9EDE7; max-width: 62ch;">
+              Tengo una habilidad para esto de la migración de notas-app. Plan: instalar el CLI de Tauri, generar src-tauri/, portar los canales IPC a comandos con invoke y retirar Electron al final.
+            </p>
+
+            <div style="background: #141816; border: 1px solid #262D28; border-radius: 18px; overflow: hidden;">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px;">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C6F36B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"></path><path d="M12 19h8"></path></svg>
+                <span style="flex: 1 1 240px; min-width: 0; font: 500 14px ui-monospace, SFMono-Regular, Consolas, monospace; color: #F2F4EF;">pnpm add -D @tauri-apps/cli@2</span>
+                <span style="font-size: 13px; color: #9AA39C;">3,1 s</span>
+              </div>
+              <pre style="margin: 0 12px 12px; padding: 16px 18px; background: #0D100E; border-radius: 14px; font: 13px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; color: #9AA39C; white-space: pre-wrap; overflow-x: auto;">{{installOut}}</pre>
+            </div>
+
+            <div style="background: #141816; border: 1px solid #262D28; border-radius: 18px; padding: 6px 0;">
+              <sc-for list="{{edits}}" as="e" hint-placeholder-count="4">
+                <div style="display: flex; align-items: center; gap: 12px; padding: 10px 18px;">
+                  <span style="width: 14px; font: 700 13px ui-monospace, SFMono-Regular, Consolas, monospace; color: #9AA39C;">{{e.st}}</span>
+                  <span style="flex: 1 1 auto; min-width: 0; font: 14px ui-monospace, SFMono-Regular, Consolas, monospace; color: #E9EDE7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{e.path}}</span>
+                  <span style="font: 600 13px ui-monospace, SFMono-Regular, Consolas, monospace; color: #C6F36B;">{{e.add}}</span>
+                  <span style="font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; color: #9AA39C;">{{e.del}}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="position: relative; display: flex; flex-direction: column; align-items: flex-start; font-size: 15px; line-height: 1.2; font-weight: 500; color: #E9EDE7;">
+              <button type="button" aria-expanded="{{t2.open}}" onClick="{{t2.toggle}}" style="display: inline-flex; align-items: center; gap: 10px; min-height: 36px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; white-space: nowrap;">
+                <span aria-hidden="true" style="display: inline-grid; grid-template-columns: repeat(4, 6px); grid-auto-rows: 6px; flex: none;"><sc-for list="{{t2.cells}}" as="cl" hint-placeholder-count="16"><span class="{{cl.cls}}" style="{{cl.style}}"></span></sc-for></span>
+                <span aria-hidden="true" style="display: inline-grid;">
+                  <span style="{{t2.workStyle}}"><span class="{{t2.shimCls}}">{{t2.label}}</span></span>
+                  <span style="{{t2.doneStyle}}">{{t2.doneLabel}}</span>
+                </span>
+                <span aria-hidden="true" style="{{t2.timerStyle}}">{{t2.timer}}</span>
+                <span aria-hidden="true" style="{{t2.chevStyle}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></span>
+              </button>
+              <span class="sr" role="status">{{t2.announce}}</span>
+              <div style="{{t2.traceStyle}}">
+                <div style="min-height: 0; overflow: hidden;">
+                  <div style="display: flex; flex-direction: column; gap: 8px; padding: 6px 0 4px 34px; font-size: 14px; font-weight: 400;">
+                    <sc-for list="{{t2.steps}}" as="st" hint-placeholder-count="3">
+                      <div class="fold" style="display: flex; align-items: center; gap: 8px;">
+                        <span aria-hidden="true" style="display: inline-grid; place-items: center; width: 14px; height: 14px; color: #9AA39C;">
+                          <sc-if value="{{st.done}}" hint-placeholder-val="{{true}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"></path></svg></sc-if>
+                          <sc-if value="{{st.current}}" hint-placeholder-val="{{false}}"><i class="pulse" style="display: block; width: 6px; height: 6px; border-radius: 50%; background: #C6F36B;"></i></sc-if>
+                        </span>
+                        <span style="{{st.textStyle}}">{{st.text}}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <sc-if value="{{showReply}}" hint-placeholder-val="{{true}}">
+              <p style="margin: 0; font-size: 18px; line-height: 29px; color: #E9EDE7; max-width: 62ch;"><sc-for list="{{streamed}}" as="tk" hint-placeholder-count="12"><span class="tok">{{tk.t}}</span></sc-for><sc-if value="{{streaming}}" hint-placeholder-val="{{true}}"><span class="caret" aria-hidden="true"></span></sc-if></p>
+            </sc-if>
+
+            <div style="display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border: 1px dashed #3A443D; border-radius: 18px;">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"></rect><path d="M12 8V4"></path><path d="M9 14h.01M15 14h.01"></path></svg>
+                <span style="font-size: 16px; font-weight: 600; color: #F2F4EF;">revisor-de-tipos</span>
+                <span style="flex: 1 1 160px; font-size: 15px; color: #9AA39C;">Revisando archivos .tsx</span>
+                <span style="font-size: 15px; font-weight: 700; color: #C6F36B;">18 / 46</span>
+              </div>
+              <div style="height: 4px; border-radius: 999px; background: #262D28;">
+                <div style="width: 39%; height: 4px; border-radius: 999px; background: #C6F36B;"></div>
+              </div>
+            </div>
+          </article>
+
+          <div style="display: flex; flex-direction: column; gap: 16px; padding: 24px; background: #141816; border: 1px solid rgba(198,243,107,0.45); border-radius: 18px;">
+            <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #C6F36B;">Permiso</span>
+            <h2 style="margin: 0; font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -0.02em; color: #F2F4EF;">Aquiles quiere ejecutar un comando</h2>
+            <pre style="margin: 0; padding: 14px 18px; background: #0D100E; border-radius: 14px; font: 500 14px ui-monospace, SFMono-Regular, Consolas, monospace; color: #F2F4EF; overflow-x: auto;">pnpm tauri build --debug</pre>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <button type="button" style="height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid rgba(198,243,107,0.45); background: rgba(198,243,107,0.12); color: #F2F4EF; font: 600 15px 'Outfit', sans-serif; cursor: pointer;">Permitir una vez</button>
+              <button type="button" style="height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid #3A443D; background: transparent; color: #E9EDE7; font: 600 15px 'Outfit', sans-serif; cursor: pointer;">Siempre en este proyecto</button>
+              <button type="button" style="height: 44px; padding: 0 16px; border-radius: 999px; border: 0; background: transparent; color: #9AA39C; font: 600 15px 'Outfit', sans-serif; cursor: pointer;">Denegar</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: auto; padding: 16px 48px 32px;">
+          <div style="max-width: 860px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 18px 18px 14px 24px; background: #141816; border: 1px solid #262D28; border-radius: 28px;">
+            <textarea aria-label="Mensaje para Aquiles" rows="2" placeholder="Escribe una instrucción" style="width: 100%; box-sizing: border-box; border: 0; background: transparent; resize: none; font: 400 18px/29px 'Outfit', sans-serif; color: #F2F4EF; padding: 0;"></textarea>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+              <button type="button" class="ib" aria-label="Adjuntar archivo" style="width: 44px; height: 44px; border: 0; border-radius: 999px; color: #E9EDE7; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+              <button type="button" class="ib" aria-label="Mencionar archivo" style="width: 44px; height: 44px; border: 0; border-radius: 999px; color: #E9EDE7; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"></path></svg></button>
+              <div style="flex: 1 1 auto;"></div>
+              <button type="button" style="height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid #262D28; background: transparent; color: #E9EDE7; font: 500 14px 'Outfit', sans-serif; cursor: pointer;">claude-opus-5-5</button>
+              <button type="button" style="height: 56px; padding: 0 26px; border-radius: 999px; border: 0; background: linear-gradient(135deg, #D9FA8A, #8FD14F); box-shadow: 0 12px 48px rgba(198,243,107,0.35); color: #0A0C0B; font: 600 16px 'Outfit', sans-serif; display: inline-flex; align-items: center; gap: 10px; cursor: pointer;">Enviar<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside aria-label="Contexto de la sesión" style="flex: 1 1 300px; min-width: 0; padding: 40px 28px; display: flex; flex-direction: column; gap: 36px; border-left: 1px solid #262D28;">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Contexto</span>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <span style="font-size: 44px; line-height: 48px; font-weight: 700; letter-spacing: -0.035em; color: #C6F36B;">61,4k</span>
+            <span style="font-size: 15px; color: #9AA39C;">de 200k tokens</span>
+          </div>
+          <div style="height: 4px; border-radius: 999px; background: #262D28;">
+            <div style="width: 31%; height: 4px; border-radius: 999px; background: #C6F36B;"></div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Herramientas</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <sc-for list="{{tools}}" as="t" hint-placeholder-count="5">
+              <button type="button" aria-pressed="{{t.on}}" onClick="{{t.toggle}}" style="{{t.style}}">{{t.label}}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: #9AA39C;">Memoria en uso</span>
+          <sc-for list="{{memories}}" as="m" hint-placeholder-count="3">
+            <div style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 14px; border-bottom: 1px solid #262D28;">
+              <span style="font-size: 15px; line-height: 24px; color: #E9EDE7;">{{m.text}}</span>
+              <span style="font-size: 13px; color: #9AA39C;">{{m.src}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </aside>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { off: { web: true }, count: 0, phase: 'think', thinkMs: 0, liveOpen: true, firstOpen: false };
+    // Trocea la respuesta en piezas de hasta 5 caracteres, como llegan los tokens del modelo.
+    const reply = 'Los 14 canales IPC ya son comandos. Antes de compilar he lanzado un subagente para revisar los tipos del puente.';
+    this.tokens = [];
+    (reply.match(/\s*\S+/g) || []).forEach((word) => {
+      for (let i = 0; i < word.length; i += 5) this.tokens.push(word.slice(i, i + 5));
+    });
+  }
+
+  // Bucle de demostración: piensa 2,7 s (un paso nuevo cada 0,9 s), se asienta,
+  // escribe en streaming un token cada 35 ms y vuelve a empezar tras 1,6 s.
+  componentDidMount() {
+    const total = this.tokens.length;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      this.setState({ phase: 'rest', count: total, thinkMs: 2700, liveOpen: false });
+      return;
+    }
+    this.phaseAt = Date.now();
+    this.timer = setInterval(() => {
+      const now = Date.now();
+      const { phase, count } = this.state;
+      if (phase === 'think') {
+        const ms = now - this.phaseAt;
+        if (ms >= 2700) this.setState({ phase: 'stream', thinkMs: ms, liveOpen: false });
+        else this.setState({ thinkMs: ms });
+      } else if (phase === 'stream') {
+        if (count < total) {
+          this.setState({ count: count + 1 });
+        } else {
+          this.phaseAt = now;
+          this.setState({ phase: 'rest' });
+        }
+      } else if (now - this.phaseAt > 1600) {
+        this.phaseAt = now;
+        this.setState({ phase: 'think', count: 0, thinkMs: 0, liveOpen: true });
+      }
+    }, 35);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.timer);
+  }
+  renderVals() {
+    const off = this.state.off;
+    const chip = (on) => ({
+      height: 36, padding: '0 14px', borderRadius: 999, cursor: 'pointer',
+      font: "500 14px 'Outfit', sans-serif",
+      background: on ? 'rgba(198,243,107,0.12)' : '#141816',
+      border: '1px solid ' + (on ? 'rgba(198,243,107,0.45)' : '#262D28'),
+      color: on ? '#F2F4EF' : '#9AA39C'
+    });
+    const tools = [
+      { id: 'term', label: 'Terminal' },
+      { id: 'files', label: 'Archivos' },
+      { id: 'browser', label: 'Navegador' },
+      { id: 'web', label: 'Búsqueda web' },
+      { id: 'code', label: 'Ejecutar código' }
+    ];
+    // Línea de pensamiento: cuadrícula 4×4 en barrido (LatticeLoader) + etiqueta, cronómetro y pasos (ThoughtLine).
+    const ease = 'cubic-bezier(.23,1,.32,1)';
+    const fmt = (ms) => (ms / 1000).toFixed(1).replace('.', ',') + ' s';
+    const thought = (working, ms, stepsAll, visible, open, toggle) => {
+      const steps = stepsAll.slice(0, visible);
+      return {
+        open,
+        toggle,
+        label: 'Pensando…',
+        doneLabel: 'Pensó durante',
+        timer: fmt(ms),
+        announce: working ? 'Pensando…' : 'Pensó durante ' + fmt(ms).replace(' s', ' segundos'),
+        shimCls: working ? 'shim' : '',
+        cells: Array.from({ length: 16 }, (_, i) => {
+          const diag = Math.floor(i / 4) + (i % 4);
+          return working
+            ? { cls: 'lat', style: { background: '#E9EDE7', animationDelay: diag * 90 + 'ms' } }
+            : { cls: '', style: { background: '#C6F36B' } };
+        }),
+        workStyle: { gridArea: '1 / 1', width: 'max-content', opacity: working ? 1 : 0, filter: working ? 'blur(0)' : 'blur(2px)', transition: 'opacity 350ms ' + ease + ', filter 350ms ' + ease },
+        doneStyle: { gridArea: '1 / 1', width: 'max-content', opacity: working ? 0 : 0.75, filter: working ? 'blur(2px)' : 'blur(0)', transition: 'opacity 350ms ' + ease + ', filter 350ms ' + ease },
+        timerStyle: { fontVariantNumeric: 'tabular-nums', color: '#9AA39C' },
+        chevStyle: { display: 'inline-flex', color: '#9AA39C', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 200ms ' + ease },
+        traceStyle: { display: 'grid', gridTemplateRows: open ? '1fr' : '0fr', transition: 'grid-template-rows 350ms ' + ease },
+        steps: steps.map((text, i) => {
+          const done = !working || i < steps.length - 1;
+          return { text, done, current: !done, textStyle: { color: done ? '#9AA39C' : '#E9EDE7', transition: 'color 350ms ease' } };
+        })
+      };
+    };
+    const { phase, thinkMs, liveOpen, firstOpen } = this.state;
+    const thinking = phase === 'think';
+    return {
+      t1: thought(false, 4100, ['Leyendo la habilidad migrar-electron-tauri', 'Revisando package.json y el puente IPC', 'Planificando la migración'], 3, firstOpen, () => this.setState({ firstOpen: !firstOpen })),
+      t2: thought(thinking, thinkMs, ['Leyendo src/ipc/bridge.ts', 'Comprobando los 14 comandos nuevos', 'Redactando el resumen'], thinking ? Math.min(3, 1 + Math.floor(thinkMs / 900)) : 3, liveOpen, () => this.setState({ liveOpen: !liveOpen })),
+      showReply: !thinking,
+      streamed: this.tokens.slice(0, this.state.count).map((t) => ({ t })),
+      streaming: phase === 'stream',
+      s40: 40,
+      orbBusy: thinking,
+      installOut: 'Packages: +12\nProgress: resolved 412, reused 398, downloaded 14, added 12, done\n\ndevDependencies:\n+ @tauri-apps/cli 2.1.0\n\nDone in 3.1s',
+      edits: [
+        { st: 'A', path: 'src-tauri/tauri.conf.json', add: '+48', del: '−0' },
+        { st: 'A', path: 'src-tauri/src/commands.rs', add: '+212', del: '−0' },
+        { st: 'M', path: 'src/ipc/bridge.ts', add: '+31', del: '−58' },
+        { st: 'M', path: 'package.json', add: '+5', del: '−9' }
+      ],
+      tools: tools.map((t) => {
+        const on = !off[t.id];
+        return { ...t, on, style: chip(on), toggle: () => this.setState({ off: { ...off, [t.id]: on } }) };
+      }),
+      memories: [
+        { text: 'Prefieres pnpm sobre npm en todos los proyectos.', src: 'Perfil · 3 sep' },
+        { text: 'El primer objetivo de build es Windows 11 x64.', src: 'aquiles-app · 21 oct' },
+        { text: 'Commits en español, formato convencional.', src: 'Perfil · 12 ago' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

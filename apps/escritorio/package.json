@@ -10,9 +10,13 @@
   },
   "dependencies": {
     "@aquiles/protocolo": "workspace:*",
-    "@tauri-apps/api": "2.9.0",
+    "@aquiles/ui": "workspace:*",
+    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/plugin-dialog": "2.8.3",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.9.2",
