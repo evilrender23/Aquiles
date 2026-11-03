@@ -4,11 +4,14 @@
  * El idioma sale de los ajustes del perfil; se recuerda en este navegador para no pintar el primer instante en otro.
  */
 import { fijarIdioma, type Idioma, registrarTraducciones } from "@aquiles/ui";
+import { ajustes } from "./en/ajustes";
 import { base } from "./en/base";
+import { conversacion } from "./en/conversacion";
+import { vistas } from "./en/vistas";
 
 const CLAVE = "aquiles-idioma";
 
-for (const parte of [base]) registrarTraducciones("en", parte);
+for (const parte of [base, conversacion, ajustes, vistas]) registrarTraducciones("en", parte);
 
 /** El último idioma usado en este navegador (o español). */
 export function idiomaGuardado(): Idioma {
