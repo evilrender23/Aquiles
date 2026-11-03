@@ -166,7 +166,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
             <div className="interrumpida" role="status">
               <Icono nombre="pausa" tamano={16} />
               <span className="interrumpida__texto">{t("Interrumpida")}</span>
-              <Boton variante="acento" tamano="pequeno" disabled={!conectada} onClick={() => void enviar(sesionId, "Continúa donde lo dejaste.")}>
+              <Boton variante="acento" tamano="pequeno" disabled={!conectada} onClick={() => void enviar(sesionId, t("Continúa donde lo dejaste."))}>
                 {t("Continuar")}
               </Boton>
             </div>

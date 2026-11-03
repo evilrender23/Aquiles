@@ -28,6 +28,7 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
   - modelos GGUF de Hugging Face, que se buscan, se descargan y se ejecutan con llama.cpp.
 
   El nivel de esfuerzo de razonamiento se puede elegir en los modelos que lo declaran.
+- **Idioma:** la interfaz está en español (por defecto) o en inglés, en Ajustes → General. Los mensajes del núcleo siguen en español; el modelo contesta en el idioma en que le escribas.
 - **Aplicación:**
   - bandeja del sistema y arranque con Windows;
   - atajo global con entrada rápida;

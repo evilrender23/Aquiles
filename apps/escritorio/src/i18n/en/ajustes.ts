@@ -182,7 +182,6 @@ export const ajustes: Record<string, string> = {
   Error: "Error",
   Añadir: "Add",
   Editar: "Edit",
-  Activo: "Enabled",
   "1 herramienta": "1 tool",
   "{n} herramientas": "{n} tools",
   Nombre: "Name",

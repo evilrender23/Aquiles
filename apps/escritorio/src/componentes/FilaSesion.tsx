@@ -55,7 +55,7 @@ export function FilaSesion({
         icono: "play",
         alElegir: () => {
           alAbrir();
-          void enviar(sesion.sesionId, "Continúa donde lo dejaste.");
+          void enviar(sesion.sesionId, t("Continúa donde lo dejaste."));
         },
       },
     sesion.trabajando && { texto: t("Parar"), icono: "detener", alElegir: () => detener(sesion.sesionId) },

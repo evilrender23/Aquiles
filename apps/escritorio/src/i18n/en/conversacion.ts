@@ -33,7 +33,6 @@ export const conversacion: Record<string, string> = {
   "Copiar ruta": "Copy path",
   "Mostrar fichero": "Show file",
   "Ver diff": "View diff",
-  "En curso": "In progress",
   Error: "Error",
   Hecho: "Done",
 
@@ -216,4 +215,6 @@ export const conversacion: Record<string, string> = {
   Memoria: "Memory",
   "Habilidad nueva": "New skill",
   Habilidad: "Skill",
+  // Se envía al modelo: en inglés, para que conteste en inglés.
+  "Continúa donde lo dejaste.": "Continue where you left off.",
 };
