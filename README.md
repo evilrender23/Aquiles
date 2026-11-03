@@ -1,6 +1,6 @@
 # Aquiles
 
-Agente personal para Windows (y Mac) con app de escritorio. Trabaja con tus ficheros y tu terminal, recuerda lo que aprende y puede ejecutar tareas por su cuenta. Tiene dos partes:
+Agente personal para Windows, Mac y Linux con app de escritorio. Trabaja con tus ficheros y tu terminal, recuerda lo que aprende y puede ejecutar tareas por su cuenta. Tiene dos partes:
 - el **núcleo**, que es el agente, en TypeScript sobre Bun;
 - la **app**, en Tauri 2 y React.
 
@@ -30,10 +30,10 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
   El nivel de esfuerzo de razonamiento se puede elegir en los modelos que lo declaran.
 - **Idioma:** la interfaz está en español (por defecto) o en inglés, en Ajustes → General. Los mensajes del núcleo siguen en español; el modelo contesta en el idioma en que le escribas.
 - **Aplicación:**
-  - bandeja del sistema y arranque con Windows;
+  - bandeja del sistema y arranque al iniciar sesión;
   - atajo global con entrada rápida;
   - perfiles, copias de seguridad y restauración;
-  - voz con lo que trae cada sistema: dictado continuo (el micrófono de la caja escucha frase tras frase) y lectura en voz alta; en Windows con System.Speech, en Mac con el reconocedor de voz de macOS y `say`;
+  - voz con lo que trae cada sistema: dictado continuo (el micrófono de la caja escucha frase tras frase) y lectura en voz alta; en Windows con System.Speech, en Mac con el reconocedor de voz de macOS y `say`, y en Linux solo lectura, con `espeak-ng` o Speech Dispatcher;
   - estadísticas;
   - modo remoto (la app conectada a un núcleo en otra máquina);
   - integración con editores por ACP (`aquiles-nucleo --acp`).
@@ -96,6 +96,32 @@ En Mac no hay todavía:
 
 El núcleo recibe el PATH de tu shell (`~/.zshrc` y compañía), así que encuentra `claude`, `codex`, `agy` y lo de Homebrew aunque abras la app desde el Dock. El control del navegador usa Microsoft Edge si está en Aplicaciones. Los datos van en `~/.config/Aquiles`.
 
+### En Linux
+
+Igual que en Mac, con el mismo instalador:
+
+```bash
+git clone https://github.com/evilrender23/Aquiles.git
+bash Aquiles/instalar.sh
+```
+
+1. Comprueba los requisitos: un compilador de C, Git, curl, las bibliotecas de desarrollo de GTK, WebKitGTK 4.1 y D-Bus, Bun y Rust. Si falta algo, pregunta antes de instalarlo; las bibliotecas, con el gestor de paquetes de la distribución (apt, dnf, pacman o zypper) y `sudo`.
+2. Descarga la rama `main` en `~/.local/share/Aquiles/codigo`.
+3. La compila y la deja en `~/.local/share/Aquiles/app`, con un lanzador en el menú de aplicaciones.
+
+Se actualiza sola igual que en Windows y Mac. Opciones: `--repo`, `--rama` y `--destino`.
+
+Para hacer paquetes: `bun run app:linux` deja un `.deb` y un `.rpm` en `apps/escritorio/src-tauri/target/release/bundle/` (`bash scripts/app-linux.sh deb,appimage` para elegir otros). Los paquetes no se actualizan solos.
+
+En Linux:
+- las claves de API van en el llavero del sistema por Secret Service (GNOME Keyring o KWallet): sin uno abierto, no se pueden guardar;
+- se leen las respuestas en voz alta si hay `espeak-ng` (o `espeak`, o `spd-say`); no hay dictado, porque Linux no trae un reconocedor de voz;
+- el control del navegador usa Microsoft Edge, Chrome o Chromium, el primero que encuentre en el PATH;
+- la bandeja del sistema necesita AppIndicator (en GNOME, la extensión «AppIndicator and KStatusNotifierItem Support»);
+- no hay instalación automática de llama.cpp ni de Docker (si ya están en el PATH, se usan).
+
+Los datos van en `~/.config/Aquiles` (o en `$XDG_CONFIG_HOME/Aquiles`). Como en Mac, el núcleo recibe el PATH de tu shell, así que encuentra `claude`, `codex` o `agy` aunque estén en `~/.local/bin` o los haya puesto nvm.
+
 Para hablar con un modelo hace falta al menos una de estas cosas:
 - `agy`, `claude` o Codex instalado y con la sesión iniciada;
 - una clave de API (en Ajustes → Modelos);
@@ -103,7 +129,7 @@ Para hablar con un modelo hace falta al menos una de estas cosas:
 
 ## Desarrollo
 
-Requisitos: los mismos que la instalación, es decir, Bun ≥ 1.4.4, Rust MSVC (lo selecciona `apps/escritorio/rust-toolchain.toml`) y Visual Studio Build Tools con C++.
+Requisitos: los mismos que la instalación, es decir, Bun ≥ 1.4.4, Rust MSVC (lo selecciona `apps/escritorio/rust-toolchain.toml`) y Visual Studio Build Tools con C++. En Mac y Linux, Rust stable y lo que comprueba `instalar.sh`; la app se abre con `bun run escritorio:mac` o `bun run escritorio:linux`.
 
 ```bash
 bun install
@@ -135,7 +161,7 @@ packages/ui/          componentes y estilos de la interfaz
 skills/               skills que vienen con Aquiles
 banco/                20 tareas con comprobación automática para medir el motor
 instalar.ps1          instalador y actualizador de Windows (compila desde main)
-instalar.sh           lo mismo en Mac
+instalar.sh           lo mismo en Mac y Linux
 ```
 
 ## Cómo funciona
@@ -145,7 +171,7 @@ instalar.sh           lo mismo en Mac
 3. La interfaz se conecta por WebSocket y los dos hablan JSON-RPC 2.0 (`packages/protocolo`). El núcleo rechaza los tokens incorrectos y los orígenes que no son de la app.
 4. Si el núcleo se cae, la app lo relanza; si se cierra la app, el núcleo termina con ella.
 
-Los datos están en `%APPDATA%\Aquiles\perfiles\<perfil>\` en Windows y en `~/.config/Aquiles/perfiles/<perfil>/` en Mac (o en `AQUILES_HOME`): sesiones en JSONL, memoria, skills, índice de búsqueda, tareas programadas y ajustes. Las claves de API y los tokens van en el almacén de credenciales de Windows o en el Llavero de macOS.
+Los datos están en `%APPDATA%\Aquiles\perfiles\<perfil>\` en Windows y en `~/.config/Aquiles/perfiles/<perfil>/` en Mac y Linux (o en `AQUILES_HOME`): sesiones en JSONL, memoria, skills, índice de búsqueda, tareas programadas y ajustes. Las claves de API y los tokens van en el almacén de credenciales de Windows, en el Llavero de macOS o, en Linux, en el llavero de Secret Service.
 
 ## Licencia
 

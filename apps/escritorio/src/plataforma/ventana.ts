@@ -5,6 +5,8 @@ import { enTauri } from "./tauri";
 
 /** En Mac la ventana lleva los semáforos del sistema sobre la barra propia (titleBarStyle Overlay). */
 export const esMac = enTauri() && navigator.userAgent.includes("Mac");
+/** Linux (WebKitGTK): como en Windows, la barra propia lleva sus botones; cambian los textos del sistema. */
+export const esLinux = enTauri() && !esMac && navigator.userAgent.includes("Linux");
 
 export const minimizar =() => (enTauri() ? getCurrentWindow().minimize() : Promise.resolve());
 export const alternarMaximizar = () => (enTauri() ? getCurrentWindow().toggleMaximize() : Promise.resolve());

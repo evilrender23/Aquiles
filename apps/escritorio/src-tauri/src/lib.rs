@@ -46,7 +46,10 @@ pub fn run() {
         ])
         .on_window_event(ventanas::al_evento_de_ventana)
         .setup(|app| {
-            ventanas::crear_bandeja(app)?;
+            // Sin bandeja (en Linux, sin AppIndicator) la app sigue: al abrirla otra vez se muestra la ventana.
+            if let Err(e) = ventanas::crear_bandeja(app) {
+                eprintln!("[aquiles] sin icono en la bandeja: {e}");
+            }
             atajo::registrar_al_arrancar(app);
             if !std::env::args().any(|a| a == ventanas::ARG_MINIMIZADO) {
                 ventanas::mostrar_ventana_principal(app.handle());

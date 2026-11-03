@@ -42,7 +42,10 @@ export const ajustes: Record<string, string> = {
   "Para leer las respuestas en voz alta, con las voces de Windows (se añaden en Configuración › Hora e idioma › Voz).":
     "To read replies aloud with Windows voices (add more in Settings › Time & language › Speech).",
   "No se encontró ninguna voz del sistema.": "No system voices found.",
-  "La voz es de la app de escritorio (Windows o Mac).": "Voice is available in the desktop app (Windows or Mac).",
+  "La voz es de la app de escritorio (Windows, Mac o Linux).": "Voice is available in the desktop app (Windows, Mac or Linux).",
+  "No se encontró ninguna voz del sistema: instala espeak-ng (o speech-dispatcher) con el gestor de paquetes.":
+    "No system voices found: install espeak-ng (or speech-dispatcher) with your package manager.",
+  "Para leer las respuestas en voz alta, con las voces de espeak-ng o de Speech Dispatcher.": "To read replies aloud, with espeak-ng or Speech Dispatcher voices.",
   "Automática (la de español)": "Automatic (Spanish voice)",
   Velocidad: "Speed",
   Lenta: "Slow",
@@ -64,6 +67,7 @@ export const ajustes: Record<string, string> = {
   "Claves de API": "API keys",
   "Se guardan en el llavero de macOS, no en ficheros.": "Stored in the macOS Keychain, not in files.",
   "Se guardan en el almacén de credenciales de Windows, no en ficheros.": "Stored in Windows Credential Manager, not in files.",
+  "Se guardan en el llavero del sistema (GNOME Keyring o KWallet), no en ficheros.": "Stored in the system keyring (GNOME Keyring or KWallet), not in files.",
   "Gemini (imágenes)": "Gemini (images)",
   Guardada: "Saved",
   Guardar: "Save",

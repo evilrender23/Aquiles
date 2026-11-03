@@ -610,7 +610,7 @@ export interface EstadoVoz {
   dictado: boolean;
   idiomaDictado?: string;
   lectura: boolean;
-  /** Voces del sistema para leer (Windows: System.Speech; Mac: las de `say`), las de español primero. */
+  /** Voces del sistema para leer (Windows: System.Speech; Mac: las de `say`; Linux: espeak-ng o spd-say), las de español primero. */
   voces: VozSistema[];
   /** Dictando o leyendo ahora. */
   ocupada: boolean;

@@ -32,7 +32,7 @@ import {
   remotoActual,
 } from "../plataforma/aplicacion";
 import { enTauri } from "../plataforma/tauri";
-import { esMac } from "../plataforma/ventana";
+import { esLinux, esMac } from "../plataforma/ventana";
 import { ConfirmarBorrado } from "./Campos";
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -128,7 +128,7 @@ export function Arranque() {
   return (
     <>
       <Interruptor
-        aria-label={esMac ? t("Abrir al iniciar sesión") : t("Arrancar con Windows")}
+        aria-label={esMac || esLinux ? t("Abrir al iniciar sesión") : t("Arrancar con Windows")}
         activo={!!activo}
         disabled={activo === undefined}
         alCambiar={async (a) => {

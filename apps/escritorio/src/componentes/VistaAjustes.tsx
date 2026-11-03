@@ -6,7 +6,7 @@ import { esfuerzoTrasCambio } from "../estado/esfuerzo";
 import type { PestanaAjustes } from "../estado/tipos";
 import { hayClaveLlavero } from "../plataforma/claves";
 import { enTauri } from "../plataforma/tauri";
-import { esMac } from "../plataforma/ventana";
+import { esLinux, esMac } from "../plataforma/ventana";
 import { Actualizaciones, Arranque, Atajo, Copias, Perfiles, Remoto, SeccionPlugins } from "./Aplicacion";
 import { CampoCarpeta, OpcionesChip, OpcionesPermisos, ProveedorModelo } from "./Campos";
 import { SeccionMcp } from "./Mcp";
@@ -222,9 +222,9 @@ function General({ form, cambiar }: PropsPestana) {
         />
       )}
       {tauri && (
-        <Grupo titulo={esMac ? "Mac" : "Windows"}>
+        <Grupo titulo={esMac ? "Mac" : esLinux ? "Linux" : "Windows"}>
           <Ajuste
-            titulo={esMac ? t("Abrir al iniciar sesión") : t("Arrancar con Windows")}
+            titulo={esMac || esLinux ? t("Abrir al iniciar sesión") : t("Arrancar con Windows")}
             descripcion={
               esMac
                 ? t("Se queda en la barra de menús al iniciar sesión, para que las tareas programadas y los canales sigan.")
@@ -249,7 +249,7 @@ const velocidades = (): { valor: string; texto: string }[] => [
   { valor: "50", texto: t("Muy rápida") },
 ];
 
-/** Lectura en voz alta con las voces del sistema (Windows: System.Speech; Mac: say): cuál, a qué velocidad y una prueba. */
+/** Lectura en voz alta con las voces del sistema (Windows: System.Speech; Mac: say; Linux: espeak-ng): cuál, a qué velocidad y una prueba. */
 function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Partial<AjustesVoz>) => void }) {
   const { voz: estado } = useEstado();
   const { llamar } = useAcciones();
@@ -288,7 +288,11 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
     return (
       <Grupo titulo={t("Voz")} descripcion={t("Para leer las respuestas en voz alta.")}>
         <p className="ajustes__nota">
-          {esMac || enTauri() ? t("No se encontró ninguna voz del sistema.") : t("La voz es de la app de escritorio (Windows o Mac).")}
+          {esLinux
+            ? t("No se encontró ninguna voz del sistema: instala espeak-ng (o speech-dispatcher) con el gestor de paquetes.")
+            : esMac || enTauri()
+              ? t("No se encontró ninguna voz del sistema.")
+              : t("La voz es de la app de escritorio (Windows, Mac o Linux).")}
         </p>
         {alAcabar}
       </Grupo>
@@ -300,7 +304,9 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
       descripcion={
         esMac
           ? t("Para leer las respuestas en voz alta. Hay voces más naturales para descargar en Ajustes del Sistema › Accesibilidad › Contenido leído.")
-          : t("Para leer las respuestas en voz alta, con las voces de Windows (se añaden en Configuración › Hora e idioma › Voz).")
+          : esLinux
+            ? t("Para leer las respuestas en voz alta, con las voces de espeak-ng o de Speech Dispatcher.")
+            : t("Para leer las respuestas en voz alta, con las voces de Windows (se añaden en Configuración › Hora e idioma › Voz).")
       }
     >
       <Ajuste titulo={t("Voz")}>
@@ -409,7 +415,13 @@ function Modelos({ form, cambiar }: PropsPestana) {
       </Grupo>
       <Grupo
         titulo={t("Claves de API")}
-        descripcion={esMac ? t("Se guardan en el llavero de macOS, no en ficheros.") : t("Se guardan en el almacén de credenciales de Windows, no en ficheros.")}
+        descripcion={
+          esMac
+            ? t("Se guardan en el llavero de macOS, no en ficheros.")
+            : esLinux
+              ? t("Se guardan en el llavero del sistema (GNOME Keyring o KWallet), no en ficheros.")
+              : t("Se guardan en el almacén de credenciales de Windows, no en ficheros.")
+        }
       >
         <div className="ajustes__claves">
           {conClave.map((p) => (

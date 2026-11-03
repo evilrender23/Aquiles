@@ -128,8 +128,13 @@ tiene() {
 }
 
 hay_xcode() { xcode-select -p >/dev/null 2>&1; }
-# Lo que Tauri necesita en Linux para compilar: C, pkg-config, GTK y WebKitGTK 4.1, y D-Bus (el llavero).
-hay_sistema() { tiene cc && tiene pkg-config && pkg-config --exists webkit2gtk-4.1 dbus-1 && tiene git && tiene curl; }
+# Lo que Tauri necesita en Linux: C, pkg-config, GTK y WebKitGTK 4.1, D-Bus (el llavero) y AppIndicator (la bandeja,
+# que se carga al arrancar).
+hay_appindicator() {
+    pkg-config --exists ayatana-appindicator3-0.1 || pkg-config --exists appindicator3-0.1 \
+        || { PATH="$PATH:/sbin:/usr/sbin" ldconfig -p 2>/dev/null | grep -qE 'lib(ayatana-)?appindicator3\.so'; }
+}
+hay_sistema() { tiene cc && tiene pkg-config && pkg-config --exists webkit2gtk-4.1 dbus-1 && hay_appindicator && tiene git && tiene curl; }
 hay_rust() { tiene rustup && rustup toolchain list 2>/dev/null | grep -q '^stable'; }
 
 instalar_xcode() {
@@ -151,7 +156,7 @@ instalar_sistema() {
             webkit2gtk-4.1 dbus libappindicator-gtk3 librsvg xdotool openssl
     elif tiene zypper; then
         sudo zypper install -y -t pattern devel_basis && sudo zypper install -y pkg-config curl git file \
-            webkit2gtk3-devel dbus-1-devel libappindicator3-1 librsvg-devel libxdo-devel libopenssl-devel
+            webkit2gtk3-devel dbus-1-devel libappindicator3-devel librsvg-devel libxdo-devel libopenssl-devel
     else
         fallar "No se reconoce el gestor de paquetes: instala a mano un compilador de C, pkg-config, git, curl y las bibliotecas de desarrollo de WebKitGTK 4.1 y D-Bus (ver https://v2.tauri.app/start/prerequisites/)."
     fi
@@ -293,7 +298,7 @@ crear_lanzador() {
 [Desktop Entry]
 Type=Application
 Name=Aquiles
-Comment=Agente de programación
+Comment=Agente personal
 Exec="$APP/aquiles"
 Icon=$APP/aquiles.png
 Terminal=false

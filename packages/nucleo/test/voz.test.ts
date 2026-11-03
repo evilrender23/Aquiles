@@ -232,8 +232,71 @@ test("Mac: sin aquiles-dictado no hay dictado; los errores del dictado se explic
   expect(await dictando).toBe("");
 });
 
+const ESPEAK = `Pty Language       Age/Gender VoiceName          File                 Other Languages
+ 5  en-us           --/M      English_(America)  gmw/en-US            (en 10)
+ 5  es              --/M      Spanish_(Spain)    roa/es
+ 5  es-419          --/M      Spanish_(Latin_America) roa/es-419       (es-mx 6)
+`;
+
+test("Linux: leer con espeak-ng (voz, velocidad y el texto por fichero); sin dictado", async () => {
+  const ordenes: string[][] = [];
+  const leidos: string[] = [];
+  const voz = new Voz({
+    sistema: "linux",
+    buscar: (p) => (p === "espeak-ng" ? "/usr/bin/espeak-ng" : null),
+    ajustes: () => ({ voz: "Spanish (Latin America)", velocidad: 20 }),
+    lanzar: async (orden) => {
+      ordenes.push(orden);
+      if (orden[1] === "--voices") return ESPEAK;
+      leidos.push(await Bun.file(orden.at(-1)!).text());
+      return "";
+    },
+  });
+  const e = await voz.estado();
+  expect(e).toMatchObject({ dictado: false, lectura: true });
+  expect(e.voces.map((v) => [v.nombre, v.idioma])).toEqual([
+    ["Spanish (Spain)", "es-ES"],
+    ["Spanish (Latin America)", "es-419"],
+    ["English (America)", "en-US"],
+  ]);
+  await voz.leer("--help **hola**");
+  expect(ordenes.at(-1)!.slice(0, 5)).toEqual(["/usr/bin/espeak-ng", "-v", "es-419", "-s", "210"]);
+  expect(leidos).toEqual(["--help hola"]);
+  await expect(voz.dictar()).rejects.toThrow("En Linux no hay un reconocedor de voz");
+
+  // Sin voz elegida, la española.
+  const otra = new Voz({ sistema: "linux", buscar: (p) => (p === "espeak" ? "/usr/bin/espeak" : null), lanzar: async (o) => (ordenes.push(o), o[1] === "--voices" ? ESPEAK : "") });
+  await otra.leer("hola");
+  expect(ordenes.at(-1)!.slice(0, 3)).toEqual(["/usr/bin/espeak", "-v", "es"]);
+});
+
+test("Linux: sin espeak, spd-say; al parar se le pide a Speech Dispatcher que se calle", async () => {
+  const ordenes: string[][] = [];
+  const voz = new Voz({
+    sistema: "linux",
+    buscar: (p) => (p === "spd-say" ? "/usr/bin/spd-say" : null),
+    lanzar: (orden, senal) => {
+      ordenes.push(orden);
+      if (orden[1] === "-L") return Promise.resolve("     NAME     LANGUAGE     VARIANT\n  Spanish (Spain)    es    none\n");
+      if (orden[1] === "-C") return Promise.resolve("");
+      return new Promise((_r, rechazar) => senal.addEventListener("abort", () => rechazar(new Error("matado")), { once: true }));
+    },
+  });
+  expect((await voz.estado()).voces).toEqual([{ nombre: "Spanish (Spain)", idioma: "es-ES" }]);
+  const leyendo = voz.leer("-x hola");
+  await Bun.sleep(5);
+  expect(ordenes.at(-1)).toEqual(["/usr/bin/spd-say", "-w", "-r", "0", "-y", "Spanish (Spain)", "--", "-x hola"]);
+  voz.parar();
+  await leyendo;
+  expect(ordenes.at(-1)).toEqual(["/usr/bin/spd-say", "-C"]);
+
+  const nada = new Voz({ sistema: "linux", buscar: () => null });
+  expect(await nada.estado()).toMatchObject({ lectura: false, voces: [] });
+  await expect(nada.leer("hola")).rejects.toThrow("instala espeak-ng");
+});
+
 test("en otros sistemas no hay voz", async () => {
   const voz = new Voz({ sistema: "ninguno" });
   expect(await voz.estado()).toEqual({ dictado: false, lectura: false, voces: [], ocupada: false });
-  await expect(voz.dictar()).rejects.toThrow("solo está en Windows y Mac");
+  await expect(voz.dictar()).rejects.toThrow("no está disponible en este sistema");
 });

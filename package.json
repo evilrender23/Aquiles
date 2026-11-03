@@ -17,8 +17,10 @@
     "escritorio": "bun run compilar:nucleo && cd apps/escritorio && bun run tauri dev",
     "compilar:nucleo:mac": "bun scripts/compilar-nucleo.ts",
     "escritorio:mac": "bun run compilar:nucleo:mac && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri dev",
+    "escritorio:linux": "bun run compilar:nucleo && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri dev",
     "app:mac": "bash scripts/app-mac.sh",
     "app:mac:universal": "bash scripts/app-mac.sh --universal",
+    "app:linux": "bash scripts/app-linux.sh",
     "banco": "bun banco/ejecutar.ts",
     "e2e": "bun run --cwd apps/escritorio build && bun test ./apps/escritorio/e2e/flujo.e2e.ts"
   },

@@ -65,6 +65,33 @@ jobs:
       # El núcleo para Apple Silicon e Intel en uno (para la app universal).
       - run: bun scripts/compilar-nucleo.ts --universal && lipo -info apps/escritorio/src-tauri/binaries/aquiles-nucleo-universal-apple-darwin
 
+  # Linux: el núcleo, la interfaz, la app de Tauri (con WebKitGTK) y sus paquetes .deb.
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      # rust-toolchain.toml pide el toolchain MSVC de Windows.
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      # Las mismas bibliotecas que instala instalar.sh con apt.
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - run: bun install --frozen-lockfile
+      - run: bun run tipos
+      - run: bun run lint
+      - run: bun test
+      - run: bun banco/ejecutar.ts --validar
+      - run: bash -n instalar.sh && bash -n scripts/app-linux.sh
+      - run: bun run compilar:nucleo
+      - run: bun run build
+        working-directory: apps/escritorio
+      # El test del llavero necesita un Secret Service (gnome-keyring) con sesión: se salta en CI.
+      - run: cargo test -- --skip llavero
+        working-directory: apps/escritorio/src-tauri
+      - run: bash scripts/app-linux.sh deb && ls apps/escritorio/src-tauri/target/release/bundle/deb/*.deb
+
   # De extremo a extremo: el núcleo con el proveedor simulado, la interfaz compilada y Chromium (Playwright).
   e2e:
     runs-on: ubuntu-latest

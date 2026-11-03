@@ -4,6 +4,8 @@
  *   PowerShell aparte que devuelve una línea JSON.
  * - Mac: `say` para leer y, para dictar, `aquiles-dictado` (apps/escritorio/src-tauri/macos/dictado.swift, con el
  *   reconocedor de voz de macOS), que va junto a este ejecutable dentro de Aquiles.app y también contesta en JSON.
+ * - Linux: `espeak-ng` (o `espeak`) para leer y, si no está, `spd-say` (Speech Dispatcher). Sin dictado: Linux no
+ *   trae un reconocedor de voz del sistema.
  * Una sola operación a la vez (leer mientras se dicta acabaría en el micrófono); parar() corta la que esté en marcha.
  */
 import { existsSync } from "node:fs";
@@ -16,19 +18,22 @@ import { matarArbol } from "./herramientas/shell";
 
 /** Un script de PowerShell → su salida. */
 type Ejecutar = (script: string, senal: AbortSignal) => Promise<string>;
-/** Un programa con sus argumentos → su salida (Mac). */
+/** Un programa con sus argumentos → su salida (Mac y Linux). */
 type Lanzar = (orden: string[], senal: AbortSignal) => Promise<string>;
-export type SistemaVoz = "windows" | "mac" | "ninguno";
+export type SistemaVoz = "windows" | "mac" | "linux" | "ninguno";
 
 interface Deteccion {
   reconocedores: string[];
   voces: VozSistema[];
+  /** Linux: con qué se lee y, de cada voz, el nombre que entiende ese programa. */
+  lector?: { programa: string; tipo: "espeak" | "spd"; codigos: Record<string, string> };
 }
 
 const POWERSHELL = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 const SILENCIO_FINAL_S = 1.5;
-/** Palabras por minuto de `say` a velocidad normal. */
+/** Palabras por minuto de `say` y de `espeak-ng` a velocidad normal. */
 const PPM_SAY = 180;
+const PPM_ESPEAK = 175;
 /** Lo que usa la lectura de los ajustes de voz. */
 type AjustesLectura = Pick<AjustesVoz, "voz" | "velocidad">;
 const SIN_AJUSTES: AjustesLectura = { velocidad: 0 };
@@ -100,6 +105,41 @@ export function vocesDeSay(salida: string): VozSistema[] {
   return voces;
 }
 
+/** «es» → «es-ES» (el español de espeak es el de España), «en-us» → «en-US». */
+function idiomaEspeak(codigo: string): string {
+  if (codigo === "es") return "es-ES";
+  const [lengua, region] = codigo.split("-");
+  return region && region.length === 2 ? `${lengua}-${region.toUpperCase()}` : codigo;
+}
+
+/**
+ * Las líneas de `espeak-ng --voices`, con el código que entiende `-v` de cada una:
+ * « 5  es              --/M      Spanish_(Spain)    roa/es»
+ */
+export function vocesDeEspeak(salida: string): { voces: VozSistema[]; codigos: Record<string, string> } {
+  const voces: VozSistema[] = [];
+  const codigos: Record<string, string> = {};
+  for (const linea of salida.split(/\r?\n/)) {
+    const m = linea.match(/^\s*\d+\s+(\S+)\s+\S+\s+(\S+)/);
+    if (!m) continue;
+    const nombre = m[2]!.replaceAll("_", " ");
+    if (codigos[nombre]) continue;
+    voces.push({ nombre, idioma: idiomaEspeak(m[1]!) });
+    codigos[nombre] = m[1]!;
+  }
+  return { voces, codigos };
+}
+
+/** Las líneas de `spd-say -L`: «   Spanish (Spain)     es     none» (la primera es la cabecera). */
+export function vocesDeSpd(salida: string): VozSistema[] {
+  const voces: VozSistema[] = [];
+  for (const linea of salida.split(/\r?\n/)) {
+    const m = linea.match(/^\s*(.+?)\s+([a-z]{2,3}(?:-[A-Za-z0-9]+)?)\s+(\S+)\s*$/);
+    if (m && m[1] !== "NAME") voces.push({ nombre: m[1]!, idioma: idiomaEspeak(m[2]!) });
+  }
+  return voces;
+}
+
 /** Las de español primero (es-ES delante), luego las demás por nombre. */
 export function ordenarVoces(voces: VozSistema[]): VozSistema[] {
   const rango = (v: VozSistema) => (v.idioma === "es-ES" ? 0 : v.idioma.startsWith("es") ? 1 : 2);
@@ -129,7 +169,7 @@ const ERRORES_COMUNES: Record<string, string> = {
   lectura: "No se pudo leer en voz alta",
 };
 
-const ERRORES: Record<Exclude<SistemaVoz, "ninguno">, Record<string, string>> = {
+const ERRORES: Record<"windows" | "mac", Record<string, string>> = {
   windows: {
     ...ERRORES_COMUNES,
     "sin-reconocedor":
@@ -147,7 +187,7 @@ const ERRORES: Record<Exclude<SistemaVoz, "ninguno">, Record<string, string>> = 
 };
 
 /** La última línea de la salida, en JSON; un `error` se convierte en excepción con el texto de ese sistema. */
-function respuesta(salida: string, sistema: Exclude<SistemaVoz, "ninguno">): Record<string, unknown> {
+function respuesta(salida: string, sistema: "windows" | "mac"): Record<string, unknown> {
   const linea = salida.trim().split(/\r?\n/).pop() ?? "";
   let datos: Record<string, unknown>;
   try {
@@ -163,6 +203,8 @@ function respuesta(salida: string, sistema: Exclude<SistemaVoz, "ninguno">): Rec
 }
 
 export interface OpcionesVoz {
+  /** Linux: dónde está un programa (por defecto, en el PATH). */
+  buscar?: (programa: string) => string | null;
   /** Por defecto, el de este equipo. */
   sistema?: SistemaVoz;
   ejecutar?: Ejecutar;
@@ -179,11 +221,13 @@ export class Voz {
   private lanzar: Lanzar;
   private ajustes: () => AjustesLectura;
   private dictado: string;
+  private buscar: (programa: string) => string | null;
   private deteccion?: Promise<Deteccion>;
   private actual?: AbortController;
 
   constructor(o: OpcionesVoz = {}) {
-    this.sistema = o.sistema ?? (WINDOWS ? "windows" : process.platform === "darwin" ? "mac" : "ninguno");
+    this.sistema = o.sistema ?? (WINDOWS ? "windows" : process.platform === "darwin" ? "mac" : process.platform === "linux" ? "linux" : "ninguno");
+    this.buscar = o.buscar ?? ((p) => Bun.which(p));
     this.ejecutar = o.ejecutar ?? ejecutarPowershell;
     this.lanzar = o.lanzar ?? ejecutarProceso;
     this.ajustes = o.ajustes ?? (() => SIN_AJUSTES);
@@ -196,7 +240,7 @@ export class Voz {
     return {
       dictado: d.reconocedores.length > 0,
       ...(idioma ? { idiomaDictado: idioma } : {}),
-      lectura: d.voces.length > 0,
+      lectura: d.voces.length > 0 || d.lector !== undefined,
       voces: ordenarVoces(d.voces),
       ocupada: this.actual !== undefined,
     };
@@ -210,7 +254,8 @@ export class Voz {
     else if (this.sistema === "mac") {
       if (!existsSync(this.dictado)) throw new Error("Esta copia de Aquiles no trae el dictado de macOS (aquiles-dictado): actualízala con el instalador.");
       salida = await this.operar((senal) => this.lanzar([this.dictado, String(s), "es-ES"], senal));
-    } else throw new Error("El dictado por voz solo está en Windows y Mac.");
+    } else if (this.sistema === "linux") throw new Error("En Linux no hay un reconocedor de voz del sistema: el dictado está en Windows y Mac.");
+    else throw new Error("La voz no está disponible en este sistema.");
     if (salida === undefined) return "";
     const texto = respuesta(salida, this.sistema).texto;
     return typeof texto === "string" ? texto.trim() : "";
@@ -225,9 +270,11 @@ export class Voz {
       if (salida !== undefined) respuesta(salida, "windows");
       return;
     }
-    if (this.sistema !== "mac") throw new Error("Leer en voz alta solo está en Windows y Mac.");
-    const voz = vozParaLeer((await this.detectar().catch(() => undefined))?.voces ?? [], a.voz);
+    if (this.sistema === "ninguno") throw new Error("La voz no está disponible en este sistema.");
+    const deteccion = await this.detectar().catch(() => undefined);
+    const voz = vozParaLeer(deteccion?.voces ?? [], a.voz);
     const velocidad = Math.max(VELOCIDAD_VOZ.min, Math.min(VELOCIDAD_VOZ.max, a.velocidad));
+    if (this.sistema === "linux") return this.leerEnLinux(limpio, deteccion?.lector, voz, velocidad);
     // El texto por fichero: ni comillas ni guiones al principio se toman por opciones.
     const fichero = join(tmpdir(), `aquiles-leer-${crypto.randomUUID()}.txt`);
     await writeFile(fichero, limpio, "utf8");
@@ -235,6 +282,28 @@ export class Voz {
       await this.operar((senal) =>
         this.lanzar(["say", ...(voz ? ["-v", voz] : []), "-r", String(Math.round(PPM_SAY * (1 + velocidad / 100))), "-f", fichero], senal),
       );
+    } finally {
+      await rm(fichero, { force: true }).catch(() => {});
+    }
+  }
+
+  private async leerEnLinux(texto: string, lector: Deteccion["lector"], voz: string | undefined, velocidad: number): Promise<void> {
+    if (!lector) throw new Error("No hay ninguna voz del sistema: instala espeak-ng (o speech-dispatcher) con el gestor de paquetes.");
+    if (lector.tipo === "spd") {
+      // spd-say solo encarga la lectura a Speech Dispatcher: al cortar, también hay que pedirle que se calle.
+      await this.operar(async (senal) => {
+        const callar = () => void this.lanzar([lector.programa, "-C"], AbortSignal.timeout(5000)).catch(() => {});
+        senal.addEventListener("abort", callar, { once: true });
+        const orden = [lector.programa, "-w", "-r", String(velocidad), ...(voz ? ["-y", voz] : ["-l", "es"]), "--", texto];
+        return this.lanzar(orden, senal);
+      });
+      return;
+    }
+    const ppm = Math.max(80, Math.min(450, Math.round(PPM_ESPEAK * (1 + velocidad / 100))));
+    const fichero = join(tmpdir(), `aquiles-leer-${crypto.randomUUID()}.txt`);
+    await writeFile(fichero, texto, "utf8");
+    try {
+      await this.operar((senal) => this.lanzar([lector.programa, "-v", (voz && lector.codigos[voz]) || "es", "-s", String(ppm), "-f", fichero], senal));
     } finally {
       await rm(fichero, { force: true }).catch(() => {});
     }
@@ -275,6 +344,18 @@ export class Voz {
     if (this.sistema === "mac") {
       const voces = vocesDeSay(await this.lanzar(["say", "-v", "?"], AbortSignal.timeout(15_000)));
       return { reconocedores: existsSync(this.dictado) ? ["es-ES"] : [], voces };
+    }
+    if (this.sistema === "linux") {
+      const espeak = this.buscar("espeak-ng") ?? this.buscar("espeak");
+      if (espeak) {
+        const { voces, codigos } = vocesDeEspeak(await this.lanzar([espeak, "--voices"], AbortSignal.timeout(15_000)));
+        return { reconocedores: [], voces, lector: { programa: espeak, tipo: "espeak", codigos } };
+      }
+      const spd = this.buscar("spd-say");
+      if (spd) {
+        const voces = vocesDeSpd(await this.lanzar([spd, "-L"], AbortSignal.timeout(15_000)).catch(() => ""));
+        return { reconocedores: [], voces, lector: { programa: spd, tipo: "spd", codigos: {} } };
+      }
     }
     return { reconocedores: [], voces: [] };
   }
