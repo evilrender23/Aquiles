@@ -10,10 +10,36 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 13;
+export const VERSION_PROTOCOLO = 14;
 
 /** Pasos por turno: cuántas veces puede responder el modelo (y llamar herramientas) antes de que el turno pare. */
 export const PASOS_POR_TURNO = { porDefecto: 25, min: 1, max: 1000 } as const;
+
+/** Con qué se lee en voz alta: las voces neuronales de Edge (en línea) o las del sistema (System.Speech, solo Windows). */
+export const MOTORES_VOZ = ["edge", "sistema"] as const;
+export type MotorVoz = (typeof MOTORES_VOZ)[number];
+
+/** Voces de Edge que se ofrecen: las de español y las multilingües, que también leen bien en español. */
+export const VOCES_EDGE: { id: string; nombre: string }[] = [
+  { id: "es-ES-ElviraNeural", nombre: "Elvira · España" },
+  { id: "es-ES-AlvaroNeural", nombre: "Álvaro · España" },
+  { id: "es-ES-XimenaNeural", nombre: "Ximena · España" },
+  { id: "es-MX-DaliaNeural", nombre: "Dalia · México" },
+  { id: "es-MX-JorgeNeural", nombre: "Jorge · México" },
+  { id: "es-AR-ElenaNeural", nombre: "Elena · Argentina" },
+  { id: "es-AR-TomasNeural", nombre: "Tomás · Argentina" },
+  { id: "es-CO-SalomeNeural", nombre: "Salomé · Colombia" },
+  { id: "es-CO-GonzaloNeural", nombre: "Gonzalo · Colombia" },
+  { id: "es-US-PalomaNeural", nombre: "Paloma · Estados Unidos" },
+  { id: "es-US-AlonsoNeural", nombre: "Alonso · Estados Unidos" },
+  { id: "en-US-AvaMultilingualNeural", nombre: "Ava · multilingüe" },
+  { id: "en-US-EmmaMultilingualNeural", nombre: "Emma · multilingüe" },
+  { id: "en-US-AndrewMultilingualNeural", nombre: "Andrew · multilingüe" },
+  { id: "en-US-BrianMultilingualNeural", nombre: "Brian · multilingüe" },
+];
+
+/** Velocidad de lectura con Edge, en % sobre la normal. */
+export const VELOCIDAD_VOZ = { min: -50, max: 100 } as const;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -66,6 +92,14 @@ export const metodos = {
     modoAprobacion: z.enum(MODOS_APROBACION).optional(),
     carpeta: z.string().min(1).optional(),
     maxPasos: z.number().int().min(PASOS_POR_TURNO.min).max(PASOS_POR_TURNO.max).optional(),
+    voz: z
+      .object({
+        motor: z.enum(MOTORES_VOZ).optional(),
+        /** Id de una voz de Edge («es-ES-ElviraNeural»); vale cualquiera del servicio, no solo las de VOCES_EDGE. */
+        vozEdge: z.string().regex(/^[a-z]{2,3}-[A-Z]{2,}-[A-Za-z]+$/).optional(),
+        velocidad: z.number().int().min(VELOCIDAD_VOZ.min).max(VELOCIDAD_VOZ.max).optional(),
+      })
+      .optional(),
     aprendizaje: z
       .object({
         activo: z.boolean().optional(),
@@ -292,8 +326,17 @@ export interface Ajustes {
   carpeta: string;
   /** Pasos (respuestas del modelo) que puede dar un turno antes de parar con motivo «limite». Vale para todas las sesiones. */
   maxPasos: number;
+  /** Lectura en voz alta. */
+  voz: AjustesVoz;
   aprendizaje: AjustesAprendizaje;
   herramientas: AjustesHerramientas;
+}
+
+export interface AjustesVoz {
+  motor: MotorVoz;
+  vozEdge: string;
+  /** % sobre la velocidad normal (solo con Edge). */
+  velocidad: number;
 }
 
 export interface AjustesHerramientas {
@@ -533,6 +576,9 @@ export interface EstadoVoz {
   dictado: boolean;
   idiomaDictado?: string;
   lectura: boolean;
+  /** Con qué lee (Ajustes → General → Voz). */
+  motor: MotorVoz;
+  /** Voces del sistema instaladas (las de Edge están en VOCES_EDGE). */
   voces: string[];
   /** Dictando o leyendo ahora. */
   ocupada: boolean;

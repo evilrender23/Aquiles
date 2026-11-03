@@ -154,6 +154,7 @@ test("ajustes, ajustar, renombrar, borrar y sesion.actualizada", async () => {
   const c = rpc(ws);
   expect((await c.llamar("ajustes.leer", {})).result).toEqual({
     proveedor: "simulado", modoAprobacion: "preguntar-ejecutar", carpeta: cwd, maxPasos: 25,
+    voz: { motor: "edge", vozEdge: "es-ES-ElviraNeural", velocidad: 0 },
     aprendizaje: { activo: true, cadaHerramientas: 10, cadaMensajes: 10, aplicarSinPreguntar: false },
     herramientas: { navegador: false, terminal: { entorno: "local", imagen: "oven/bun:debian" }, guardian: { activo: false } },
   });

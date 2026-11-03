@@ -482,6 +482,12 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
       guardarAjustes: async (cambios) => {
         const ajustes = await rpc().llamar("ajustes.guardar", cambios);
         despachar({ tipo: "ajustes", ajustes });
+        // Con otro motor de voz puede cambiar si hay lectura (y con ello el botón del altavoz).
+        if (cambios.voz) {
+          rpc()
+            .llamar("voz.estado", {})
+            .then((voz) => despachar({ tipo: "voz", voz }), () => {});
+        }
         return ajustes;
       },
       guardarClave: async (proveedor, clave) => {

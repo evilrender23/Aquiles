@@ -178,6 +178,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     modoAprobacion: "preguntar-ejecutar",
     carpeta: o.cwdPorDefecto,
     maxPasos: PASOS_POR_TURNO.porDefecto,
+    voz: { motor: "edge", vozEdge: "es-ES-ElviraNeural", velocidad: 0 },
     aprendizaje: AJUSTES_APRENDIZAJE,
     herramientas: AJUSTES_HERRAMIENTAS,
   });
@@ -475,7 +476,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     navegador ??= herramientaNavegador({ perfil: o.perfil });
     return [navegador];
   });
-  const voz = new Voz();
+  const voz = new Voz({ ajustes: () => ajustes.leer().voz, log });
   const comoParamsAsync = async <T>(f: () => Promise<T> | T): Promise<T> => {
     try {
       return await f();

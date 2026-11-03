@@ -1,14 +1,25 @@
 /**
- * Voz local con System.Speech de Windows: dictado con el reconocedor del sistema y lectura con sus voces.
- * Cada operación es un PowerShell aparte que devuelve una línea JSON; parar() mata el que esté en marcha.
+ * Voz: dictado con el reconocedor de Windows (System.Speech) y lectura en voz alta con las voces neuronales de Edge
+ * (en línea; ver edge-tts.ts) o con las del sistema. Lo de System.Speech es un PowerShell aparte por operación que
+ * devuelve una línea JSON. El audio de Edge suena en este equipo: en Windows con el MediaPlayer de WPF (PowerShell),
+ * en Mac con afplay. parar() corta lo que esté en marcha.
  */
 import { existsSync } from "node:fs";
+import { rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { EstadoVoz } from "@aquiles/protocolo";
+import type { AjustesVoz, EstadoVoz } from "@aquiles/protocolo";
+import { duracionMs, sintetizarTrozo, trocear, type OpcionesEdge } from "./edge-tts";
 import { WINDOWS } from "./herramientas/ficheros";
 import { matarArbol } from "./herramientas/shell";
 
 type Ejecutar = (script: string, senal: AbortSignal) => Promise<string>;
+type Sintetizar = (texto: string, o: OpcionesEdge) => Promise<Uint8Array>;
+type Reproducir = (mp3: Uint8Array, senal: AbortSignal) => Promise<void>;
+
+const MAC = process.platform === "darwin";
+/** Sin ajustes (tests, CLI): las voces del sistema, como antes de Edge. */
+const SOLO_SISTEMA: AjustesVoz = { motor: "sistema", vozEdge: "es-ES-ElviraNeural", velocidad: 0 };
 
 interface Deteccion {
   reconocedores: string[];
@@ -71,6 +82,22 @@ try {
 } catch { ConvertTo-Json -Compress @{ error = 'lectura'; detalle = "$($_.Exception.Message)" } }`;
 }
 
+/** Reproduce un MP3 con el MediaPlayer de WPF y espera lo que dura (más un margen para abrirlo). La ruta va en base64. */
+function scriptReproducir(ruta: string, ms: number): string {
+  const b64 = Buffer.from(ruta, "utf8").toString("base64");
+  return `Add-Type -AssemblyName PresentationCore
+$ruta = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}'))
+try {
+  $p = New-Object System.Windows.Media.MediaPlayer
+  $p.Open([Uri]$ruta)
+  $p.Play()
+  Start-Sleep -Milliseconds ${Math.max(0, Math.round(ms)) + 400}
+  $p.Stop()
+  $p.Close()
+  ConvertTo-Json -Compress @{ ok = $true }
+} catch { ConvertTo-Json -Compress @{ error = 'reproducir'; detalle = "$($_.Exception.Message)" } }`;
+}
+
 /** Quita las marcas de Markdown que la voz leería en alto («almohadilla», «asterisco»). */
 export function textoParaLeer(texto: string): string {
   return texto
@@ -88,6 +115,7 @@ const ERRORES: Record<string, string> = {
   "sin-microfono": "No hay micrófono: conecta uno o elígelo como dispositivo de entrada predeterminado en Windows.",
   reconocedor: "Error del reconocedor de voz",
   lectura: "No se pudo leer en voz alta",
+  reproducir: "No se pudo reproducir el audio",
 };
 
 /** La última línea de la salida, que el script escribe en JSON; un `error` se convierte en excepción. */
@@ -106,22 +134,49 @@ function respuesta(salida: string): Record<string, unknown> {
   return datos;
 }
 
+export interface OpcionesVoz {
+  ejecutar?: Ejecutar;
+  /** Los ajustes de lectura, leídos en cada lectura. Sin ellos, las voces del sistema. */
+  ajustes?: () => AjustesVoz;
+  sintetizar?: Sintetizar;
+  reproducir?: Reproducir;
+  /** Hay con qué reproducir el MP3 de Edge (Windows o Mac). */
+  conReproductor?: boolean;
+  /** Si Edge falla antes de sonar, leer con las voces del sistema (Windows). */
+  respaldoSistema?: boolean;
+  log?: (texto: string) => void;
+}
+
 export class Voz {
   private ejecutar: Ejecutar;
+  private ajustes: () => AjustesVoz;
+  private sintetizar: Sintetizar;
+  private reproducir: Reproducir;
+  private conReproductor: boolean;
+  private respaldoSistema: boolean;
+  private log: (texto: string) => void;
   private deteccion?: Promise<Deteccion>;
   private actual?: AbortController;
 
-  constructor(o: { ejecutar?: Ejecutar } = {}) {
+  constructor(o: OpcionesVoz = {}) {
     this.ejecutar = o.ejecutar ?? ejecutarPowershell;
+    this.ajustes = o.ajustes ?? (() => SOLO_SISTEMA);
+    this.sintetizar = o.sintetizar ?? sintetizarTrozo;
+    this.reproducir = o.reproducir ?? ((mp3, senal) => reproducirMp3(mp3, senal, this.ejecutar));
+    this.conReproductor = o.conReproductor ?? (WINDOWS || MAC);
+    this.respaldoSistema = o.respaldoSistema ?? WINDOWS;
+    this.log = o.log ?? (() => {});
   }
 
   async estado(): Promise<EstadoVoz> {
     const d = await this.detectar().catch((): Deteccion => ({ reconocedores: [], voces: [] }));
     const idioma = d.reconocedores.find((r) => r === "es-ES") ?? d.reconocedores.find((r) => r.startsWith("es")) ?? d.reconocedores[0];
+    const { motor } = this.ajustes();
     return {
       dictado: d.reconocedores.length > 0,
       ...(idioma ? { idiomaDictado: idioma } : {}),
-      lectura: d.voces.length > 0,
+      lectura: motor === "edge" ? this.conReproductor : d.voces.length > 0,
+      motor,
       voces: d.voces.map((v) => v.nombre),
       ocupada: this.actual !== undefined,
     };
@@ -138,21 +193,58 @@ export class Voz {
   async leer(texto: string): Promise<void> {
     const limpio = textoParaLeer(texto);
     if (!limpio) return;
+    const a = this.ajustes();
+    if (a.motor === "edge" && this.conReproductor) {
+      let sono = false;
+      try {
+        await this.operarCon((senal) => this.leerConEdge(limpio, a, senal, () => (sono = true)));
+        return;
+      } catch (e) {
+        // Sin conexión (o Edge rechaza la petición) antes de que sonara nada: en Windows, las voces del sistema.
+        const sistema = this.respaldoSistema && !sono && (await this.detectar().catch(() => undefined))?.voces.length;
+        if (!sistema) throw e;
+        this.log(`voz: Edge no pudo leer (${e instanceof Error ? e.message : e}); se usan las voces de Windows`);
+      }
+    }
     const salida = await this.operar(scriptLeer(limpio));
     if (salida !== undefined) respuesta(salida);
+  }
+
+  /**
+   * Por trozos: mientras suena uno se pide el siguiente, así la lectura empieza pronto aunque el texto sea largo.
+   * `alSonar` avisa de que ya ha sonado algo (a partir de ahí, un fallo no se tapa con otra voz).
+   */
+  private async leerConEdge(texto: string, a: AjustesVoz, senal: AbortSignal, alSonar: () => void): Promise<void> {
+    const trozos = trocear(texto);
+    const pedir = (t: string) => {
+      const p = this.sintetizar(t, { voz: a.vozEdge, velocidad: a.velocidad, senal });
+      p.catch(() => {});
+      return p;
+    };
+    let siguiente = pedir(trozos[0]!);
+    for (let i = 0; i < trozos.length; i++) {
+      const mp3 = await siguiente;
+      if (i + 1 < trozos.length) siguiente = pedir(trozos[i + 1]!);
+      alSonar();
+      await this.reproducir(mp3, senal);
+    }
   }
 
   parar(): void {
     this.actual?.abort();
   }
 
+  private operar(script: string): Promise<string | undefined> {
+    return this.operarCon((senal) => this.ejecutar(script, senal));
+  }
+
   /** Solo una operación a la vez: la nueva corta la anterior (leer mientras se dicta acabaría en el micrófono). */
-  private async operar(script: string): Promise<string | undefined> {
+  private async operarCon<T>(f: (senal: AbortSignal) => Promise<T>): Promise<T | undefined> {
     this.parar();
     const c = new AbortController();
     this.actual = c;
     try {
-      return await this.ejecutar(script, c.signal);
+      return await f(c.signal);
     } catch (e) {
       if (c.signal.aborted) return undefined;
       throw e;
@@ -170,6 +262,32 @@ export class Voz {
     });
     this.deteccion.catch(() => (this.deteccion = undefined));
     return this.deteccion;
+  }
+}
+
+/** Suena en este equipo: en Mac con afplay; en Windows con el MediaPlayer de WPF. Lo corta la señal. */
+export async function reproducirMp3(mp3: Uint8Array, senal: AbortSignal, ejecutar: Ejecutar = ejecutarPowershell): Promise<void> {
+  if (senal.aborted) throw new Error("Cancelado");
+  const ruta = join(tmpdir(), `aquiles-voz-${crypto.randomUUID()}.mp3`);
+  await writeFile(ruta, mp3);
+  try {
+    if (MAC) {
+      const proc = Bun.spawn(["afplay", ruta], { stdout: "ignore", stderr: "pipe" });
+      const matar = () => proc.kill();
+      senal.addEventListener("abort", matar, { once: true });
+      try {
+        const [errores, codigo] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+        if (senal.aborted) throw new Error("Cancelado");
+        if (codigo !== 0) throw new Error(`${ERRORES.reproducir}: ${errores.trim().slice(0, 300) || `afplay terminó con código ${codigo}`}`);
+      } finally {
+        senal.removeEventListener("abort", matar);
+      }
+    } else {
+      respuesta(await ejecutar(scriptReproducir(ruta, duracionMs(mp3)), senal));
+    }
+  } finally {
+    // Recién cortado, Windows puede tener aún el fichero abierto: si no se puede borrar, se queda en la carpeta temporal.
+    await rm(ruta, { force: true }).catch(() => {});
   }
 }
 

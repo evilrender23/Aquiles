@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { ejecutarPowershell, textoParaLeer, Voz } from "../src/voz";
+import type { AjustesVoz } from "@aquiles/protocolo";
+import { ejecutarPowershell, reproducirMp3, textoParaLeer, Voz } from "../src/voz";
 
 const ESTADO = JSON.stringify({
   reconocedores: ["es-ES"],
@@ -27,7 +28,7 @@ test("estado: reconocedor y voces, calculado una sola vez", async () => {
   const f = falso(() => `aviso que no es JSON\r\n${ESTADO}\r\n`);
   const voz = new Voz({ ejecutar: f.ejecutar });
   const e = await voz.estado();
-  expect(e).toEqual({ dictado: true, idiomaDictado: "es-ES", lectura: true, voces: ["Microsoft Helena Desktop", "Microsoft Zira Desktop"], ocupada: false });
+  expect(e).toEqual({ dictado: true, idiomaDictado: "es-ES", lectura: true, motor: "sistema", voces: ["Microsoft Helena Desktop", "Microsoft Zira Desktop"], ocupada: false });
   await voz.estado();
   expect(f.scripts).toHaveLength(1);
   expect(f.scripts[0]).toContain("InstalledRecognizers");
@@ -41,11 +42,11 @@ test("estado: sin PowerShell o sin nada instalado, todo a false (y se reintenta)
       throw new Error("no hay powershell");
     },
   });
-  expect(await voz.estado()).toEqual({ dictado: false, lectura: false, voces: [], ocupada: false });
+  expect(await voz.estado()).toEqual({ dictado: false, lectura: false, motor: "sistema", voces: [], ocupada: false });
   await voz.estado();
   expect(llamadas).toBe(2);
   const vacia = new Voz({ ejecutar: async () => JSON.stringify({ reconocedores: [], voces: [] }) });
-  expect(await vacia.estado()).toEqual({ dictado: false, lectura: false, voces: [], ocupada: false });
+  expect(await vacia.estado()).toEqual({ dictado: false, lectura: false, motor: "sistema", voces: [], ocupada: false });
 });
 
 test("dictar: DictationGrammar en es-ES, hasta silencio o los segundos pedidos", async () => {
@@ -144,6 +145,8 @@ test.skipIf(process.platform !== "win32")("Windows: estado real con System.Speec
   const voz = new Voz({ ejecutar: f.ejecutar });
   await voz.dictar(3);
   await voz.leer("Prueba con «comillas» y 'apóstrofos'");
+  await reproducirMp3(new Uint8Array(6000), new AbortController().signal, f.ejecutar);
+  expect(f.scripts.at(-1)).toContain("System.Windows.Media.MediaPlayer");
   for (const script of f.scripts) {
     const b64 = Buffer.from(script, "utf8").toString("base64");
     const comprobar = `$errores = $null
@@ -153,3 +156,76 @@ ConvertTo-Json -Compress @{ errores = @($errores | ForEach-Object { $_.Message }
     expect(JSON.parse(salida.trim()).errores).toEqual([]);
   }
 }, 60_000);
+
+const EDGE: AjustesVoz = { motor: "edge", vozEdge: "es-MX-DaliaNeural", velocidad: 20 };
+
+test("Edge: pide el trozo siguiente mientras suena el anterior, con la voz y la velocidad de los ajustes", async () => {
+  const pasos: string[] = [];
+  const voz = new Voz({
+    ajustes: () => EDGE,
+    conReproductor: true,
+    ejecutar: async () => ESTADO,
+    sintetizar: async (t, o) => {
+      pasos.push(`pide ${t.slice(0, 6)} ${o.voz} ${o.velocidad}`);
+      return new TextEncoder().encode(t.slice(0, 6));
+    },
+    reproducir: async (mp3) => {
+      pasos.push(`suena ${new TextDecoder().decode(mp3)}`);
+      await Bun.sleep(5);
+    },
+  });
+  expect((await voz.estado()).lectura).toBe(true);
+  expect((await voz.estado()).motor).toBe("edge");
+  // El primer trozo es corto (~500 bytes), así que esto son al menos dos.
+  await voz.leer(`**Uno.** ${"palabra ".repeat(80)}fin. Dos ${"otra ".repeat(80)}fin.`);
+  expect(pasos[0]).toBe("pide Uno. es-MX-DaliaNeural 20");
+  expect(pasos[1]).toStartWith("pide ");
+  expect(pasos[2]).toBe("suena Uno.");
+  expect(pasos.filter((p) => p.startsWith("suena")).length).toBeGreaterThanOrEqual(2);
+});
+
+test("Edge: sin conexión, las voces del sistema si las hay; si ya sonó algo o no hay respaldo, el error", async () => {
+  const sinRed = async () => {
+    throw new Error("No se pudo conectar con el servicio de voz de Edge");
+  };
+  const f = falso((s) => (s.includes("GetInstalledVoices() | Where-Object { $_.Enabled } | ForEach") ? ESTADO : JSON.stringify({ ok: true })));
+  const conRespaldo = new Voz({ ajustes: () => EDGE, conReproductor: true, respaldoSistema: true, ejecutar: f.ejecutar, sintetizar: sinRed });
+  await conRespaldo.leer("hola");
+  expect(f.scripts.some((s) => s.includes("$s.Speak($texto)"))).toBe(true);
+
+  const sinRespaldo = new Voz({ ajustes: () => EDGE, conReproductor: true, respaldoSistema: false, ejecutar: f.ejecutar, sintetizar: sinRed });
+  await expect(sinRespaldo.leer("hola")).rejects.toThrow("servicio de voz de Edge");
+
+  let n = 0;
+  const aMedias = new Voz({
+    ajustes: () => EDGE,
+    conReproductor: true,
+    respaldoSistema: true,
+    ejecutar: f.ejecutar,
+    sintetizar: async () => {
+      if (n++ > 0) throw new Error("se cortó");
+      return new Uint8Array(10);
+    },
+    reproducir: async () => {},
+  });
+  await expect(aMedias.leer(`Uno. ${"palabra ".repeat(120)}fin.`)).rejects.toThrow("se cortó");
+});
+
+test("Edge: parar corta la síntesis o el audio sin dar error; sin reproductor no hay lectura", async () => {
+  const voz = new Voz({
+    ajustes: () => EDGE,
+    conReproductor: true,
+    ejecutar: async () => ESTADO,
+    sintetizar: async () => new Uint8Array(10),
+    reproducir: (_mp3, senal) => new Promise((_r, rechazar) => senal.addEventListener("abort", () => rechazar(new Error("cortado")), { once: true })),
+  });
+  const leyendo = voz.leer("hola");
+  await Bun.sleep(5);
+  expect((await voz.estado()).ocupada).toBe(true);
+  voz.parar();
+  await leyendo;
+  expect((await voz.estado()).ocupada).toBe(false);
+
+  const sinAltavoz = new Voz({ ajustes: () => EDGE, conReproductor: false, ejecutar: async () => JSON.stringify({ reconocedores: [], voces: [] }) });
+  expect((await sinAltavoz.estado()).lectura).toBe(false);
+});

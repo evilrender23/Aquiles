@@ -30,7 +30,7 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
   - bandeja del sistema y arranque con Windows;
   - atajo global con entrada rápida;
   - perfiles, copias de seguridad y restauración;
-  - voz (dictado y lectura) con las voces locales de Windows;
+  - voz: dictado con el reconocedor de Windows y lectura en voz alta con las voces neuronales de Edge (en línea, sin clave) o con las de Windows;
   - estadísticas;
   - modo remoto (la app conectada a un núcleo en otra máquina);
   - integración con editores por ACP (`aquiles-nucleo --acp`).
@@ -87,7 +87,7 @@ Se actualiza sola igual que en Windows. Opciones: `--repo`, `--rama`, `--destino
 Para compilarla sin instalar: `bun run app:mac` deja `Aquiles.app` y un `.dmg` en `apps/escritorio/src-tauri/target/release/bundle/`. Va firmada solo en local (ad hoc), así que en otro Mac hay que abrirla la primera vez con clic derecho → Abrir.
 
 En Mac no hay todavía:
-- voz (usa System.Speech de Windows);
+- dictado por voz (usa System.Speech de Windows); la lectura en voz alta sí funciona, con las voces de Edge;
 - instalación automática de llama.cpp y Docker (si ya están en el PATH, se usan).
 
 El núcleo recibe el PATH de tu shell (`~/.zshrc` y compañía), así que encuentra `claude`, `codex`, `agy` y lo de Homebrew aunque abras la app desde el Dock. El control del navegador usa Microsoft Edge si está en Aplicaciones. Los datos van en `~/.config/Aquiles`.
