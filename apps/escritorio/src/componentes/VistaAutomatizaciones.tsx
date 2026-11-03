@@ -1,6 +1,6 @@
 /** Automatizaciones (tablero del lienzo): tareas programadas y canales. */
 import type { EjecucionCron, IdCanal, InfoCanal, ModoAprobacion, TareaProgramada } from "@aquiles/protocolo";
-import { Boton, Campo, Etiqueta, Interruptor, Titular, clases, useMenuContextual } from "@aquiles/ui";
+import { Boton, Campo, Etiqueta, Interruptor, Titular, clases, t, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -27,17 +27,17 @@ export function VistaAutomatizaciones() {
     <div className="automatizaciones">
       <div className="automatizaciones__pagina">
         <div className="automatizaciones__cabecera">
-          <Titular texto="Automatizaciones" tamano="l" />
+          <Titular texto={t("Automatizaciones")} tamano="l" />
           {!creando && (
             <Boton variante="principal" iconoFinal="flecha-diagonal" disabled={!!tareas.error && !tareas.datos} onClick={() => setCreando(true)}>
-              Nueva tarea
+              {t("Nueva tarea")}
             </Boton>
           )}
         </div>
 
         <section className="automatizaciones__seccion" aria-labelledby="titulo-tareas">
           <h2 id="titulo-tareas" className="automatizaciones__titulo">
-            Tareas programadas
+            {t("Tareas programadas")}
           </h2>
           {tareas.error && (
             <p className="automatizaciones__error" role="alert">
@@ -48,25 +48,25 @@ export function VistaAutomatizaciones() {
             <FormularioTarea
               canales={canales.datos}
               alCancelar={() => setCreando(false)}
-              alGuardar={(t) => {
-                tareas.fijar((l) => [...l, t]);
+              alGuardar={(nueva) => {
+                tareas.fijar((l) => [...l, nueva]);
                 setCreando(false);
-                setAbierta(t.id);
+                setAbierta(nueva.id);
               }}
             />
           )}
-          {tareas.datos?.length === 0 && !creando && <p className="automatizaciones__vacio">Sin tareas</p>}
-          {tareas.datos?.map((t) => (
+          {tareas.datos?.length === 0 && !creando && <p className="automatizaciones__vacio">{t("Sin tareas")}</p>}
+          {tareas.datos?.map((tarea) => (
             <FilaTarea
-              key={t.id}
-              t={t}
+              key={tarea.id}
+              tarea={tarea}
               canales={canales.datos}
-              abierta={abierta === t.id}
+              abierta={abierta === tarea.id}
               ahora={ahora}
-              alAlternar={() => setAbierta((a) => (a === t.id ? undefined : t.id))}
+              alAlternar={() => setAbierta((a) => (a === tarea.id ? undefined : tarea.id))}
               alCambiar={(n) => tareas.fijar((l) => l.map((x) => (x.id === n.id ? n : x)))}
-              alBorrar={() => tareas.fijar((l) => l.filter((x) => x.id !== t.id))}
-              alAbrir={() => setAbierta(t.id)}
+              alBorrar={() => tareas.fijar((l) => l.filter((x) => x.id !== tarea.id))}
+              alAbrir={() => setAbierta(tarea.id)}
               alCrear={(n) => {
                 tareas.fijar((l) => [...l, n]);
                 setAbierta(n.id);
@@ -77,7 +77,7 @@ export function VistaAutomatizaciones() {
 
         <section className="automatizaciones__seccion" aria-labelledby="titulo-canales">
           <h2 id="titulo-canales" className="automatizaciones__titulo">
-            Canales
+            {t("Canales")}
           </h2>
           <PanelCanales canales={canales} />
         </section>
@@ -87,7 +87,7 @@ export function VistaAutomatizaciones() {
 }
 
 function FilaTarea({
-  t,
+  tarea,
   canales,
   abierta,
   ahora,
@@ -97,26 +97,26 @@ function FilaTarea({
   alAbrir,
   alCrear,
 }: {
-  t: TareaProgramada;
+  tarea: TareaProgramada;
   canales?: InfoCanal[];
   abierta: boolean;
   ahora: number;
   alAlternar: () => void;
-  alCambiar: (t: TareaProgramada) => void;
+  alCambiar: (tarea: TareaProgramada) => void;
   alBorrar: () => void;
   alAbrir: () => void;
-  alCrear: (t: TareaProgramada) => void;
+  alCrear: (tarea: TareaProgramada) => void;
 }) {
   const { llamar, abrirSesion } = useAcciones();
   const { sesiones } = useEstado();
   const [editando, setEditando] = useState(false);
   const [error, setError] = useState<string>();
-  const u = t.ultima;
-  const idDetalle = `tarea-${t.id}`;
+  const u = tarea.ultima;
+  const idDetalle = `tarea-${tarea.id}`;
 
   const activar = async (activa: boolean) => {
     try {
-      alCambiar(await llamar("cron.editar", { id: t.id, activa }));
+      alCambiar(await llamar("cron.editar", { id: tarea.id, activa }));
       setError(undefined);
     } catch (e) {
       setError(mensaje(e));
@@ -130,10 +130,10 @@ function FilaTarea({
     );
 
   const menu = useMenuContextual(() => [
-    { texto: "Ejecutar ahora", icono: "play", alElegir: () => accion(() => llamar("cron.ejecutar", { id: t.id })) },
-    { texto: t.activa ? "Desactivar" : "Activar", alElegir: () => void activar(!t.activa) },
+    { texto: t("Ejecutar ahora"), icono: "play", alElegir: () => accion(() => llamar("cron.ejecutar", { id: tarea.id })) },
+    { texto: tarea.activa ? t("Desactivar") : t("Activar"), alElegir: () => void activar(!tarea.activa) },
     {
-      texto: "Editar",
+      texto: t("Editar"),
       icono: "lapiz",
       alElegir: () => {
         alAbrir();
@@ -141,62 +141,62 @@ function FilaTarea({
       },
     },
     {
-      texto: "Duplicar",
+      texto: t("Duplicar"),
       icono: "copiar",
       alElegir: () =>
         accion(async () =>
           alCrear(
             await llamar("cron.crear", {
-              nombre: `${t.nombre} (copia)`.slice(0, 120),
-              prompt: t.prompt,
-              cuando: t.cuando,
-              cwd: t.cwd,
-              ...(t.proveedor ? { proveedor: t.proveedor } : {}),
-              ...(t.modelo ? { modelo: t.modelo } : {}),
-              modoAprobacion: t.modoAprobacion,
-              entrega: t.entrega,
+              nombre: t("{nombre} (copia)", { nombre: tarea.nombre }).slice(0, 120),
+              prompt: tarea.prompt,
+              cuando: tarea.cuando,
+              cwd: tarea.cwd,
+              ...(tarea.proveedor ? { proveedor: tarea.proveedor } : {}),
+              ...(tarea.modelo ? { modelo: tarea.modelo } : {}),
+              modoAprobacion: tarea.modoAprobacion,
+              entrega: tarea.entrega,
             }),
           ),
         ),
     },
-    u?.sesionId && sesiones[u.sesionId] && { texto: "Abrir última sesión", icono: "flecha-diagonal", alElegir: () => abrirSesion(u.sesionId!) },
+    u?.sesionId && sesiones[u.sesionId] && { texto: t("Abrir última sesión"), icono: "flecha-diagonal", alElegir: () => abrirSesion(u.sesionId!) },
     { tipo: "separador" },
     {
-      texto: "Borrar",
+      texto: t("Borrar"),
       icono: "papelera",
       peligrosa: true,
       alElegir: () =>
         accion(async () => {
-          await llamar("cron.borrar", { id: t.id });
+          await llamar("cron.borrar", { id: tarea.id });
           alBorrar();
         }),
     },
   ]);
 
   return (
-    <article className={clases("tarea-prog", !t.activa && "tarea-prog--inactiva")} {...menu}>
+    <article className={clases("tarea-prog", !tarea.activa && "tarea-prog--inactiva")} {...menu}>
       <div className="tarea-prog__fila">
-        <div className="tarea-prog__cuando" title={t.proxima ? fechaCompleta(t.proxima) : undefined}>
-          <span className="tarea-prog__hora">{t.proxima ? hora(t.proxima) : "—"}</span>
-          <Etiqueta>{t.proxima ? fechaProxima(t.proxima, ahora).replace(/ \d\d:\d\d$/, "") : "Sin próxima"}</Etiqueta>
+        <div className="tarea-prog__cuando" title={tarea.proxima ? fechaCompleta(tarea.proxima) : undefined}>
+          <span className="tarea-prog__hora">{tarea.proxima ? hora(tarea.proxima) : "—"}</span>
+          <Etiqueta>{tarea.proxima ? fechaProxima(tarea.proxima, ahora).replace(/ \d\d:\d\d$/, "") : t("Sin próxima")}</Etiqueta>
         </div>
         <button type="button" className="tarea-prog__nombre" aria-expanded={abierta} aria-controls={idDetalle} onClick={alAlternar}>
-          <span className="tarea-prog__titulo">{t.nombre}</span>
-          <span className="tarea-prog__descripcion">{t.descripcion}</span>
+          <span className="tarea-prog__titulo">{tarea.nombre}</span>
+          <span className="tarea-prog__descripcion">{tarea.descripcion}</span>
         </button>
         <span className="tarea-prog__canales">
-          {t.entrega.map((e) => (
+          {tarea.entrega.map((e) => (
             <span key={`${e.canal}:${e.destino ?? ""}`} className="tarea-prog__canal">
               {nombreCanal(canales, e.canal)}
             </span>
           ))}
         </span>
         <div className="tarea-prog__ultima">
-          {u?.estado === "error" && <span className="tarea-prog__marca tarea-prog__marca--error">Error</span>}
+          {u?.estado === "error" && <span className="tarea-prog__marca tarea-prog__marca--error">{t("Error")}</span>}
           {u?.estado === "en-curso" && (
             <span className="tarea-prog__marca">
               <i className="nx-punto nx-pulso" aria-hidden="true" />
-              En curso
+              {t("En curso")}
             </span>
           )}
           {u && (
@@ -205,7 +205,7 @@ function FilaTarea({
             </span>
           )}
         </div>
-        <Interruptor activo={t.activa} alCambiar={(a) => void activar(a)} aria-label={t.nombre} />
+        <Interruptor activo={tarea.activa} alCambiar={(a) => void activar(a)} aria-label={tarea.nombre} />
       </div>
       {error && (
         <p className="automatizaciones__error" role="alert">
@@ -216,7 +216,7 @@ function FilaTarea({
         <div id={idDetalle} className="tarea-prog__detalle">
           {editando ? (
             <FormularioTarea
-              tarea={t}
+              tarea={tarea}
               canales={canales}
               alCancelar={() => setEditando(false)}
               alGuardar={(n) => {
@@ -225,7 +225,7 @@ function FilaTarea({
               }}
             />
           ) : (
-            <DetalleTarea t={t} canales={canales} ahora={ahora} alEditar={() => setEditando(true)} alBorrar={alBorrar} />
+            <DetalleTarea tarea={tarea} canales={canales} ahora={ahora} alEditar={() => setEditando(true)} alBorrar={alBorrar} />
           )}
         </div>
       )}
@@ -233,13 +233,13 @@ function FilaTarea({
   );
 }
 
-function DetalleTarea({ t, canales, ahora, alEditar, alBorrar }: { t: TareaProgramada; canales?: InfoCanal[]; ahora: number; alEditar: () => void; alBorrar: () => void }) {
+function DetalleTarea({ tarea, canales, ahora, alEditar, alBorrar }: { tarea: TareaProgramada; canales?: InfoCanal[]; ahora: number; alEditar: () => void; alBorrar: () => void }) {
   const { proveedores, ajustes } = useEstado();
   const { llamar } = useAcciones();
   const [borrando, setBorrando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string>();
-  const proveedor = t.proveedor || ajustes?.proveedor;
+  const proveedor = tarea.proveedor || ajustes?.proveedor;
 
   const accion = async (f: () => Promise<unknown>) => {
     setOcupado(true);
@@ -255,45 +255,45 @@ function DetalleTarea({ t, canales, ahora, alEditar, alBorrar }: { t: TareaProgr
 
   return (
     <>
-      <p className="tarea-prog__prompt">{t.prompt}</p>
+      <p className="tarea-prog__prompt">{tarea.prompt}</p>
       <dl className="tarea-prog__datos">
         <div>
-          <dt className="nx-etiqueta">Cuándo</dt>
-          <dd className="tarea-prog__mono">{t.cuando}</dd>
+          <dt className="nx-etiqueta">{t("Cuándo")}</dt>
+          <dd className="tarea-prog__mono">{tarea.cuando}</dd>
         </div>
         <div>
-          <dt className="nx-etiqueta">Carpeta</dt>
-          <dd className="tarea-prog__mono" title={t.cwd}>
-            {t.cwd}
+          <dt className="nx-etiqueta">{t("Carpeta")}</dt>
+          <dd className="tarea-prog__mono" title={tarea.cwd}>
+            {tarea.cwd}
           </dd>
         </div>
         <div>
-          <dt className="nx-etiqueta">Modelo</dt>
-          <dd>{proveedor ? nombreModelo(proveedor, t.modelo, proveedores) : "Por defecto"}</dd>
+          <dt className="nx-etiqueta">{t("Modelo")}</dt>
+          <dd>{proveedor ? nombreModelo(proveedor, tarea.modelo, proveedores) : t("Por defecto")}</dd>
         </div>
         <div>
-          <dt className="nx-etiqueta">Permisos</dt>
-          <dd>{MODOS[t.modoAprobacion]}</dd>
+          <dt className="nx-etiqueta">{t("Permisos")}</dt>
+          <dd>{MODOS[tarea.modoAprobacion]}</dd>
         </div>
-        {t.entrega.length > 0 && (
+        {tarea.entrega.length > 0 && (
           <div>
-            <dt className="nx-etiqueta">Entrega</dt>
-            <dd>{t.entrega.map((e) => (e.destino ? `${nombreCanal(canales, e.canal)} · ${e.destino}` : nombreCanal(canales, e.canal))).join(", ")}</dd>
+            <dt className="nx-etiqueta">{t("Entrega")}</dt>
+            <dd>{tarea.entrega.map((e) => (e.destino ? `${nombreCanal(canales, e.canal)} · ${e.destino}` : nombreCanal(canales, e.canal))).join(", ")}</dd>
           </div>
         )}
       </dl>
       <div className="tarea-prog__botones">
         <Boton variante="secundario" onClick={alEditar}>
-          Editar
+          {t("Editar")}
         </Boton>
-        <Boton variante="secundario" disabled={ocupado} onClick={() => void accion(() => llamar("cron.ejecutar", { id: t.id }))}>
-          Ejecutar ahora
+        <Boton variante="secundario" disabled={ocupado} onClick={() => void accion(() => llamar("cron.ejecutar", { id: tarea.id }))}>
+          {t("Ejecutar ahora")}
         </Boton>
         {borrando ? (
-          <ConfirmarBorrado ocupado={ocupado} alBorrar={() => void accion(async () => (await llamar("cron.borrar", { id: t.id }), alBorrar()))} alCancelar={() => setBorrando(false)} />
+          <ConfirmarBorrado ocupado={ocupado} alBorrar={() => void accion(async () => (await llamar("cron.borrar", { id: tarea.id }), alBorrar()))} alCancelar={() => setBorrando(false)} />
         ) : (
           <Boton variante="fantasma" icono="papelera" onClick={() => setBorrando(true)}>
-            Borrar
+            {t("Borrar")}
           </Boton>
         )}
       </div>
@@ -302,7 +302,7 @@ function DetalleTarea({ t, canales, ahora, alEditar, alBorrar }: { t: TareaProgr
           {error}
         </p>
       )}
-      <Ejecuciones tareaId={t.id} canales={canales} ahora={ahora} />
+      <Ejecuciones tareaId={tarea.id} canales={canales} ahora={ahora} />
     </>
   );
 }
@@ -321,22 +321,22 @@ function Ejecuciones({ tareaId, canales, ahora }: { tareaId: string; canales?: I
   }
   if (!ejecuciones.datos?.length) return null;
   return (
-    <section className="ejecuciones" aria-label="Ejecuciones">
-      <Etiqueta>Ejecuciones</Etiqueta>
+    <section className="ejecuciones" aria-label={t("Ejecuciones")}>
+      <Etiqueta>{t("Ejecuciones")}</Etiqueta>
       <ol className="ejecuciones__lista">
         {ejecuciones.datos.map((x: EjecucionCron) => (
           <li key={x.id} className={clases("ejecucion", `ejecucion--${x.estado}`)}>
             <div className="ejecucion__cabecera">
               <span className="ejecucion__estado">
                 {x.estado === "en-curso" ? <i className="nx-punto nx-pulso" aria-hidden="true" /> : <i className="ejecucion__punto" aria-hidden="true" />}
-                {x.estado === "en-curso" ? "En curso" : x.estado === "ok" ? "Hecha" : "Error"}
+                {x.estado === "en-curso" ? t("En curso") : x.estado === "ok" ? t("Hecha") : t("Error")}
               </span>
               <time className="ejecucion__fecha" dateTime={x.inicio} title={fechaCompleta(x.inicio)}>
                 {[fechaConHora(x.inicio, ahora), duracionEntre(x.inicio, x.fin)].filter(Boolean).join(" · ")}
               </time>
               {x.sesionId && (
                 <button type="button" className="origen__enlace" onClick={() => abrirSesion(x.sesionId!)}>
-                  {sesiones[x.sesionId]?.titulo || "Abrir sesión"}
+                  {sesiones[x.sesionId]?.titulo || t("Abrir sesión")}
                 </button>
               )}
             </div>
@@ -347,8 +347,8 @@ function Ejecuciones({ tareaId, canales, ahora }: { tareaId: string; canales?: I
                   <li key={`${e.canal}:${e.destino ?? ""}`} className={clases("entrega", !e.ok && "entrega--fallo")} title={e.error}>
                     {e.ok ? <span aria-hidden="true">✓</span> : <span aria-hidden="true">✗</span>}
                     <span>{[nombreCanal(canales, e.canal), e.destino].filter(Boolean).join(" · ")}</span>
-                    {!e.ok && <span className="entrega__error">{e.error ?? "No entregado"}</span>}
-                    {e.intentos > 1 && <span className="entrega__intentos">{e.intentos} intentos</span>}
+                    {!e.ok && <span className="entrega__error">{e.error ?? t("No entregado")}</span>}
+                    {e.intentos > 1 && <span className="entrega__intentos">{t("{n} intentos", { n: e.intentos })}</span>}
                   </li>
                 ))}
               </ul>
@@ -365,8 +365,8 @@ function useInterpretacion(cuando: string) {
   const { llamar } = useAcciones();
   const [pedido, setPedido] = useState(cuando.trim());
   useEffect(() => {
-    const t = setTimeout(() => setPedido(cuando.trim()), 400);
-    return () => clearTimeout(t);
+    const espera = setTimeout(() => setPedido(cuando.trim()), 400);
+    return () => clearTimeout(espera);
   }, [cuando]);
   return useCarga(pedido || null, 0, () => llamar("cron.interpretar", { cuando: pedido }));
 }
@@ -381,7 +381,7 @@ function FormularioTarea({
 }: {
   tarea?: TareaProgramada;
   canales?: InfoCanal[];
-  alGuardar: (t: TareaProgramada) => void;
+  alGuardar: (tarea: TareaProgramada) => void;
   alCancelar: () => void;
 }) {
   const { ajustes, proveedores } = useEstado();
@@ -421,11 +421,11 @@ function FormularioTarea({
         modoAprobacion: modo,
         entrega: entrega.map((e) => ({ canal: e.canal, ...(e.destino?.trim() ? { destino: e.destino.trim() } : {}) })),
       };
-      const t = tarea
+      const guardada = tarea
         ? // Al editar, proveedor y modelo vacíos vuelven a los de por defecto.
           await llamar("cron.editar", { id: tarea.id, ...datos, proveedor, modelo: modelo ?? "" })
         : await llamar("cron.crear", { ...datos, ...(proveedor ? { proveedor } : {}), ...(modelo ? { modelo } : {}) });
-      alGuardar(t);
+      alGuardar(guardada);
     } catch (e) {
       setError(mensaje(e));
       setGuardando(false);
@@ -441,16 +441,16 @@ function FormularioTarea({
         if (listo) void guardar();
       }}
     >
-      <Campo etiqueta="Nombre" value={nombre} maxLength={120} onChange={(e) => setNombre(e.target.value)} />
+      <Campo etiqueta={t("Nombre")} value={nombre} maxLength={120} onChange={(e) => setNombre(e.target.value)} />
       <div className="nx-campo">
         <label htmlFor="tarea-prompt" className="nx-etiqueta">
-          Prompt
+          {t("Prompt")}
         </label>
         <textarea id="tarea-prompt" className="campo-texto" rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       </div>
       <div className="formulario-tarea__cuando">
         <Campo
-          etiqueta="Cuándo"
+          etiqueta={t("Cuándo")}
           mono
           spellCheck={false}
           placeholder="cada lunes 9:00"
@@ -478,7 +478,7 @@ function FormularioTarea({
         proveedores={proveedores}
         proveedor={proveedor}
         modelo={modelo}
-        vacio="Por defecto"
+        vacio={t("Por defecto")}
         alCambiar={(p, m) => {
           setProveedor(p);
           setModelo(m);
@@ -486,13 +486,13 @@ function FormularioTarea({
       />
       <div className="nx-campo">
         <span className="nx-etiqueta" aria-hidden="true">
-          Permisos
+          {t("Permisos")}
         </span>
-        <OpcionesPermisos leyenda="Permisos" valor={modo} alCambiar={setModo} />
+        <OpcionesPermisos leyenda={t("Permisos")} valor={modo} alCambiar={setModo} />
       </div>
       {disponibles.length > 0 && (
         <fieldset className="formulario-tarea__entrega">
-          <legend className="nx-etiqueta">Entrega</legend>
+          <legend className="nx-etiqueta">{t("Entrega")}</legend>
           {disponibles.map((c) => {
             const elegido = entrega.find((e) => e.canal === c.id);
             return (
@@ -503,8 +503,8 @@ function FormularioTarea({
                 {elegido && (
                   <input
                     className="formulario-tarea__destino"
-                    aria-label={`Destino en ${c.nombre}`}
-                    placeholder="Destino"
+                    aria-label={t("Destino en {canal}", { canal: c.nombre })}
+                    placeholder={t("Destino")}
                     spellCheck={false}
                     value={elegido.destino ?? ""}
                     onChange={(e) => cambiarDestino(c.id, e.target.value)}
@@ -522,10 +522,10 @@ function FormularioTarea({
       )}
       <div className="formulario-tarea__botones">
         <Boton type="submit" variante="acento" disabled={!listo}>
-          {tarea ? "Guardar" : "Crear"}
+          {tarea ? t("Guardar") : t("Crear")}
         </Boton>
         <Boton variante="fantasma" onClick={alCancelar}>
-          Cancelar
+          {t("Cancelar")}
         </Boton>
       </div>
     </form>

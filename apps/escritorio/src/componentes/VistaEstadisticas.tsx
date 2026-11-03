@@ -4,7 +4,7 @@
  * Cada gráfico se lee también sin pasar el ratón: total en la cabecera, valores en la tabla.
  */
 import type { Estadisticas } from "@aquiles/protocolo";
-import { Etiqueta, Titular, clases } from "@aquiles/ui";
+import { Etiqueta, Titular, clases, t } from "@aquiles/ui";
 import { useState, type KeyboardEvent, type PointerEvent } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -15,22 +15,23 @@ import { LineaAprendido } from "./Aprendizaje";
 type Dia = Estadisticas["porDia"][number];
 type Medida = "sesiones" | "mensajes" | "herramientas" | "tokensEntrada" | "tokensSalida";
 
-const MEDIDAS: { clave: Medida; titulo: string }[] = [
-  { clave: "sesiones", titulo: "Sesiones" },
-  { clave: "mensajes", titulo: "Mensajes" },
-  { clave: "herramientas", titulo: "Herramientas" },
-  { clave: "tokensEntrada", titulo: "Tokens de entrada" },
-  { clave: "tokensSalida", titulo: "Tokens de salida" },
+// Funciones y no constantes: los textos se traducen al pintar, en el idioma de ese momento.
+const medidas = (): { clave: Medida; titulo: string }[] => [
+  { clave: "sesiones", titulo: t("Sesiones") },
+  { clave: "mensajes", titulo: t("Mensajes") },
+  { clave: "herramientas", titulo: t("Herramientas") },
+  { clave: "tokensEntrada", titulo: t("Tokens de entrada") },
+  { clave: "tokensSalida", titulo: t("Tokens de salida") },
 ];
 const PERIODOS = [7, 30, 90] as const;
 /** Siempre con separador de miles («4.960», no «4960» junto a «40.500»): las columnas de cifras se leen igual. */
 const cifras = new Intl.NumberFormat("es-ES", { useGrouping: "always" });
-const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const meses = () => [t("ene"), t("feb"), t("mar"), t("abr"), t("may"), t("jun"), t("jul"), t("ago"), t("sep"), t("oct"), t("nov"), t("dic")];
 
 /** «2026-10-30» → «30 oct». */
 function dia(d: string): string {
   const [, m, n] = d.split("-").map(Number);
-  return m && n ? `${n} ${MESES[m - 1]}` : d;
+  return m && n ? `${n} ${meses()[m - 1]}` : d;
 }
 
 /** Tope del eje: el máximo redondeado hacia arriba a una cifra limpia (1, 2, 2,5 o 5 × 10ⁿ). */
@@ -54,19 +55,19 @@ export function VistaEstadisticas() {
   return (
     <div className="estadisticas">
       <div className={clases("estadisticas__pagina", datos.cargando && e && "estadisticas__pagina--cargando")}>
-        <Titular texto="Estadísticas" tamano="l" />
+        <Titular texto={t("Estadísticas")} tamano="l" />
 
         <div className="estadisticas__filtros">
           <fieldset className="habilidades__chips">
-            <legend className="nx-sr">Periodo</legend>
+            <legend className="nx-sr">{t("Periodo")}</legend>
             {PERIODOS.map((p) => (
               <button key={p} type="button" className="nx-chip habilidades__chip" aria-pressed={dias === p} onClick={() => setDias(p)}>
-                {p} días
+                {t("{n} días", { n: p })}
               </button>
             ))}
           </fieldset>
-          <button type="button" className="nx-chip habilidades__chip" aria-pressed={tabla} onClick={() => setTabla((t) => !t)}>
-            Tabla
+          <button type="button" className="nx-chip habilidades__chip" aria-pressed={tabla} onClick={() => setTabla((v) => !v)}>
+            {t("Tabla")}
           </button>
         </div>
 
@@ -81,7 +82,7 @@ export function VistaEstadisticas() {
             <TablaPorDia porDia={e.porDia} />
           ) : (
             <div className="estadisticas__multiples">
-              {MEDIDAS.map((m) => (
+              {medidas().map((m) => (
                 <GraficoColumnas key={m.clave} titulo={m.titulo} porDia={e.porDia} medida={m.clave} />
               ))}
             </div>
@@ -89,16 +90,16 @@ export function VistaEstadisticas() {
 
         {e && (
           <div className="estadisticas__rankings">
-            <Ranking titulo="Herramientas más usadas" filas={e.herramientas.map((h) => ({ nombre: h.nombre, valor: h.usos }))} />
-            <Ranking titulo="Habilidades más usadas" filas={e.skills.map((s) => ({ nombre: s.nombre, valor: s.usos }))} />
-            <Ranking titulo="Sesiones por proveedor" filas={e.proveedores.map((p) => ({ nombre: p.proveedor, valor: p.sesiones }))} />
+            <Ranking titulo={t("Herramientas más usadas")} filas={e.herramientas.map((h) => ({ nombre: h.nombre, valor: h.usos }))} />
+            <Ranking titulo={t("Habilidades más usadas")} filas={e.skills.map((s) => ({ nombre: s.nombre, valor: s.usos }))} />
+            <Ranking titulo={t("Sesiones por proveedor")} filas={e.proveedores.map((p) => ({ nombre: p.proveedor, valor: p.sesiones }))} />
           </div>
         )}
 
         {e && e.aprendido.length > 0 && (
           <section className="estadisticas__seccion" aria-labelledby="titulo-aprendido">
             <h2 id="titulo-aprendido" className="automatizaciones__titulo">
-              Aprendido
+              {t("Aprendido")}
             </h2>
             <LineaAprendido entradas={e.aprendido} ahora={ahora} />
           </section>
@@ -146,7 +147,7 @@ function GraficoColumnas({ titulo, porDia, medida }: { titulo: string; porDia: D
           className="grafico__plano"
           role="slider"
           tabIndex={0}
-          aria-label={`${titulo} por día`}
+          aria-label={t("{titulo} por día", { titulo })}
           aria-orientation="horizontal"
           aria-valuemin={0}
           aria-valuemax={Math.max(0, porDia.length - 1)}
@@ -195,8 +196,8 @@ function TablaPorDia({ porDia }: { porDia: Dia[] }) {
       <table>
         <thead>
           <tr>
-            <th scope="col">Día</th>
-            {MEDIDAS.map((m) => (
+            <th scope="col">{t("Día")}</th>
+            {medidas().map((m) => (
               <th key={m.clave} scope="col">
                 {m.titulo}
               </th>
@@ -207,7 +208,7 @@ function TablaPorDia({ porDia }: { porDia: Dia[] }) {
           {[...porDia].reverse().map((d) => (
             <tr key={d.dia}>
               <th scope="row">{dia(d.dia)}</th>
-              {MEDIDAS.map((m) => (
+              {medidas().map((m) => (
                 <td key={m.clave}>{cifras.format(d[m.clave])}</td>
               ))}
             </tr>

@@ -6,6 +6,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { clases } from "../clases";
 import { Icono } from "../componentes/Icono";
+import { idiomaActual, t } from "../i18n";
 
 const CELDAS = Array.from({ length: 16 }, (_, i) => ({ id: `c${i}`, diagonal: Math.floor(i / 4) + (i % 4) }));
 
@@ -20,7 +21,12 @@ export function LatticeLoader({ activo }: { activo: boolean }) {
   );
 }
 
-const segundos = (ms: number) => `${(ms / 1000).toFixed(1).replace(".", ",")} s`;
+/** «2,5» en español, «2.5» en inglés. */
+const cifraSegundos = (ms: number) => {
+  const n = (ms / 1000).toFixed(1);
+  return idiomaActual() === "es" ? n.replace(".", ",") : n;
+};
+const segundos = (ms: number) => `${cifraSegundos(ms)} s`;
 
 export interface PropsThoughtLine {
   /** Mientras piensa, el cronómetro cuenta desde `desde` (Date.now()). */
@@ -40,8 +46,8 @@ export function ThoughtLine({ trabajando, desde, ms, pasos = [], detalle }: Prop
 
   useEffect(() => {
     if (!trabajando) return;
-    const t = setInterval(() => setAhora(Date.now()), 100);
-    return () => clearInterval(t);
+    const reloj = setInterval(() => setAhora(Date.now()), 100);
+    return () => clearInterval(reloj);
   }, [trabajando]);
 
   const transcurrido = trabajando && desde !== undefined ? Math.max(0, ahora - desde) : (ms ?? 0);
@@ -54,9 +60,9 @@ export function ThoughtLine({ trabajando, desde, ms, pasos = [], detalle }: Prop
       <LatticeLoader activo={trabajando} />
       <span aria-hidden="true" className="nx-pensamiento__etiquetas">
         <span style={suave(trabajando)}>
-          <span className={trabajando ? "nx-shim" : undefined}>Pensando…</span>
+          <span className={trabajando ? "nx-shim" : undefined}>{t("Pensando…")}</span>
         </span>
-        <span style={{ ...suave(!trabajando), opacity: trabajando ? 0 : 0.75 }}>{conTiempo ? "Pensó durante" : "Pensamiento"}</span>
+        <span style={{ ...suave(!trabajando), opacity: trabajando ? 0 : 0.75 }}>{conTiempo ? t("Pensó durante") : t("Pensamiento")}</span>
       </span>
       {conTiempo && (
         <span aria-hidden="true" className="nx-pensamiento__tiempo">
@@ -81,7 +87,7 @@ export function ThoughtLine({ trabajando, desde, ms, pasos = [], detalle }: Prop
         <div className="nx-pensamiento__boton">{contenido}</div>
       )}
       <span className="nx-sr" role="status">
-        {trabajando ? "Pensando…" : conTiempo ? `Pensó durante ${segundos(transcurrido).replace(" s", " segundos")}` : "Pensamiento"}
+        {trabajando ? t("Pensando…") : conTiempo ? t("Pensó durante {n} segundos", { n: cifraSegundos(transcurrido) }) : t("Pensamiento")}
       </span>
       {detalle && (
         <div className={clases("nx-pensamiento__traza", abierto && "nx-pensamiento__traza--abierta")}>

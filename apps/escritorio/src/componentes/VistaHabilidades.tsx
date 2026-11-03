@@ -1,5 +1,5 @@
 import type { InfoSkill, VersionSkill } from "@aquiles/protocolo";
-import { Boton, CampoBusqueda, CampoInterruptor, Etiqueta, Icono, Titular, clases, copiarTexto, useMenuContextual } from "@aquiles/ui";
+import { Boton, CampoBusqueda, CampoInterruptor, Etiqueta, Icono, Titular, clases, copiarTexto, t, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { cwdActiva, useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -11,23 +11,24 @@ import { Markdown } from "./Markdown";
 type Origen = InfoSkill["origen"];
 type Filtro = "todas" | Origen | "desactivadas" | "obsoletas" | "archivadas";
 
-const ORIGEN: Record<Origen, { una: string; varias: string }> = {
-  incluida: { una: "Incluida", varias: "Incluidas" },
-  manual: { una: "Manual", varias: "Manuales" },
-  aprendida: { una: "Aprendida", varias: "Aprendidas" },
-};
-const UBICACION: Record<InfoSkill["ubicacion"], string | undefined> = { perfil: "Perfil", proyecto: "Proyecto", incluida: undefined };
-const VIGENCIA: Record<InfoSkill["vigencia"], string | undefined> = { vigente: undefined, obsoleta: "Obsoleta", archivada: "Archivada" };
-const MOTIVOS: Record<string, string> = { parchear: "Parche", escribir: "Escritura", propuesta: "Propuesta", restaurar: "Restauración", crear: "Creación" };
+// Funciones y no constantes: los textos se traducen al pintar, en el idioma de ese momento.
+const origenes = (): Record<Origen, { una: string; varias: string }> => ({
+  incluida: { una: t("Incluida"), varias: t("Incluidas") },
+  manual: { una: t("Manual"), varias: t("Manuales") },
+  aprendida: { una: t("Aprendida"), varias: t("Aprendidas") },
+});
+const ubicaciones = (): Record<InfoSkill["ubicacion"], string | undefined> => ({ perfil: t("Perfil"), proyecto: t("Proyecto"), incluida: undefined });
+const vigencias = (): Record<InfoSkill["vigencia"], string | undefined> => ({ vigente: undefined, obsoleta: t("Obsoleta"), archivada: t("Archivada") });
+const motivos = (): Record<string, string> => ({ parchear: t("Parche"), escribir: t("Escritura"), propuesta: t("Propuesta"), restaurar: t("Restauración"), crear: t("Creación") });
 
 /** Sin mayúsculas ni tildes, para buscar. */
-const normalizar = (t: string) =>
-  t
+const normalizar = (texto: string) =>
+  texto
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
 
-const usos = (n: number) => (n === 1 ? "1 uso" : `${n} usos`);
+const usos = (n: number) => (n === 1 ? t("1 uso") : t("{n} usos", { n }));
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** La ruta cambia al archivar; el nombre y la ubicación, no. */
@@ -64,11 +65,11 @@ export function VistaHabilidades() {
 
   const cuenta = (f: Filtro) => skills.filter((s) => pasaFiltro(s, f)).length;
   const todos: { id: Filtro; texto: string }[] = [
-    { id: "todas", texto: "Todas" },
-    ...(["incluida", "manual", "aprendida"] as const).map((o) => ({ id: o, texto: ORIGEN[o].varias })),
-    { id: "desactivadas", texto: "Desactivadas" },
-    { id: "obsoletas", texto: "Obsoletas" },
-    { id: "archivadas", texto: "Archivadas" },
+    { id: "todas", texto: t("Todas") },
+    ...(["incluida", "manual", "aprendida"] as const).map((o) => ({ id: o, texto: origenes()[o].varias })),
+    { id: "desactivadas", texto: t("Desactivadas") },
+    { id: "obsoletas", texto: t("Obsoletas") },
+    { id: "archivadas", texto: t("Archivadas") },
   ];
   // Sin chips que no filtrarían nada (salvo el elegido, para poder volver).
   const filtros = todos.map((f) => ({ ...f, n: cuenta(f.id) })).filter((f) => f.id === "todas" || f.n > 0 || f.id === filtro);
@@ -85,13 +86,13 @@ export function VistaHabilidades() {
   return (
     <div className="habilidades">
       <section className="habilidades__lista" aria-labelledby="titulo-habilidades">
-        <Titular id="titulo-habilidades" texto="Habilidades" tamano="l" />
+        <Titular id="titulo-habilidades" texto={t("Habilidades")} tamano="l" />
 
         <div className="habilidades__filtros">
-          <CampoBusqueda className="habilidades__buscar" etiqueta="Buscar habilidades" placeholder="Buscar por nombre o descripción" valor={texto} alCambiar={setTexto} />
+          <CampoBusqueda className="habilidades__buscar" etiqueta={t("Buscar habilidades")} placeholder={t("Buscar por nombre o descripción")} valor={texto} alCambiar={setTexto} />
           {lista.datos && (
             <fieldset className="habilidades__chips">
-              <legend className="nx-sr">Filtrar</legend>
+              <legend className="nx-sr">{t("Filtrar")}</legend>
               {filtros.map((f) => (
                 <button key={f.id} type="button" className="nx-chip habilidades__chip" aria-pressed={f.id === filtro} onClick={() => setFiltro(f.id)}>
                   {f.texto} · {f.n}
@@ -107,7 +108,7 @@ export function VistaHabilidades() {
           </p>
         )}
 
-        {lista.datos && skills.length > 0 && visibles.length === 0 && <p className="habilidades__vacio">Sin resultados</p>}
+        {lista.datos && skills.length > 0 && visibles.length === 0 && <p className="habilidades__vacio">{t("Sin resultados")}</p>}
 
         {visibles.length > 0 && (
           <div className="habilidades__rejilla">
@@ -132,7 +133,7 @@ export function VistaHabilidades() {
       </section>
 
       {seleccion && (
-        <aside ref={detalle} className="habilidades__detalle" aria-label="Detalle de la habilidad">
+        <aside ref={detalle} className="habilidades__detalle" aria-label={t("Detalle de la habilidad")}>
           <DetalleHabilidad
             key={clave(seleccion)}
             skill={seleccion}
@@ -171,18 +172,21 @@ function TarjetaHabilidad({
   const cambiar = (f: () => Promise<InfoSkill>) => void f().then(alCambiar, () => {});
   // Lo que se puede hacer depende de la ubicación y de la vigencia de la skill al abrir el menú.
   const menu = useMenuContextual(() => [
-    { texto: "Ver", icono: "flecha-diagonal", alElegir },
+    { texto: t("Ver"), icono: "flecha-diagonal", alElegir },
     { tipo: "separador" },
-    !archivada && { texto: s.activa ? "Desactivar" : "Activar", alElegir: () => cambiar(() => ajustarSkill(s.nombre, !s.activa, cwd)) },
-    delPerfil && !archivada && { texto: s.fijada ? "Quitar fijación" : "Fijar", alElegir: () => cambiar(() => fijarSkill(s.nombre, !s.fijada)) },
-    delPerfil && (archivada ? { texto: "Restaurar", icono: "recargar", alElegir: () => cambiar(() => restaurarSkill(s.nombre)) } : { texto: "Archivar", alElegir: () => cambiar(() => archivarSkill(s.nombre)) }),
-    delPerfil && { texto: "Versiones", alElegir: alVersiones },
+    !archivada && { texto: s.activa ? t("Desactivar") : t("Activar"), alElegir: () => cambiar(() => ajustarSkill(s.nombre, !s.activa, cwd)) },
+    delPerfil && !archivada && { texto: s.fijada ? t("Quitar fijación") : t("Fijar"), alElegir: () => cambiar(() => fijarSkill(s.nombre, !s.fijada)) },
+    delPerfil &&
+      (archivada
+        ? { texto: t("Restaurar"), icono: "recargar", alElegir: () => cambiar(() => restaurarSkill(s.nombre)) }
+        : { texto: t("Archivar"), alElegir: () => cambiar(() => archivarSkill(s.nombre)) }),
+    delPerfil && { texto: t("Versiones"), alElegir: alVersiones },
     { tipo: "separador" },
-    { texto: "Copiar ruta", icono: "copiar", alElegir: () => copiarTexto(s.ruta) },
-    puedeMostrarRutas() && { texto: "Mostrar carpeta", icono: "carpeta", alElegir: () => abrirCarpeta(s.ruta) },
+    { texto: t("Copiar ruta"), icono: "copiar", alElegir: () => copiarTexto(s.ruta) },
+    puedeMostrarRutas() && { texto: t("Mostrar carpeta"), icono: "carpeta", alElegir: () => abrirCarpeta(s.ruta) },
   ]);
-  const meta = [s.activa ? undefined : "Desactivada", ORIGEN[s.origen].una, usos(s.usos), s.ultimoUso && fechaRelativa(s.ultimoUso, ahora)].filter(Boolean).join(" · ");
-  const vigencia = VIGENCIA[s.vigencia];
+  const meta = [s.activa ? undefined : t("Desactivada"), origenes()[s.origen].una, usos(s.usos), s.ultimoUso && fechaRelativa(s.ultimoUso, ahora)].filter(Boolean).join(" · ");
+  const vigencia = vigencias()[s.vigencia];
   return (
     <button
       type="button"
@@ -195,7 +199,7 @@ function TarjetaHabilidad({
         <span className="habilidad__numero">{String(numero).padStart(2, "0")}</span>
         <span className="habilidad__marcas">
           {vigencia && <span className="habilidad__marca">{vigencia}</span>}
-          {s.fijada && <span className="habilidad__marca habilidad__marca--fijada">Fijada</span>}
+          {s.fijada && <span className="habilidad__marca habilidad__marca--fijada">{t("Fijada")}</span>}
         </span>
         <Icono nombre="flecha-diagonal" tamano={18} />
       </span>
@@ -220,7 +224,7 @@ function DetalleHabilidad({ skill: s, cwd, alCambiar, abrirVersiones }: { skill:
   useEffect(() => {
     if (abrirVersiones) setVerVersiones(true);
   }, [abrirVersiones]);
-  const ubicacion = UBICACION[s.ubicacion];
+  const ubicacion = ubicaciones()[s.ubicacion];
   // El curador (fijar, archivar) y las copias solo existen para las del perfil.
   const delPerfil = s.ubicacion === "perfil";
   const archivada = s.vigencia === "archivada";
@@ -239,14 +243,14 @@ function DetalleHabilidad({ skill: s, cwd, alCambiar, abrirVersiones }: { skill:
 
   return (
     <div className="habilidad-detalle">
-      <Etiqueta>{[ORIGEN[s.origen].una, ubicacion, VIGENCIA[s.vigencia]].filter(Boolean).join(" · ")}</Etiqueta>
+      <Etiqueta>{[origenes()[s.origen].una, ubicacion, vigencias()[s.vigencia]].filter(Boolean).join(" · ")}</Etiqueta>
       <h2 className="habilidad-detalle__nombre">{s.nombre}</h2>
       {s.descripcion && <p className="habilidad-detalle__descripcion">{s.descripcion}</p>}
 
       {!archivada && (
         <div className="habilidad-detalle__ajustes">
-          <CampoInterruptor etiqueta="Activa" activo={s.activa} disabled={cambiando} alCambiar={(a) => void cambiar(() => ajustarSkill(s.nombre, a, cwd))} />
-          {delPerfil && <CampoInterruptor etiqueta="Fijada" activo={s.fijada} disabled={cambiando} alCambiar={(f) => void cambiar(() => fijarSkill(s.nombre, f))} />}
+          <CampoInterruptor etiqueta={t("Activa")} activo={s.activa} disabled={cambiando} alCambiar={(a) => void cambiar(() => ajustarSkill(s.nombre, a, cwd))} />
+          {delPerfil && <CampoInterruptor etiqueta={t("Fijada")}activo={s.fijada} disabled={cambiando} alCambiar={(f) => void cambiar(() => fijarSkill(s.nombre, f))} />}
         </div>
       )}
       {error && (
@@ -258,11 +262,11 @@ function DetalleHabilidad({ skill: s, cwd, alCambiar, abrirVersiones }: { skill:
       <div className="habilidad-detalle__cifras">
         <div className="cifra">
           <span className="cifra__valor cifra__valor--lima">{s.usos}</span>
-          <Etiqueta>Usos</Etiqueta>
+          <Etiqueta>{t("Usos")}</Etiqueta>
         </div>
         <div className="cifra" title={fechaCompleta(s.actualizada)}>
           <span className="cifra__valor">{fechaCorta(s.actualizada)}</span>
-          <Etiqueta>Actualizada</Etiqueta>
+          <Etiqueta>{t("Actualizada")}</Etiqueta>
         </div>
       </div>
 
@@ -284,7 +288,7 @@ function DetalleHabilidad({ skill: s, cwd, alCambiar, abrirVersiones }: { skill:
 
       {doc.datos && doc.datos.ficheros.length > 0 && (
         <div className="habilidad-detalle__ficheros">
-          <Etiqueta>Ficheros</Etiqueta>
+          <Etiqueta>{t("Ficheros")}</Etiqueta>
           <ul>
             {doc.datos.ficheros.map((f) => (
               <li key={f}>{f}</li>
@@ -297,15 +301,15 @@ function DetalleHabilidad({ skill: s, cwd, alCambiar, abrirVersiones }: { skill:
         <>
           <div className="habilidad-detalle__botones">
             <Boton variante="secundario" iconoFinal="chevron-abajo" aria-expanded={verVersiones} className={clases(verVersiones && "boton--abierto")} onClick={() => setVerVersiones((v) => !v)}>
-              Versiones
+              {t("Versiones")}
             </Boton>
             {archivada ? (
               <Boton variante="secundario" disabled={cambiando} onClick={() => void cambiar(() => restaurarSkill(s.nombre))}>
-                Restaurar
+                {t("Restaurar")}
               </Boton>
             ) : (
               <Boton variante="secundario" disabled={cambiando} onClick={() => void cambiar(() => archivarSkill(s.nombre))}>
-                Archivar
+                {t("Archivar")}
               </Boton>
             )}
           </div>
@@ -340,13 +344,13 @@ function Versiones({ nombre, alRestaurar }: { nombre: string; alRestaurar: (s: I
   };
 
   return (
-    <section className="versiones" aria-label="Versiones">
+    <section className="versiones" aria-label={t("Versiones")}>
       {versiones.error && (
         <p className="habilidad-detalle__error" role="alert">
           {versiones.error}
         </p>
       )}
-      {versiones.datos?.length === 0 && <p className="habilidades__vacio">Sin versiones</p>}
+      {versiones.datos?.length === 0 && <p className="habilidades__vacio">{t("Sin versiones")}</p>}
       {versiones.datos && versiones.datos.length > 0 && (
         <ol className="versiones__lista">
           {versiones.datos.map((v) => (
@@ -355,7 +359,7 @@ function Versiones({ nombre, alRestaurar }: { nombre: string; alRestaurar: (s: I
                 <time className="version__fecha" dateTime={v.fecha} title={fechaCompleta(v.fecha)}>
                   {fechaConHora(v.fecha, ahora)}
                 </time>
-                <span className="version__motivo">{MOTIVOS[v.motivo] ?? v.motivo}</span>
+                <span className="version__motivo">{motivos()[v.motivo] ?? v.motivo}</span>
               </div>
               {confirmando === v.id ? (
                 <ConfirmarRestaurar restaurando={restaurando} alRestaurar={() => void restaurar(v)} alCancelar={() => setConfirmando(undefined)} />
@@ -368,7 +372,7 @@ function Versiones({ nombre, alRestaurar }: { nombre: string; alRestaurar: (s: I
                     setConfirmando(v.id);
                   }}
                 >
-                  Restaurar
+                  {t("Restaurar")}
                 </Boton>
               )}
             </li>
@@ -390,10 +394,10 @@ function ConfirmarRestaurar({ restaurando, alRestaurar, alCancelar }: { restaura
   return (
     <span className="version__confirmar">
       <Boton variante="acento" tamano="pequeno" disabled={restaurando} onClick={alRestaurar}>
-        Restaurar
+        {t("Restaurar")}
       </Boton>
       <Boton variante="fantasma" tamano="pequeno" ref={cancelar} onClick={alCancelar} onKeyDown={(e) => e.key === "Escape" && alCancelar()}>
-        Cancelar
+        {t("Cancelar")}
       </Boton>
     </span>
   );

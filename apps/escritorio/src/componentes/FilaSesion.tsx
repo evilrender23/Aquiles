@@ -1,5 +1,5 @@
 import type { InfoSesion } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Icono, clases, copiarTexto, useMenuContextual } from "@aquiles/ui";
+import { Boton, BotonIcono, Icono, clases, copiarTexto, t, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones } from "../estado/almacen";
 import { abrirCarpeta, puedeMostrarRutas } from "../plataforma/aplicacion";
@@ -35,13 +35,13 @@ export function FilaSesion({
     }
     if (modo === "borrar") cancelar.current?.focus();
   }, [modo]);
-  const titulo = sesion.titulo || "Sin título";
+  const titulo = sesion.titulo || t("Sin título");
 
   // Lo que ofrece depende del estado de la sesión al abrir el menú (Parar si trabaja, Continuar si se interrumpió).
   const menu = useMenuContextual(() => [
-    { texto: "Abrir", icono: "flecha-diagonal", alElegir: alAbrir },
+    { texto: t("Abrir"), icono: "flecha-diagonal", alElegir: alAbrir },
     {
-      texto: "Renombrar",
+      texto: t("Renombrar"),
       icono: "lapiz",
       alElegir: () => {
         resuelto.current = false;
@@ -51,25 +51,25 @@ export function FilaSesion({
     { tipo: "separador" },
     sesion.interrumpida &&
       !sesion.trabajando && {
-        texto: "Continuar",
+        texto: t("Continuar"),
         icono: "play",
         alElegir: () => {
           alAbrir();
           void enviar(sesion.sesionId, "Continúa donde lo dejaste.");
         },
       },
-    sesion.trabajando && { texto: "Parar", icono: "detener", alElegir: () => detener(sesion.sesionId) },
+    sesion.trabajando && { texto: t("Parar"), icono: "detener", alElegir: () => detener(sesion.sesionId) },
     {
-      texto: "Revisar lo aprendido",
+      texto: t("Revisar lo aprendido"),
       icono: "recargar",
       alElegir: () => void llamar("aprendizaje.revisar", { sesionId: sesion.sesionId }).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e))),
     },
-    { texto: "Objetivo…", icono: "diana", alElegir: () => editarObjetivo(sesion.sesionId) },
+    { texto: t("Objetivo…"), icono: "diana", alElegir: () => editarObjetivo(sesion.sesionId) },
     { tipo: "separador" },
-    { texto: "Copiar id", icono: "copiar", alElegir: () => copiarTexto(sesion.sesionId) },
-    puedeMostrarRutas() && { texto: "Mostrar carpeta", icono: "carpeta", alElegir: () => abrirCarpeta(sesion.cwd) },
+    { texto: t("Copiar id"), icono: "copiar", alElegir: () => copiarTexto(sesion.sesionId) },
+    puedeMostrarRutas() && { texto: t("Mostrar carpeta"), icono: "carpeta", alElegir: () => abrirCarpeta(sesion.cwd) },
     { tipo: "separador" },
-    { texto: "Borrar", icono: "papelera", peligrosa: true, alElegir: () => intentar(() => borrar(sesion.sesionId)) },
+    { texto: t("Borrar"), icono: "papelera", peligrosa: true, alElegir: () => intentar(() => borrar(sesion.sesionId)) },
   ]);
 
   const intentar = async (f: () => Promise<void>) => {
@@ -87,14 +87,14 @@ export function FilaSesion({
       // Enter y luego el blur al desmontar: solo cuenta el primero.
       if (resuelto.current) return;
       resuelto.current = true;
-      const t = valor.trim();
-      if (!t || t === sesion.titulo) return setModo("ver");
-      void intentar(() => renombrar(sesion.sesionId, t.slice(0, 120)));
+      const nuevo = valor.trim();
+      if (!nuevo || nuevo === sesion.titulo) return setModo("ver");
+      void intentar(() => renombrar(sesion.sesionId, nuevo.slice(0, 120)));
     };
     return (
       <input
         className="fila-sesion__entrada"
-        aria-label="Título de la sesión"
+        aria-label={t("Título de la sesión")}
         defaultValue={sesion.titulo ?? ""}
         ref={entrada}
         maxLength={120}
@@ -114,10 +114,10 @@ export function FilaSesion({
     return (
       <div className="fila-sesion fila-sesion--confirmar" title={error}>
         <Boton variante="acento" tamano="pequeno" className="fila-sesion__boton" onClick={() => void intentar(() => borrar(sesion.sesionId))}>
-          Borrar
+          {t("Borrar")}
         </Boton>
         <Boton variante="fantasma" tamano="pequeno" ref={cancelar} className="fila-sesion__boton" onClick={() => setModo("ver")} onKeyDown={(e) => e.key === "Escape" && setModo("ver")}>
-          Cancelar
+          {t("Cancelar")}
         </Boton>
       </div>
     );
@@ -126,15 +126,15 @@ export function FilaSesion({
   return (
     <div className={clases("fila-sesion", actual && "fila-sesion--actual")} title={error} {...menu}>
       {sesion.origen?.tipo === "cron" && (
-        <span className="fila-sesion__origen" title="Tarea programada">
+        <span className="fila-sesion__origen" title={t("Tarea programada")}>
           <Icono nombre="reloj" tamano={13} />
-          <span className="nx-sr">Tarea programada:</span>
+          <span className="nx-sr">{t("Tarea programada:")}</span>
         </span>
       )}
       {sesion.origen?.tipo === "canal" && (
-        <span className="fila-sesion__origen" title={`Chat de ${sesion.origen.canal}`}>
+        <span className="fila-sesion__origen" title={t("Chat de {canal}", { canal: sesion.origen.canal })}>
           <Icono nombre="chat" tamano={13} />
-          <span className="nx-sr">Chat de {sesion.origen.canal}:</span>
+          <span className="nx-sr">{t("Chat de {canal}:", { canal: sesion.origen.canal })}</span>
         </span>
       )}
       <button type="button" className="fila-sesion__abrir" title={titulo} onClick={alAbrir}>
@@ -142,13 +142,13 @@ export function FilaSesion({
       </button>
       <span className="fila-sesion__estado">
         {pendiente ? (
-          <span className="fila-sesion__pendiente">{pendiente === "aprobacion" ? "permiso" : "pregunta"}</span>
+          <span className="fila-sesion__pendiente">{pendiente === "aprobacion" ? t("permiso") : t("pregunta")}</span>
         ) : sesion.trabajando ? (
-          <i className="nx-punto nx-pulso" role="img" aria-label="Trabajando" />
+          <i className="nx-punto nx-pulso" role="img" aria-label={t("Trabajando")} />
         ) : sesion.interrumpida ? (
-          <span className="fila-sesion__interrumpida" title="Interrumpida">
+          <span className="fila-sesion__interrumpida" title={t("Interrumpida")}>
             <Icono nombre="pausa" tamano={13} />
-            <span className="nx-sr">Interrumpida</span>
+            <span className="nx-sr">{t("Interrumpida")}</span>
           </span>
         ) : (
           <span className="fila-sesion__fecha">{fechaRelativa(sesion.actualizada, ahora)}</span>
@@ -157,7 +157,7 @@ export function FilaSesion({
       <span className="fila-sesion__acciones">
         <BotonIcono
           variante="pequeno"
-          etiqueta="Renombrar"
+          etiqueta={t("Renombrar")}
           icono="lapiz"
           tamanoIcono={14}
           onClick={() => {
@@ -165,7 +165,7 @@ export function FilaSesion({
             setModo("renombrar");
           }}
         />
-        <BotonIcono variante="pequeno" etiqueta="Borrar" icono="papelera" tamanoIcono={14} onClick={() => setModo("borrar")} />
+        <BotonIcono variante="pequeno" etiqueta={t("Borrar")} icono="papelera" tamanoIcono={14} onClick={() => setModo("borrar")} />
       </span>
     </div>
   );

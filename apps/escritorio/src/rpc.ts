@@ -1,5 +1,6 @@
 import type { Evento, NombreMetodo, NombrePeticionCliente, Params, PeticionesCliente, RespuestaRpc, Resultados } from "@aquiles/protocolo";
 import { RUTA_RPC } from "@aquiles/protocolo";
+import { t } from "@aquiles/ui";
 
 export class ErrorNucleo extends Error {
   constructor(readonly codigo: number, mensaje: string) {
@@ -17,7 +18,7 @@ export class ClienteRpc {
   private constructor(private ws: WebSocket) {
     ws.onmessage = (m) => this.recibir(String(m.data));
     ws.onclose = () => {
-      for (const p of this.pendientes.values()) p.mal(new Error("Conexión con el núcleo cerrada"));
+      for (const p of this.pendientes.values()) p.mal(new Error(t("Conexión con el núcleo cerrada")));
       this.pendientes.clear();
     };
   }
@@ -26,7 +27,7 @@ export class ClienteRpc {
     return new Promise((ok, mal) => {
       const ws = new WebSocket(`${base}${RUTA_RPC}?token=${encodeURIComponent(token)}`);
       ws.onopen = () => ok(new ClienteRpc(ws));
-      ws.onerror = () => mal(new Error("No se pudo conectar con el núcleo"));
+      ws.onerror = () => mal(new Error(t("No se pudo conectar con el núcleo")));
     });
   }
 

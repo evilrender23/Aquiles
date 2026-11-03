@@ -1,9 +1,8 @@
 /** Pestañas Propuestas y Aprendido de Memoria (fase 4: lo que aprende Aquiles y de dónde sale). */
-import type { EntradaAprendizaje, OrigenAprendizaje, Propuesta } from "@aquiles/protocolo";
-import { BloqueCodigo, Boton, ConMenuContextual, Etiqueta, Tarjeta, useMenuContextual } from "@aquiles/ui";
+import type { DestinoMemoria, EntradaAprendizaje, OrigenAprendizaje, Propuesta } from "@aquiles/protocolo";
+import { BloqueCodigo, Boton, ConMenuContextual, Etiqueta, Tarjeta, t, useMenuContextual } from "@aquiles/ui";
 import { useMemo, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
-import { ORIGENES, tipoAprendizaje } from "../estado/aprendizaje";
 import { type Carga, useCarga } from "../estado/carga";
 import { calcularDiff } from "../estado/diff";
 import { fechaCompleta, fechaConHora, fechaRelativa } from "../estado/formato";
@@ -11,6 +10,19 @@ import { useReloj } from "../estado/reloj";
 import { BloquesDiff, FilaDiff } from "./VistaDiff";
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+// Funciones y no constantes: los textos se traducen al pintar, en el idioma de ese momento.
+/** Los destinos de la memoria con su nombre en la interfaz (también para «Mover a» en Memoria). */
+export const nombresDestinos = (): Record<DestinoMemoria, string> => ({ usuario: t("Tú"), agente: t("Agente"), proyecto: t("Proyecto") });
+
+const origenes = (): Record<OrigenAprendizaje["tipo"], string> => ({ sesion: t("Sesión"), revision: t("Revisión"), aprender: "/aprender", manual: t("Manual") });
+
+/** «Memoria · Agente», «Habilidad nueva · nombre»… */
+function tipoAprendizaje(p: { tipo: "memoria" | "skill"; destino?: DestinoMemoria; nombre?: string; nueva?: boolean }): string {
+  if (p.tipo === "memoria") return p.destino ? `${t("Memoria")} · ${nombresDestinos()[p.destino]}` : t("Memoria");
+  const tipo = p.nueva ? t("Habilidad nueva") : t("Habilidad");
+  return p.nombre ? `${tipo} · ${p.nombre}` : tipo;
+}
 
 /** «Revisión · Título de la sesión», con el título como enlace si la sesión sigue existiendo. */
 export function Origen({ origen }: { origen: OrigenAprendizaje }) {
@@ -20,12 +32,12 @@ export function Origen({ origen }: { origen: OrigenAprendizaje }) {
   const titulo = sesion?.titulo ?? origen.titulo;
   return (
     <span className="origen">
-      {ORIGENES[origen.tipo]}
+      {origenes()[origen.tipo]}
       {sesion ? (
         <>
           {" · "}
           <button type="button" className="origen__enlace" onClick={() => abrirSesion(sesion.sesionId)}>
-            {titulo || "Sin título"}
+            {titulo || t("Sin título")}
           </button>
         </>
       ) : (
@@ -45,7 +57,7 @@ export function PanelPropuestas({ propuestas }: { propuestas: Carga<Propuesta[]>
     );
   }
   if (!propuestas.datos) return null;
-  if (propuestas.datos.length === 0) return <p className="memoria__vacio">Sin propuestas</p>;
+  if (propuestas.datos.length === 0) return <p className="memoria__vacio">{t("Sin propuestas")}</p>;
   return (
     <div className="propuestas">
       {propuestas.datos.map((p) => (
@@ -81,10 +93,10 @@ function TarjetaPropuesta({ p, ahora, alDecidir }: { p: Propuesta; ahora: number
   };
 
   const menu = useMenuContextual(() => [
-    { texto: "Aceptar", icono: "check", deshabilitado: !!enviando, alElegir: () => void decidir("aceptar") },
-    { texto: "Descartar", icono: "cerrar", deshabilitado: !!enviando, alElegir: () => void decidir("descartar") },
+    { texto: t("Aceptar"), icono: "check", deshabilitado: !!enviando, alElegir: () => void decidir("aceptar") },
+    { texto: t("Descartar"), icono: "cerrar", deshabilitado: !!enviando, alElegir: () => void decidir("descartar") },
     { tipo: "separador" },
-    p.origen.sesionId && sesiones[p.origen.sesionId] && { texto: "Abrir sesión de origen", icono: "flecha-diagonal", alElegir: () => abrirSesion(p.origen.sesionId!) },
+    p.origen.sesionId && sesiones[p.origen.sesionId] && { texto: t("Abrir sesión de origen"), icono: "flecha-diagonal", alElegir: () => abrirSesion(p.origen.sesionId!) },
   ]);
 
   return (
@@ -108,10 +120,10 @@ function TarjetaPropuesta({ p, ahora, alDecidir }: { p: Propuesta; ahora: number
       )}
       <div className="propuesta__botones">
         <Boton variante="acento" tamano="pequeno" disabled={!!enviando} onClick={() => void decidir("aceptar")}>
-          Aceptar
+          {t("Aceptar")}
         </Boton>
         <Boton variante="fantasma" tamano="pequeno" disabled={!!enviando} onClick={() => void decidir("descartar")}>
-          Descartar
+          {t("Descartar")}
         </Boton>
       </div>
     </Tarjeta>
@@ -123,24 +135,24 @@ function CambiosMemoria({ anadidas, quitadas }: { anadidas: string[]; quitadas: 
   if (!anadidas.length && !quitadas.length) return null;
   return (
     <ul className="cambios-memoria">
-      {quitadas.map((t, i) => (
+      {quitadas.map((texto, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: la propuesta llega entera y no cambia.
         <li key={`-${i}`} className="cambio cambio--menos">
           <span className="cambio__signo" aria-hidden="true">
             −
           </span>
-          <span className="nx-sr">Sale:</span>
-          <span className="cambio__texto">{t}</span>
+          <span className="nx-sr">{t("Sale:")}</span>
+          <span className="cambio__texto">{texto}</span>
         </li>
       ))}
-      {anadidas.map((t, i) => (
+      {anadidas.map((texto, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: la propuesta llega entera y no cambia.
         <li key={`+${i}`} className="cambio cambio--mas">
           <span className="cambio__signo" aria-hidden="true">
             +
           </span>
-          <span className="nx-sr">Entra:</span>
-          <span className="cambio__texto">{t}</span>
+          <span className="nx-sr">{t("Entra:")}</span>
+          <span className="cambio__texto">{texto}</span>
         </li>
       ))}
     </ul>
@@ -185,7 +197,7 @@ export function PanelAprendido() {
     );
   }
   if (!historial.datos) return null;
-  if (historial.datos.length === 0) return <p className="memoria__vacio">Sin entradas</p>;
+  if (historial.datos.length === 0) return <p className="memoria__vacio">{t("Sin entradas")}</p>;
   return <LineaAprendido entradas={historial.datos} ahora={ahora} />;
 }
 
@@ -199,7 +211,7 @@ export function LineaAprendido({ entradas, ahora }: { entradas: EntradaAprendiza
         <ConMenuContextual
           key={e.id}
           construir={() => [
-            e.origen.sesionId && sesiones[e.origen.sesionId] && { texto: "Abrir sesión de origen", icono: "flecha-diagonal", alElegir: () => abrirSesion(e.origen.sesionId!) },
+            e.origen.sesionId && sesiones[e.origen.sesionId] && { texto: t("Abrir sesión de origen"), icono: "flecha-diagonal", alElegir: () => abrirSesion(e.origen.sesionId!) },
           ]}
         >
           {(menu) => (
