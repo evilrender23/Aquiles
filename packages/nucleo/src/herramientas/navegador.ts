@@ -215,6 +215,12 @@ function leerPuerto(fichero: string): string | undefined {
   return puerto && ruta ? `ws://127.0.0.1:${puerto}${ruta}` : undefined;
 }
 
+/**
+ * Lo que puede tardar en abrir el puerto de depuración. La primera vez crea el perfil y, en una máquina lenta o recién
+ * arrancada (o en el CI de Linux), se acerca a los 20 s.
+ */
+const ARRANQUE_MS = 60_000;
+
 async function lanzarEdge(o: OpcionesNavegador): Promise<Edge> {
   const exe = o.ejecutable ?? buscarEdge();
   if (!exe || !existsSync(exe)) throw new ErrorHerramienta(
@@ -244,7 +250,7 @@ async function lanzarEdge(o: OpcionesNavegador): Promise<Edge> {
   const diario = leerDiario(proc.stderr);
   // El nombre del navegador para los mensajes (en Linux puede ser Chrome o Chromium).
   const nombre = /chrom/i.test(basename(exe)) ? "El navegador" : "Edge";
-  const fin = Date.now() + 20_000;
+  const fin = Date.now() + ARRANQUE_MS;
   let url = leerPuerto(fichero);
   while (!url) {
     if (proc.exitCode !== null) {
@@ -252,7 +258,7 @@ async function lanzarEdge(o: OpcionesNavegador): Promise<Edge> {
     }
     if (Date.now() > fin) {
       await matarArbol(proc);
-      throw new ErrorHerramienta(`${nombre} no abrió el puerto de depuración en 20 s.${diario()}`);
+      throw new ErrorHerramienta(`${nombre} no abrió el puerto de depuración en ${ARRANQUE_MS / 1000} s.${diario()}`);
     }
     await Bun.sleep(50);
     url = leerPuerto(fichero);

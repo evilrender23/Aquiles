@@ -78,8 +78,8 @@ jobs:
           bun-version: 1.4.4
       # Las mismas bibliotecas que instala instalar.sh con apt.
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
-      # Ubuntu 24.04 no deja crear user namespaces sin privilegios (AppArmor) y el sandbox de Chrome los necesita: sin
-      # esto, el Chrome del runner no llega a abrir el puerto de depuración en el test del navegador real.
+      # Ubuntu 24.04 limita con AppArmor los user namespaces sin privilegios, que usa el sandbox de Chrome (el del runner
+      # lo encuentra el test del navegador real). En el runner, Chrome tarda casi 20 s en arrancar en frío.
       - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: bun install --frozen-lockfile
       - run: bun run tipos
