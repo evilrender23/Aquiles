@@ -130,7 +130,8 @@ packages/protocolo/   esquemas y tipos compartidos entre la app y el núcleo
 packages/ui/          componentes y estilos de la interfaz
 skills/               skills que vienen con Aquiles
 banco/                20 tareas con comprobación automática para medir el motor
-instalar.ps1          instalador y actualizador (compila desde main)
+instalar.ps1          instalador y actualizador de Windows (compila desde main)
+instalar.sh           lo mismo en Mac
 ```
 
 ## Cómo funciona
@@ -140,7 +141,7 @@ instalar.ps1          instalador y actualizador (compila desde main)
 3. La interfaz se conecta por WebSocket y los dos hablan JSON-RPC 2.0 (`packages/protocolo`). El núcleo rechaza los tokens incorrectos y los orígenes que no son de la app.
 4. Si el núcleo se cae, la app lo relanza; si se cierra la app, el núcleo termina con ella.
 
-Los datos están en `%APPDATA%\Aquiles\perfiles\<perfil>\` (o en `AQUILES_HOME`): sesiones en JSONL, memoria, skills, índice de búsqueda, tareas programadas y ajustes. Las claves de API y los tokens van en el almacén de credenciales de Windows.
+Los datos están en `%APPDATA%\Aquiles\perfiles\<perfil>\` en Windows y en `~/.config/Aquiles/perfiles/<perfil>/` en Mac (o en `AQUILES_HOME`): sesiones en JSONL, memoria, skills, índice de búsqueda, tareas programadas y ajustes. Las claves de API y los tokens van en el almacén de credenciales de Windows o en el Llavero de macOS.
 
 ## Licencia
 

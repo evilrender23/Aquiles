@@ -17,18 +17,18 @@ function contexto(respuesta: string) {
 }
 
 /** Simula winget y docker: `instalado` cambia cuando winget termina. */
-function sistema(o: { instalado: boolean; motor: boolean }) {
+function sistema(o: { instalado: boolean; motor: boolean; plataforma?: string; hayBrew?: boolean }) {
   const ordenes: string[][] = [];
   const ejecutar = async (orden: string[]) => {
     ordenes.push(orden);
-    if (orden[0] === "winget") {
+    if (orden[0] === "winget" || orden[0] === "brew") {
       o.instalado = true;
       return { codigo: 0, salida: "Successfully installed" };
     }
     if (orden[1] === "info") return { codigo: o.motor ? 0 : 1, salida: o.motor ? "29.0.0" : "error" };
     return { codigo: 0, salida: "" };
   };
-  const h = herramientaInstalarDocker({ ejecutar, esperaMotorMs: 0, ruta: () => (o.instalado ? "C:/docker.exe" : undefined) });
+  const h = herramientaInstalarDocker({ ejecutar, esperaMotorMs: 0, plataforma: o.plataforma ?? "win32", hayBrew: o.hayBrew ?? false, ruta: () => (o.instalado ? "C:/docker.exe" : undefined) });
   return { h, ordenes };
 }
 
@@ -57,4 +57,20 @@ test("con Docker funcionando no pregunta ni instala", async () => {
   const c = contexto("Instalar Docker Desktop");
   expect(await s.h.ejecutar({ motivo: "x" }, c.ctx)).toBe("Docker ya está instalado y el motor responde.");
   expect(c.preguntas).toHaveLength(0);
+});
+
+test("la descripción y la instalación dependen del sistema: winget, Homebrew o a mano", async () => {
+  expect(sistema({ instalado: false, motor: false }).h.descripcion).toContain("con winget");
+  const mac = sistema({ instalado: false, motor: false, plataforma: "darwin", hayBrew: true });
+  expect(mac.h.descripcion).toContain("con Homebrew");
+  expect(mac.h.descripcion).not.toContain("winget");
+  await mac.h.ejecutar({ motivo: "x" }, contexto("Instalar Docker Desktop").ctx);
+  expect(mac.ordenes.find((o) => o[0] === "brew")).toEqual(["brew", "install", "--cask", "docker"]);
+  expect(mac.ordenes).toContainEqual(["open", "-a", "Docker"]);
+
+  const sinBrew = sistema({ instalado: false, motor: false, plataforma: "darwin", hayBrew: false });
+  expect(sinBrew.h.descripcion).toContain("aquí no se instala solo");
+  await expect(sinBrew.h.ejecutar({ motivo: "x" }, contexto("Instalar Docker Desktop").ctx)).rejects.toThrow("docker.com");
+  const linux = sistema({ instalado: false, motor: false, plataforma: "linux" });
+  await expect(linux.h.ejecutar({ motivo: "x" }, contexto("Instalar Docker Desktop").ctx)).rejects.toThrow("gestor de paquetes");
 });

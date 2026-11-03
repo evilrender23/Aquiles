@@ -64,9 +64,15 @@ export interface Ajuste {
   titulo?: string;
 }
 
+/** El sistema operativo, para que el modelo elija comandos y rutas que valen aquí. */
+export function nombreSistema(plataforma: string = process.platform): string {
+  return plataforma === "win32" ? "Windows" : plataforma === "darwin" ? "macOS" : plataforma === "linux" ? "Linux" : plataforma;
+}
+
 export function sistemaBase(cwd: string, fecha = new Date()): string {
   return [
     "Eres Aquiles, un agente personal que trabaja en el ordenador del usuario.",
+    `Sistema: ${nombreSistema()}`,
     `Carpeta de trabajo: ${cwd}`,
     `Fecha: ${fecha.toISOString().slice(0, 10)}`,
     "Responde en el idioma del usuario, de forma directa.",
