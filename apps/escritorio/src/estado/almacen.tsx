@@ -275,6 +275,8 @@ export interface Acciones {
   buscarEnConversaciones: (texto: string) => void;
   /** Sesión vacía en esa carpeta, ya abierta. */
   nuevaSesionEn: (cwd: string) => Promise<void>;
+  /** Linux: instala el dictado (Vosk) y deja el estado de la voz al día. */
+  instalarDictado: () => Promise<void>;
 }
 
 const ContextoEstado = createContext<EstadoApp | null>(null);
@@ -535,6 +537,9 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
         despachar({ tipo: "sesion", sesion });
         despachar({ tipo: "historial", sesion, historial: [] });
         despachar({ tipo: "vista", vista: "conversacion", activa: sesion.sesionId });
+      },
+      instalarDictado: async () => {
+        despachar({ tipo: "voz", voz: await rpc().llamar("voz.instalarDictado", {}) });
       },
       ponerObjetivo: async (sesionId, objetivo, maxIntentos) => {
         despachar({ tipo: "sesion", sesion: await rpc().llamar("sesion.objetivo", { sesionId, objetivo, ...(maxIntentos ? { maxIntentos } : {}) }) });

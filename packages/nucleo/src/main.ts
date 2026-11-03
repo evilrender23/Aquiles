@@ -4,6 +4,7 @@
  *   aquiles-nucleo [--puerto N] [--host IP] [--proveedor NOMBRE] [--modelo ID] [--cwd RUTA] [--perfil NOMBRE] [--token T]
  *   aquiles-nucleo --cli [--continuar | --reanudar ID] [--modo-aprobacion MODO] ...
  *   aquiles-nucleo --acp   (Agent Client Protocol por stdio, para editores como Zed)
+ *   aquiles-nucleo --dictado-linux SEGUNDOS CARPETA   (una frase de dictado con Vosk; lo usa el propio núcleo)
  *
  * En modo servidor, stdout solo lleva la línea `AQUILES_READY port=N` (la lee la app);
  * los registros van a stderr. El token llega en AQUILES_TOKEN (o --token para desarrollo).
@@ -24,6 +25,12 @@ import { crearProveedor, servidorLlamaCpp } from "./proveedores/index";
 import { aplicarRestauracion, NOMBRE_PERFIL } from "./perfiles";
 import { directorioDatos, directorioPerfil } from "./rutas";
 import { iniciarServidor, ORIGENES_APP } from "./servidor";
+
+// Una frase de dictado en Linux, en un proceso aparte (lo lanza Voz; ver dictado-linux.ts).
+if (process.argv[2] === "--dictado-linux") {
+  const { principalDictado } = await import("./dictado-linux");
+  process.exit(await principalDictado(process.argv.slice(3)));
+}
 
 const { values: op } = parseArgs({
   args: process.argv.slice(2),

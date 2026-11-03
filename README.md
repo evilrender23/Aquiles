@@ -33,7 +33,7 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
   - bandeja del sistema y arranque al iniciar sesión;
   - atajo global con entrada rápida;
   - perfiles, copias de seguridad y restauración;
-  - voz con lo que trae cada sistema: dictado continuo (el micrófono de la caja escucha frase tras frase) y lectura en voz alta; en Windows con System.Speech, en Mac con el reconocedor de voz de macOS y `say`, y en Linux solo lectura, con `espeak-ng` o Speech Dispatcher;
+  - voz con lo que trae cada sistema: dictado continuo (el micrófono de la caja escucha frase tras frase) y lectura en voz alta; en Windows con System.Speech, en Mac con el reconocedor de voz de macOS y `say`, y en Linux con Vosk (se instala desde Ajustes, sin conexión) y `espeak-ng` o Speech Dispatcher;
   - estadísticas;
   - modo remoto (la app conectada a un núcleo en otra máquina);
   - integración con editores por ACP (`aquiles-nucleo --acp`).
@@ -115,7 +115,8 @@ Para hacer paquetes: `bun run app:linux` deja un `.deb` y un `.rpm` en `apps/esc
 
 En Linux:
 - las claves de API van en el llavero del sistema por Secret Service (GNOME Keyring o KWallet): sin uno abierto, no se pueden guardar;
-- se leen las respuestas en voz alta si hay `espeak-ng` (o `espeak`, o `spd-say`); no hay dictado, porque Linux no trae un reconocedor de voz;
+- se leen las respuestas en voz alta si hay `espeak-ng` (o `espeak`, o `spd-say`);
+- el dictado usa Vosk, porque Linux no trae un reconocedor de voz: se instala en Ajustes → General → Voz (descarga unos 47 MB, la biblioteca y el modelo pequeño de español, comprobados por su SHA-256, en `~/.config/Aquiles/dictado`) y funciona sin conexión. Graba con `parecord` (PulseAudio o PipeWire) o `arecord` (ALSA). Cada frase la reconoce un proceso aparte del núcleo (`aquiles-nucleo --dictado-linux`), como el programa de dictado de Mac;
 - el control del navegador usa Microsoft Edge, Chrome o Chromium, el primero que encuentre en el PATH;
 - la bandeja del sistema necesita AppIndicator (en GNOME, la extensión «AppIndicator and KStatusNotifierItem Support»);
 - no hay instalación automática de llama.cpp ni de Docker (si ya están en el PATH, se usan).

@@ -4,16 +4,19 @@
  *   PowerShell aparte que devuelve una línea JSON.
  * - Mac: `say` para leer y, para dictar, `aquiles-dictado` (apps/escritorio/src-tauri/macos/dictado.swift, con el
  *   reconocedor de voz de macOS), que va junto a este ejecutable dentro de Aquiles.app y también contesta en JSON.
- * - Linux: `espeak-ng` (o `espeak`) para leer y, si no está, `spd-say` (Speech Dispatcher). Sin dictado: Linux no
- *   trae un reconocedor de voz del sistema.
+ * - Linux: `espeak-ng` (o `espeak`) para leer y, si no está, `spd-say` (Speech Dispatcher). Para dictar no hay
+ *   reconocedor del sistema: Vosk, que se instala desde Ajustes (dictado-linux.ts) y, como en Mac, reconoce cada frase
+ *   en un proceso aparte (`aquiles-nucleo --dictado-linux`).
  * Una sola operación a la vez (leer mientras se dicta acabaría en el micrófono); parar() corta la que esté en marcha.
  */
 import { existsSync } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { VELOCIDAD_VOZ, type AjustesVoz, type EstadoVoz, type VozSistema } from "@aquiles/protocolo";
+import { dictadoInstalado, instalarDictado, type OpcionesInstalar } from "./dictado-linux";
 import { WINDOWS } from "./herramientas/ficheros";
+import { directorioDatos } from "./rutas";
 import { matarArbol } from "./herramientas/shell";
 
 /** Un script de PowerShell → su salida. */
@@ -169,7 +172,7 @@ const ERRORES_COMUNES: Record<string, string> = {
   lectura: "No se pudo leer en voz alta",
 };
 
-const ERRORES: Record<"windows" | "mac", Record<string, string>> = {
+const ERRORES: Record<"windows" | "mac" | "linux", Record<string, string>> = {
   windows: {
     ...ERRORES_COMUNES,
     "sin-reconocedor":
@@ -184,10 +187,16 @@ const ERRORES: Record<"windows" | "mac", Record<string, string>> = {
     "sin-permiso-voz":
       "Aquiles no tiene permiso para el reconocimiento de voz: actívalo en Ajustes del Sistema › Privacidad y seguridad › Reconocimiento de voz.",
   },
+  linux: {
+    ...ERRORES_COMUNES,
+    "sin-motor": "El dictado no está instalado o está dañado: instálalo en Ajustes › General › Voz",
+    "sin-grabadora": "No hay con qué grabar del micrófono: instala pulseaudio-utils (parecord) o alsa-utils (arecord) con el gestor de paquetes.",
+    "sin-microfono": "No llega audio del micrófono: comprueba que hay uno conectado y elegido como entrada en los ajustes de sonido",
+  },
 };
 
 /** La última línea de la salida, en JSON; un `error` se convierte en excepción con el texto de ese sistema. */
-function respuesta(salida: string, sistema: "windows" | "mac"): Record<string, unknown> {
+function respuesta(salida: string, sistema: "windows" | "mac" | "linux"): Record<string, unknown> {
   const linea = salida.trim().split(/\r?\n/).pop() ?? "";
   let datos: Record<string, unknown>;
   try {
@@ -211,8 +220,15 @@ export interface OpcionesVoz {
   lanzar?: Lanzar;
   /** Ajustes de lectura, leídos en cada lectura. */
   ajustes?: () => AjustesLectura;
-  /** Mac: el programa de dictado. Por defecto, `aquiles-dictado` junto a este ejecutable (o AQUILES_DICTADO). */
+  /**
+   * Mac: el programa de dictado; por defecto, `aquiles-dictado` junto a este ejecutable (o AQUILES_DICTADO).
+   * Linux: la carpeta donde se instala Vosk; por defecto, `<datos>/dictado`.
+   */
   dictado?: string;
+  /** Linux: cómo se lanza este núcleo para dictar una frase (por defecto, él mismo con --dictado-linux). */
+  nucleo?: string[];
+  /** Linux, para los tests: cómo se instala el dictado. */
+  instalar?: OpcionesInstalar;
 }
 
 export class Voz {
@@ -221,6 +237,9 @@ export class Voz {
   private lanzar: Lanzar;
   private ajustes: () => AjustesLectura;
   private dictado: string;
+  private nucleo: string[];
+  private opcionesInstalar?: OpcionesInstalar;
+  private instalando?: Promise<void>;
   private buscar: (programa: string) => string | null;
   private deteccion?: Promise<Deteccion>;
   private actual?: AbortController;
@@ -231,7 +250,10 @@ export class Voz {
     this.ejecutar = o.ejecutar ?? ejecutarPowershell;
     this.lanzar = o.lanzar ?? ejecutarProceso;
     this.ajustes = o.ajustes ?? (() => SIN_AJUSTES);
-    this.dictado = o.dictado ?? process.env.AQUILES_DICTADO ?? join(dirname(process.execPath), "aquiles-dictado");
+    this.dictado =
+      o.dictado ?? process.env.AQUILES_DICTADO ?? (this.sistema === "linux" ? join(directorioDatos(), "dictado") : join(dirname(process.execPath), "aquiles-dictado"));
+    this.nucleo = o.nucleo ?? comandoNucleo();
+    this.opcionesInstalar = o.instalar;
   }
 
   async estado(): Promise<EstadoVoz> {
@@ -241,6 +263,7 @@ export class Voz {
       dictado: d.reconocedores.length > 0,
       ...(idioma ? { idiomaDictado: idioma } : {}),
       lectura: d.voces.length > 0 || d.lector !== undefined,
+      ...(this.sistema === "linux" && d.reconocedores.length === 0 ? { dictadoInstalable: true } : {}),
       voces: ordenarVoces(d.voces),
       ocupada: this.actual !== undefined,
     };
@@ -254,8 +277,10 @@ export class Voz {
     else if (this.sistema === "mac") {
       if (!existsSync(this.dictado)) throw new Error("Esta copia de Aquiles no trae el dictado de macOS (aquiles-dictado): actualízala con el instalador.");
       salida = await this.operar((senal) => this.lanzar([this.dictado, String(s), "es-ES"], senal));
-    } else if (this.sistema === "linux") throw new Error("En Linux no hay un reconocedor de voz del sistema: el dictado está en Windows y Mac.");
-    else throw new Error("La voz no está disponible en este sistema.");
+    } else if (this.sistema === "linux") {
+      if (!dictadoInstalado(this.dictado)) throw new Error("El dictado de Linux no está instalado: instálalo en Ajustes › General › Voz.");
+      salida = await this.operar((senal) => this.lanzar([...this.nucleo, "--dictado-linux", String(s), this.dictado], senal));
+    } else throw new Error("La voz no está disponible en este sistema.");
     if (salida === undefined) return "";
     const texto = respuesta(salida, this.sistema).texto;
     return typeof texto === "string" ? texto.trim() : "";
@@ -313,6 +338,15 @@ export class Voz {
     this.actual?.abort();
   }
 
+  /** Linux: descarga e instala Vosk y su modelo de español (una sola instalación a la vez). */
+  async instalarDictado(): Promise<EstadoVoz> {
+    if (this.sistema !== "linux") throw new Error("Solo hace falta instalar el dictado en Linux.");
+    this.instalando ??= instalarDictado(this.dictado, this.opcionesInstalar).finally(() => (this.instalando = undefined));
+    await this.instalando;
+    this.deteccion = undefined;
+    return this.estado();
+  }
+
   /** Solo una operación a la vez: la nueva corta la anterior. Cortada con parar(), devuelve undefined sin error. */
   private async operar<T>(f: (senal: AbortSignal) => Promise<T>): Promise<T | undefined> {
     this.parar();
@@ -346,19 +380,26 @@ export class Voz {
       return { reconocedores: existsSync(this.dictado) ? ["es-ES"] : [], voces };
     }
     if (this.sistema === "linux") {
+      const reconocedores = dictadoInstalado(this.dictado) ? ["es-ES"] : [];
       const espeak = this.buscar("espeak-ng") ?? this.buscar("espeak");
       if (espeak) {
         const { voces, codigos } = vocesDeEspeak(await this.lanzar([espeak, "--voices"], AbortSignal.timeout(15_000)));
-        return { reconocedores: [], voces, lector: { programa: espeak, tipo: "espeak", codigos } };
+        return { reconocedores, voces, lector: { programa: espeak, tipo: "espeak", codigos } };
       }
       const spd = this.buscar("spd-say");
       if (spd) {
         const voces = vocesDeSpd(await this.lanzar([spd, "-L"], AbortSignal.timeout(15_000)).catch(() => ""));
-        return { reconocedores: [], voces, lector: { programa: spd, tipo: "spd", codigos: {} } };
+        return { reconocedores, voces, lector: { programa: spd, tipo: "spd", codigos: {} } };
       }
+      return { reconocedores, voces: [] };
     }
     return { reconocedores: [], voces: [] };
   }
+}
+
+/** Este núcleo: el ejecutable compilado o, en desarrollo, bun con main.ts. */
+function comandoNucleo(): string[] {
+  return basename(process.execPath).replace(/\.exe$/, "") === "bun" ? [process.execPath, join(import.meta.dir, "main.ts")] : [process.execPath];
 }
 
 /** Un programa con su salida; la señal lo mata. Con código distinto de 0, error con lo que dijo por stderr. */

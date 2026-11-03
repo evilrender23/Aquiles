@@ -238,11 +238,12 @@ const ESPEAK = `Pty Language       Age/Gender VoiceName          File           
  5  es-419          --/M      Spanish_(Latin_America) roa/es-419       (es-mx 6)
 `;
 
-test("Linux: leer con espeak-ng (voz, velocidad y el texto por fichero); sin dictado", async () => {
+test("Linux: leer con espeak-ng (voz, velocidad y el texto por fichero); el dictado, hasta instalarlo, no", async () => {
   const ordenes: string[][] = [];
   const leidos: string[] = [];
   const voz = new Voz({
     sistema: "linux",
+    dictado: "/no/existe/dictado",
     buscar: (p) => (p === "espeak-ng" ? "/usr/bin/espeak-ng" : null),
     ajustes: () => ({ voz: "Spanish (Latin America)", velocidad: 20 }),
     lanzar: async (orden) => {
@@ -253,7 +254,7 @@ test("Linux: leer con espeak-ng (voz, velocidad y el texto por fichero); sin dic
     },
   });
   const e = await voz.estado();
-  expect(e).toMatchObject({ dictado: false, lectura: true });
+  expect(e).toMatchObject({ dictado: false, dictadoInstalable: true, lectura: true });
   expect(e.voces.map((v) => [v.nombre, v.idioma])).toEqual([
     ["Spanish (Spain)", "es-ES"],
     ["Spanish (Latin America)", "es-419"],
@@ -262,7 +263,7 @@ test("Linux: leer con espeak-ng (voz, velocidad y el texto por fichero); sin dic
   await voz.leer("--help **hola**");
   expect(ordenes.at(-1)!.slice(0, 5)).toEqual(["/usr/bin/espeak-ng", "-v", "es-419", "-s", "210"]);
   expect(leidos).toEqual(["--help hola"]);
-  await expect(voz.dictar()).rejects.toThrow("En Linux no hay un reconocedor de voz");
+  await expect(voz.dictar()).rejects.toThrow("no está instalado: instálalo en Ajustes › General › Voz");
 
   // Sin voz elegida, la española.
   const otra = new Voz({ sistema: "linux", buscar: (p) => (p === "espeak" ? "/usr/bin/espeak" : null), lanzar: async (o) => (ordenes.push(o), o[1] === "--voices" ? ESPEAK : "") });

@@ -227,6 +227,11 @@ export const ajustes: Record<string, string> = {
 
   // Modelos locales
   "Instalar llama.cpp": "Install llama.cpp",
+  Dictado: "Dictation",
+  "Linux no trae reconocedor de voz: se descarga Vosk con su modelo de español (unos {mb} MB). Funciona sin conexión.":
+    "Linux has no built-in speech recognizer: this downloads Vosk with its Spanish model (about {mb} MB). Works offline.",
+  "Instalando…": "Installing…",
+  Instalar: "Install",
   Descargados: "Downloaded",
   Descargas: "Downloads",
   "Usar por defecto": "Use as default",

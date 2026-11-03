@@ -284,9 +284,11 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
       />
     </Ajuste>
   );
+  const dictado = estado?.dictadoInstalable ? <InstalarDictado /> : null;
   if (!estado?.lectura) {
     return (
       <Grupo titulo={t("Voz")} descripcion={t("Para leer las respuestas en voz alta.")}>
+        {dictado}
         <p className="ajustes__nota">
           {esLinux
             ? t("No se encontró ninguna voz del sistema: instala espeak-ng (o speech-dispatcher) con el gestor de paquetes.")
@@ -352,7 +354,39 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
         </Boton>
       </Ajuste>
       {alAcabar}
+      {dictado}
     </Grupo>
+  );
+}
+
+/** Linux: el dictado (Vosk, sin conexión) se descarga la primera vez. */
+function InstalarDictado() {
+  const { instalarDictado } = useAcciones();
+  const [instalando, setInstalando] = useState(false);
+  const [error, setError] = useState<string>();
+  const instalar = async () => {
+    setInstalando(true);
+    setError(undefined);
+    try {
+      await instalarDictado();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInstalando(false);
+    }
+  };
+  return (
+    <Ajuste
+      titulo={t("Dictado")}
+      descripcion={
+        error ??
+        t("Linux no trae reconocedor de voz: se descarga Vosk con su modelo de español (unos {mb} MB). Funciona sin conexión.", { mb: 47 })
+      }
+    >
+      <Boton variante="chip" icono={instalando ? undefined : "descargar"} disabled={instalando} onClick={() => void instalar()}>
+        {instalando ? t("Instalando…") : t("Instalar")}
+      </Boton>
+    </Ajuste>
   );
 }
 

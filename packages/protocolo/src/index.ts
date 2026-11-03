@@ -10,7 +10,7 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 18;
+export const VERSION_PROTOCOLO = 19;
 
 /** Pasos por turno: cuántas veces puede responder el modelo (y llamar herramientas) antes de que el turno pare. */
 export const PASOS_POR_TURNO = { porDefecto: 25, min: 1, max: 1000 } as const;
@@ -217,6 +217,8 @@ export const metodos = {
   "voz.dictar": z.object({ segundos: z.number().int().min(1).max(120).optional() }),
   "voz.leer": z.object({ texto: z.string().min(1).max(20_000) }),
   "voz.parar": z.object({}),
+  /** Linux: descarga e instala el reconocedor de voz (Vosk y su modelo de español). */
+  "voz.instalarDictado": z.object({}),
   /** Perfiles (fase 7): cada uno con sus sesiones, memoria, skills y ajustes. Cambiar de perfil reinicia el núcleo. */
   "perfiles.listar": z.object({}),
   "perfiles.crear": z.object({ nombre: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/) }),
@@ -506,6 +508,7 @@ export interface Resultados {
   "voz.dictar": { texto: string };
   "voz.leer": { ok: true };
   "voz.parar": { ok: true };
+  "voz.instalarDictado": EstadoVoz;
   "perfiles.listar": { actual: string; perfiles: InfoPerfil[] };
   "perfiles.crear": InfoPerfil;
   "copias.listar": { copias: InfoCopia[] };
@@ -609,6 +612,8 @@ export interface EstadoVoz {
   /** Hay reconocedor de voz instalado (y su idioma). */
   dictado: boolean;
   idiomaDictado?: string;
+  /** Linux: el dictado no está, pero se puede instalar (voz.instalarDictado, unos 47 MB). */
+  dictadoInstalable?: boolean;
   lectura: boolean;
   /** Voces del sistema para leer (Windows: System.Speech; Mac: las de `say`; Linux: espeak-ng o spd-say), las de español primero. */
   voces: VozSistema[];

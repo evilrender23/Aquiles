@@ -30,6 +30,13 @@ export function rutasSistema(c: ContextoServidor) {
       voz.parar();
       return { ok: true as const };
     },
+    "voz.instalarDictado": async () => {
+      try {
+        return await voz.instalarDictado();
+      } catch (e) {
+        throw new FalloRpc(codigosError.paramsInvalidos, e instanceof Error ? e.message : String(e));
+      }
+    },
     "perfiles.listar": () => ({ actual: necesitaPerfil().nombre, perfiles: listarPerfiles(necesitaPerfil().datos) }),
     "perfiles.crear": ({ nombre }) => {
       try {
