@@ -1,5 +1,5 @@
 /** Avisos del núcleo (`notificacion`) dentro de la app: en el navegador, o en la app si el sistema no deja notificar. */
-import { BotonIcono, Tarjeta } from "@aquiles/ui";
+import { BotonIcono, Tarjeta, t } from "@aquiles/ui";
 import { useEffect } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import type { Notificacion } from "../estado/tipos";
@@ -15,7 +15,7 @@ export function Notificaciones() {
   useEffect(() => alPulsarNotificacion(abrirSesion), [abrirSesion]);
 
   return (
-    <section className="avisos" aria-live="polite" aria-label="Notificaciones">
+    <section className="avisos" aria-live="polite" aria-label={t("Notificaciones")}>
       {notificaciones.map((n) => (
         <AvisoFlotante key={n.id} n={n} />
       ))}
@@ -26,8 +26,8 @@ export function Notificaciones() {
 function AvisoFlotante({ n }: { n: Notificacion }) {
   const { cerrarNotificacion, abrirSesion } = useAcciones();
   useEffect(() => {
-    const t = setTimeout(() => cerrarNotificacion(n.id), DURACION_MS);
-    return () => clearTimeout(t);
+    const temporizador = setTimeout(() => cerrarNotificacion(n.id), DURACION_MS);
+    return () => clearTimeout(temporizador);
   }, [n.id, cerrarNotificacion]);
 
   const contenido = (
@@ -52,7 +52,7 @@ function AvisoFlotante({ n }: { n: Notificacion }) {
       ) : (
         <div className="aviso-flotante__cuerpo">{contenido}</div>
       )}
-      <BotonIcono variante="pequeno" etiqueta="Cerrar" icono="cerrar" tamanoIcono={14} onClick={() => cerrarNotificacion(n.id)} />
+      <BotonIcono variante="pequeno" etiqueta={t("Cerrar")} icono="cerrar" tamanoIcono={14} onClick={() => cerrarNotificacion(n.id)} />
     </Tarjeta>
   );
 }

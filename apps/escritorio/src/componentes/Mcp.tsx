@@ -1,6 +1,6 @@
 /** Ajustes → Herramientas → MCP: servidores, su estado y herramientas, y el formulario para añadir o editar. */
 import type { InfoServidorMcp } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Campo, CampoInterruptor, Etiqueta, clases, useMenuContextual } from "@aquiles/ui";
+import { Boton, BotonIcono, Campo, CampoInterruptor, Etiqueta, clases, t, useMenuContextual } from "@aquiles/ui";
 import { useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -8,7 +8,8 @@ import { ConfirmarBorrado, OpcionesChip } from "./Campos";
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const NOMBRE_VALIDO = /^[a-z0-9][a-z0-9_-]{0,39}$/;
-const ESTADOS: Record<InfoServidorMcp["estado"], string> = { conectado: "Conectado", desconectado: "Desconectado", error: "Error" };
+/** Se calcula al pintar, para que salga en el idioma de la interfaz. */
+const estados = (): Record<InfoServidorMcp["estado"], string> => ({ conectado: t("Conectado"), desconectado: t("Desconectado"), error: t("Error") });
 
 /** Argumentos separados por espacios; entre comillas si llevan espacios. */
 function partirArgumentos(texto: string): string[] {
@@ -69,7 +70,7 @@ export function SeccionMcp() {
       ) : (
         <div>
           <Boton variante="secundario" icono="mas" onClick={() => setEditando("nuevo")}>
-            Añadir
+            {t("Añadir")}
           </Boton>
         </div>
       )}
@@ -97,12 +98,12 @@ function ServidorMcp({ s, alEditar, alCambiar, alBorrar }: { s: InfoServidorMcp;
   };
 
   const menu = useMenuContextual(() => [
-    { texto: "Reconectar", icono: "recargar", deshabilitado: !s.activo || ocupado, alElegir: () => void accion(async () => alCambiar(await llamar("mcp.reconectar", { nombre: s.nombre }))) },
-    { texto: s.activo ? "Desactivar" : "Activar", alElegir: () => void accion(async () => alCambiar(await llamar("mcp.guardar", { nombre: s.nombre, activo: !s.activo }))) },
-    { texto: "Editar", icono: "lapiz", alElegir: alEditar },
+    { texto: t("Reconectar"), icono: "recargar", deshabilitado: !s.activo || ocupado, alElegir: () => void accion(async () => alCambiar(await llamar("mcp.reconectar", { nombre: s.nombre }))) },
+    { texto: s.activo ? t("Desactivar") : t("Activar"), alElegir: () => void accion(async () => alCambiar(await llamar("mcp.guardar", { nombre: s.nombre, activo: !s.activo }))) },
+    { texto: t("Editar"), icono: "lapiz", alElegir: alEditar },
     { tipo: "separador" },
     {
-      texto: "Borrar",
+      texto: t("Borrar"),
       icono: "papelera",
       peligrosa: true,
       alElegir: () =>
@@ -124,7 +125,7 @@ function ServidorMcp({ s, alEditar, alCambiar, alBorrar }: { s: InfoServidorMcp;
         </div>
         <span className={clases("servidor-mcp__estado", `servidor-mcp__estado--${s.estado}`)}>
           <i aria-hidden="true" />
-          {ESTADOS[s.estado]}
+          {estados()[s.estado]}
         </span>
       </div>
       {(s.error || error) && (
@@ -133,7 +134,7 @@ function ServidorMcp({ s, alEditar, alCambiar, alBorrar }: { s: InfoServidorMcp;
         </p>
       )}
       <CampoInterruptor
-        etiqueta="Activo"
+        etiqueta={t("Activo")}
         activo={s.activo}
         disabled={ocupado}
         alCambiar={(activo) => void accion(async () => alCambiar(await llamar("mcp.guardar", { nombre: s.nombre, activo })))}
@@ -141,7 +142,7 @@ function ServidorMcp({ s, alEditar, alCambiar, alBorrar }: { s: InfoServidorMcp;
       {s.herramientas.length > 0 && (
         <div className="servidor-mcp__herramientas">
           <button type="button" className="resumen__boton" aria-expanded={verHerramientas} onClick={() => setVerHerramientas((v) => !v)}>
-            {s.herramientas.length === 1 ? "1 herramienta" : `${s.herramientas.length} herramientas`}
+            {s.herramientas.length === 1 ? t("1 herramienta") : t("{n} herramientas", { n: s.herramientas.length })}
           </button>
           {verHerramientas && (
             <ul>
@@ -157,10 +158,10 @@ function ServidorMcp({ s, alEditar, alCambiar, alBorrar }: { s: InfoServidorMcp;
       )}
       <div className="servidor-mcp__botones">
         <Boton variante="fantasma" tamano="pequeno" icono="lapiz" onClick={alEditar}>
-          Editar
+          {t("Editar")}
         </Boton>
         <Boton variante="fantasma" tamano="pequeno" icono="recargar" disabled={ocupado || !s.activo} onClick={() => void accion(async () => alCambiar(await llamar("mcp.reconectar", { nombre: s.nombre })))}>
-          Reconectar
+          {t("Reconectar")}
         </Boton>
         {borrando ? (
           <ConfirmarBorrado
@@ -175,7 +176,7 @@ function ServidorMcp({ s, alEditar, alCambiar, alBorrar }: { s: InfoServidorMcp;
           />
         ) : (
           <Boton variante="fantasma" tamano="pequeno" icono="papelera" onClick={() => setBorrando(true)}>
-            Borrar
+            {t("Borrar")}
           </Boton>
         )}
       </div>
@@ -234,19 +235,19 @@ function FormularioMcp({ servidor, alGuardar, alCancelar }: { servidor?: InfoSer
       }}
     >
       <Campo
-        etiqueta="Nombre"
+        etiqueta={t("Nombre")}
         mono
         spellCheck={false}
         readOnly={!!servidor}
         value={nombre}
         maxLength={40}
-        error={nombre && !nombreValido ? "Minúsculas, cifras, - y _" : undefined}
+        error={nombre && !nombreValido ? t("Minúsculas, cifras, - y _") : undefined}
         onChange={(e) => setNombre(e.target.value)}
       />
       <OpcionesChip
-        leyenda="Tipo"
+        leyenda={t("Tipo")}
         opciones={[
-          { valor: "stdio", texto: "Programa local" },
+          { valor: "stdio", texto: t("Programa local") },
           { valor: "http", texto: "URL" },
         ]}
         valor={tipo}
@@ -254,20 +255,20 @@ function FormularioMcp({ servidor, alGuardar, alCancelar }: { servidor?: InfoSer
       />
       {tipo === "stdio" ? (
         <div className="ajustes__rejilla">
-          <Campo etiqueta="Comando" mono spellCheck={false} value={comando} onChange={(e) => setComando(e.target.value)} />
-          <Campo etiqueta="Argumentos" mono spellCheck={false} value={argumentos} onChange={(e) => setArgumentos(e.target.value)} />
+          <Campo etiqueta={t("Comando")} mono spellCheck={false} value={comando} onChange={(e) => setComando(e.target.value)} />
+          <Campo etiqueta={t("Argumentos")} mono spellCheck={false} value={argumentos} onChange={(e) => setArgumentos(e.target.value)} />
         </div>
       ) : (
         <Campo etiqueta="URL" mono spellCheck={false} type="url" value={url} onChange={(e) => setUrl(e.target.value)} />
       )}
       <div className="formulario-mcp__variables">
-        <Etiqueta>Variables de entorno</Etiqueta>
+        <Etiqueta>{t("Variables de entorno")}</Etiqueta>
         {variables.map((v, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: filas que se editan en el sitio; el nombre puede cambiar o repetirse mientras se escribe.
           <div key={i} className="formulario-mcp__variable">
             <input
               className="formulario-mcp__entrada formulario-mcp__entrada--nombre"
-              aria-label="Nombre de la variable"
+              aria-label={t("Nombre de la variable")}
               spellCheck={false}
               value={v.nombre}
               onChange={(e) => cambiarVariable(i, { nombre: e.target.value })}
@@ -276,14 +277,14 @@ function FormularioMcp({ servidor, alGuardar, alCancelar }: { servidor?: InfoSer
               className="formulario-mcp__entrada"
               type="password"
               autoComplete="off"
-              aria-label={`Valor de ${v.nombre || "la variable"}`}
+              aria-label={v.nombre ? t("Valor de {nombre}", { nombre: v.nombre }) : t("Valor de la variable")}
               placeholder={servidor?.env?.includes(v.nombre) && !variablesTocadas ? "••••••••" : undefined}
               value={v.valor}
               onChange={(e) => cambiarVariable(i, { valor: e.target.value })}
             />
             <BotonIcono
               variante="pequeno"
-              etiqueta="Quitar"
+              etiqueta={t("Quitar")}
               icono="papelera"
               tamanoIcono={14}
               onClick={() => {
@@ -303,10 +304,10 @@ function FormularioMcp({ servidor, alGuardar, alCancelar }: { servidor?: InfoSer
               setVariablesTocadas(true);
             }}
           >
-            Variable
+            {t("Variable")}
           </Boton>
         </div>
-        {sinValor.length > 0 && <p className="ajustes__estado">Falta el valor de {sinValor.join(", ")}</p>}
+        {sinValor.length > 0 && <p className="ajustes__estado">{t("Falta el valor de {nombres}", { nombres: sinValor.join(", ") })}</p>}
       </div>
       {error && (
         <p className="ajustes__estado ajustes__estado--error" role="alert">
@@ -315,10 +316,10 @@ function FormularioMcp({ servidor, alGuardar, alCancelar }: { servidor?: InfoSer
       )}
       <div className="formulario-mcp__botones">
         <Boton type="submit" variante="acento" disabled={!listo}>
-          Guardar
+          {t("Guardar")}
         </Boton>
         <Boton variante="fantasma" onClick={alCancelar}>
-          Cancelar
+          {t("Cancelar")}
         </Boton>
       </div>
     </form>

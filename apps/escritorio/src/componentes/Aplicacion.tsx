@@ -1,6 +1,6 @@
 /** Piezas de Ajustes: plugins (Herramientas), arranque y atajo (General), actualizaciones, perfiles, copias y núcleo remoto (Aplicación). */
 import type { InfoCopia } from "@aquiles/protocolo";
-import { Boton, Campo, CampoInterruptor, Chip, ConMenuContextual, Interruptor, Medidor, copiarTexto } from "@aquiles/ui";
+import { Boton, Campo, CampoInterruptor, Chip, ConMenuContextual, Interruptor, Medidor, copiarTexto, t } from "@aquiles/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { capturar } from "../estado/atajo";
@@ -61,7 +61,7 @@ export function SeccionPlugins() {
 
   if (plugins.error) return <TextoError texto={plugins.error} />;
   if (!plugins.datos) return null;
-  if (!plugins.datos.length) return <p className="ajustes__estado">Sin plugins</p>;
+  if (!plugins.datos.length) return <p className="ajustes__estado">{t("Sin plugins")}</p>;
 
   const activar = async (nombre: string, activo: boolean) => {
     try {
@@ -80,10 +80,10 @@ export function SeccionPlugins() {
         <ConMenuContextual
           key={p.nombre}
           construir={() => [
-            { texto: p.activo ? "Desactivar" : "Activar", alElegir: () => void activar(p.nombre, !p.activo) },
+            { texto: p.activo ? t("Desactivar") : t("Activar"), alElegir: () => void activar(p.nombre, !p.activo) },
             { tipo: "separador" },
-            { texto: "Copiar ruta", icono: "copiar", alElegir: () => copiarTexto(p.ruta) },
-            puedeMostrarRutas() && { texto: "Mostrar carpeta", icono: "carpeta", alElegir: () => abrirCarpeta(p.ruta) },
+            { texto: t("Copiar ruta"), icono: "copiar", alElegir: () => copiarTexto(p.ruta) },
+            puedeMostrarRutas() && { texto: t("Mostrar carpeta"), icono: "carpeta", alElegir: () => abrirCarpeta(p.ruta) },
           ]}
         >
           {(menu) => (
@@ -95,7 +95,7 @@ export function SeccionPlugins() {
                 {p.ruta}
               </span>
             </div>
-            <Interruptor activo={p.activo} alCambiar={(a) => void activar(p.nombre, a)} aria-label={`${p.nombre} activo`} />
+            <Interruptor activo={p.activo} alCambiar={(a) => void activar(p.nombre, a)} aria-label={t("{nombre} activo", { nombre: p.nombre })} />
           </div>
           {p.descripcion && <p className="plugin__descripcion">{p.descripcion}</p>}
           {p.error && (
@@ -103,7 +103,7 @@ export function SeccionPlugins() {
               {p.error}
             </p>
           )}
-          {p.activo && !p.error && <span className="plugin__estado">{p.cargado ? "Cargado" : "Sin cargar"}</span>}
+          {p.activo && !p.error && <span className="plugin__estado">{p.cargado ? t("Cargado") : t("Sin cargar")}</span>}
           {p.herramientas.length > 0 && (
             <ul className="plugin__herramientas">
               {p.herramientas.map((h) => (
@@ -128,7 +128,7 @@ export function Arranque() {
   return (
     <>
       <Interruptor
-        aria-label={esMac ? "Abrir al iniciar sesión" : "Arrancar con Windows"}
+        aria-label={esMac ? t("Abrir al iniciar sesión") : t("Arrancar con Windows")}
         activo={!!activo}
         disabled={activo === undefined}
         alCambiar={async (a) => {
@@ -209,7 +209,7 @@ export function Atajo() {
             ref={grabador}
             type="button"
             className="atajo__grabador"
-            aria-label="Pulsa la combinación de teclas para la entrada rápida; Escape cancela"
+            aria-label={t("Pulsa la combinación de teclas para la entrada rápida; Escape cancela")}
             onKeyDown={alTecla}
             onKeyUp={(e) => {
               e.preventDefault();
@@ -218,10 +218,10 @@ export function Atajo() {
             }}
             onBlur={parar}
           >
-            {parcial ? <Teclas texto={`${parcial}+…`} /> : "Pulsa las teclas…"}
+            {parcial ? <Teclas texto={`${parcial}+…`} /> : t("Pulsa las teclas…")}
           </button>
         ) : (
-          <span className="atajo__actual">{estado?.atajo ? <Teclas texto={estado.atajo} /> : "Sin atajo"}</span>
+          <span className="atajo__actual">{estado?.atajo ? <Teclas texto={estado.atajo} /> : t("Sin atajo")}</span>
         )}
         <Boton
           variante="secundario"
@@ -233,10 +233,10 @@ export function Atajo() {
             else setGrabando(true);
           }}
         >
-          {grabando ? "Cancelar" : guardando ? "Guardando…" : "Cambiar"}
+          {grabando ? t("Cancelar") : guardando ? t("Guardando…") : t("Cambiar")}
         </Boton>
       </div>
-      {estado && !estado.registrado && <TextoError texto={estado.error ? `No registrado: ${estado.error}` : "No registrado"} />}
+      {estado && !estado.registrado && <TextoError texto={estado.error ? t("No registrado: {error}", { error: estado.error }) : t("No registrado")} />}
       <TextoError texto={error} />
     </div>
   );
@@ -247,9 +247,9 @@ function Teclas({ texto }: { texto: string }) {
   const partes = texto.split("+");
   return (
     <span className="atajo__teclas">
-      {partes.map((t, i) => (
+      {partes.map((parte, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: las partes de un atajo no se reordenan.
-        <kbd key={i}>{t === "…" ? "…" : t === "Space" ? "Espacio" : t}</kbd>
+        <kbd key={i}>{parte === "…" ? "…" : parte === "Space" ? t("Espacio") : parte}</kbd>
       ))}
     </span>
   );
@@ -307,22 +307,22 @@ export function Actualizaciones() {
   return (
     <div className="ajustes__grupo">
       <div className="aplicacion__fila">
-        {info && <span className="aplicacion__dato">{info.desarrollo ? "Compilación de desarrollo" : info.actual ? `Versión ${info.actual}` : "Versión desconocida"}</span>}
+        {info && <span className="aplicacion__dato">{info.desarrollo ? t("Compilación de desarrollo") : info.actual ? t("Versión {version}", { version: info.actual }) : t("Versión desconocida")}</span>}
         {info?.desarrollo ? (
           // Una copia suelta no se actualiza: se instala desde main (%LOCALAPPDATA%\Aquiles o, en Mac,
           // /Applications) y esa sí.
           estado.fase !== "compilando" &&
           estado.fase !== "lista" && (
             <Boton variante="acento" tamano="pequeno" onClick={() => void actuar(instalarActualizacion)}>
-              Instalar con actualizaciones
+              {t("Instalar con actualizaciones")}
             </Boton>
           )
         ) : (
           <>
             <Boton variante="secundario" tamano="pequeno" disabled={buscando || compilando} onClick={() => void buscar()}>
-              Buscar
+              {t("Buscar")}
             </Boton>
-            {info && !info.hayNueva && !buscando && <span className="ajustes__estado">Al día</span>}
+            {info && !info.hayNueva && !buscando && <span className="ajustes__estado">{t("Al día")}</span>}
           </>
         )}
       </div>
@@ -336,7 +336,7 @@ export function Actualizaciones() {
           {estado.fase !== "compilando" && estado.fase !== "lista" && (
             <div>
               <Boton variante="acento" tamano="pequeno" onClick={() => void actuar(instalarActualizacion)}>
-                Actualizar
+                {t("Actualizar")}
               </Boton>
             </div>
           )}
@@ -344,15 +344,15 @@ export function Actualizaciones() {
       )}
       {estado.fase === "compilando" && (
         <div className="aplicacion__progreso">
-          {estado.total > 0 && <Medidor valor={estado.paso / estado.total} etiqueta="Compilación de la actualización" />}
-          <span className="ajustes__estado">{estado.total > 0 ? `${estado.texto} · ${estado.paso} de ${estado.total}` : estado.texto}</span>
+          {estado.total > 0 && <Medidor valor={estado.paso / estado.total} etiqueta={t("Compilación de la actualización")} />}
+          <span className="ajustes__estado">{estado.total > 0 ? t("{texto} · {paso} de {total}", { texto: estado.texto, paso: estado.paso, total: estado.total }) : estado.texto}</span>
         </div>
       )}
       {estado.fase === "lista" && (
         <div className="aplicacion__fila">
-          <span className="aplicacion__dato">Versión {estado.commit}</span>
+          <span className="aplicacion__dato">{t("Versión {version}", { version: estado.commit })}</span>
           <Boton variante="acento" tamano="pequeno" onClick={() => void actuar(aplicarActualizacion)}>
-            {info?.desarrollo ? "Abrir la versión instalada" : "Reiniciar para actualizar"}
+            {info?.desarrollo ? t("Abrir la versión instalada") : t("Reiniciar para actualizar")}
           </Boton>
         </div>
       )}
@@ -360,7 +360,7 @@ export function Actualizaciones() {
       {solo !== undefined && (
         <div className="ajustes__interruptores">
           <CampoInterruptor
-            etiqueta="Actualizar solo"
+            etiqueta={t("Actualizar solo")}
             activo={solo}
             alCambiar={(a) =>
               void actuar(async () => {
@@ -397,7 +397,7 @@ export function Perfiles() {
 
   const cambiar = async (n: string) => {
     // El núcleo se relanza con el otro perfil: la desconexión no es un error.
-    prepararReinicio(`Perfil ${n}`);
+    prepararReinicio(t("Perfil {nombre}", { nombre: n }));
     try {
       await cambiarPerfil(n);
     } catch (e) {
@@ -418,15 +418,15 @@ export function Perfiles() {
                 <div className="aplicacion__datos">
                   <span className="aplicacion__nombre">
                     {p.nombre}
-                    {actual && <Chip destacado>Actual</Chip>}
+                    {actual && <Chip destacado>{t("Actual")}</Chip>}
                   </span>
                   <span className="aplicacion__detalle" title={p.actualizado ? fechaCompleta(p.actualizado) : undefined}>
-                    {[p.sesiones === 1 ? "1 sesión" : `${p.sesiones} sesiones`, p.actualizado && fechaRelativa(p.actualizado, ahora)].filter(Boolean).join(" · ")}
+                    {[p.sesiones === 1 ? t("1 sesión") : t("{n} sesiones", { n: p.sesiones }), p.actualizado && fechaRelativa(p.actualizado, ahora)].filter(Boolean).join(" · ")}
                   </span>
                 </div>
                 {!actual && enTauri() && (
                   <Boton variante="fantasma" tamano="pequeno" onClick={() => void cambiar(p.nombre)}>
-                    Cambiar
+                    {t("Cambiar")}
                   </Boton>
                 )}
               </li>
@@ -442,16 +442,16 @@ export function Perfiles() {
         }}
       >
         <Campo
-          etiqueta="Nuevo perfil"
+          etiqueta={t("Nuevo perfil")}
           mono
           spellCheck={false}
           maxLength={40}
           value={nombre}
-          error={nombre && !valido ? "Minúsculas, cifras, - y _" : undefined}
+          error={nombre && !valido ? t("Minúsculas, cifras, - y _") : undefined}
           onChange={(e) => setNombre(e.target.value)}
         />
         <Boton type="submit" variante="secundario" disabled={!valido}>
-          Crear
+          {t("Crear")}
         </Boton>
       </form>
       <TextoError texto={error} />
@@ -483,7 +483,7 @@ export function Copias() {
   const restaurar = async (c: InfoCopia) => {
     try {
       await llamar("copias.restaurar", { nombre: c.nombre });
-      prepararReinicio("Restaurando la copia");
+      prepararReinicio(t("Restaurando la copia"));
     } catch (e) {
       setError(mensaje(e));
       setRestaurando(undefined);
@@ -506,10 +506,10 @@ export function Copias() {
                 </span>
               </div>
               {restaurando === c.nombre ? (
-                <ConfirmarBorrado texto="Restaurar" alBorrar={() => void restaurar(c)} alCancelar={() => setRestaurando(undefined)} />
+                <ConfirmarBorrado texto={t("Restaurar")} alBorrar={() => void restaurar(c)} alCancelar={() => setRestaurando(undefined)} />
               ) : (
                 <Boton variante="fantasma" tamano="pequeno" onClick={() => setRestaurando(c.nombre)}>
-                  Restaurar
+                  {t("Restaurar")}
                 </Boton>
               )}
             </li>
@@ -518,7 +518,7 @@ export function Copias() {
       )}
       <div>
         <Boton variante="secundario" disabled={creando || !copias.datos} onClick={() => void crear()}>
-          Crear copia
+          {t("Crear copia")}
         </Boton>
       </div>
       <TextoError texto={error} />
@@ -556,8 +556,8 @@ export function Remoto() {
       {actual ? (
         <div className="aplicacion__fila">
           <span className="aplicacion__dato aplicacion__dato--mono">{actual}</span>
-          <Boton variante="secundario" tamano="pequeno" onClick={() => void cambiar(desconectarRemoto, "Núcleo local")}>
-            Desconectar
+          <Boton variante="secundario" tamano="pequeno" onClick={() => void cambiar(desconectarRemoto, t("Núcleo local"))}>
+            {t("Desconectar")}
           </Boton>
         </div>
       ) : (
@@ -565,16 +565,16 @@ export function Remoto() {
           className="aplicacion__remoto"
           onSubmit={(e) => {
             e.preventDefault();
-            if (url.trim() && token.trim()) void cambiar(() => conectarRemoto(url.trim(), token.trim()), "Núcleo remoto");
+            if (url.trim() && token.trim()) void cambiar(() => conectarRemoto(url.trim(), token.trim()), t("Núcleo remoto"));
           }}
         >
           <div className="ajustes__rejilla">
-            <Campo etiqueta="URL" mono spellCheck={false} placeholder="wss://host:puerto" value={url} onChange={(e) => setUrl(e.target.value)} />
+            <Campo etiqueta="URL" mono spellCheck={false} placeholder={t("wss://host:puerto")} value={url} onChange={(e) => setUrl(e.target.value)} />
             <Campo etiqueta="Token" type="password" mono autoComplete="off" spellCheck={false} value={token} onChange={(e) => setToken(e.target.value)} />
           </div>
           <div>
             <Boton type="submit" variante="secundario" disabled={!url.trim() || !token.trim()}>
-              Conectar
+              {t("Conectar")}
             </Boton>
           </div>
         </form>

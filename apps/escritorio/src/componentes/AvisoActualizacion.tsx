@@ -1,4 +1,4 @@
-import { Boton, Medidor } from "@aquiles/ui";
+import { Boton, Medidor, t } from "@aquiles/ui";
 import { useEffect, useState } from "react";
 import {
   alActualizacionLista,
@@ -45,26 +45,26 @@ export function AvisoActualizacion({ alVerDetalle }: { alVerDetalle: () => void 
   if (estado.fase === "compilando")
     return (
       <button type="button" className="lateral__actualizacion" onClick={alVerDetalle} title={estado.texto}>
-        <span className="lateral__actualizacion-texto">{estado.total > 0 ? `Actualizando · ${estado.paso} de ${estado.total}` : "Actualizando"}</span>
-        {estado.total > 0 && <Medidor valor={estado.paso / estado.total} etiqueta="Compilación de la actualización" />}
+        <span className="lateral__actualizacion-texto">{estado.total > 0 ? t("Actualizando · {paso} de {total}", { paso: estado.paso, total: estado.total }) : t("Actualizando")}</span>
+        {estado.total > 0 && <Medidor valor={estado.paso / estado.total} etiqueta={t("Compilación de la actualización")} />}
       </button>
     );
   if (estado.fase === "lista")
     return (
-      <Boton variante="acento" tamano="pequeno" ancho onClick={actuar(aplicarActualizacion)} title={`Versión ${estado.commit}`}>
-        Reiniciar para actualizar
+      <Boton variante="acento" tamano="pequeno" ancho onClick={actuar(aplicarActualizacion)} title={t("Versión {version}", { version: estado.commit })}>
+        {t("Reiniciar para actualizar")}
       </Boton>
     );
   if (estado.fase === "error" || error)
     return (
       <Boton variante="secundario" tamano="pequeno" ancho onClick={alVerDetalle} title={error ?? (estado.fase === "error" ? estado.texto : undefined)}>
-        No se pudo actualizar
+        {t("No se pudo actualizar")}
       </Boton>
     );
   if (hayNueva)
     return (
       <Boton variante="acento" tamano="pequeno" ancho onClick={actuar(instalarActualizacion)}>
-        Actualizar
+        {t("Actualizar")}
       </Boton>
     );
   return null;

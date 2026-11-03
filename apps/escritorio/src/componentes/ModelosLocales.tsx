@@ -1,6 +1,6 @@
 /** Modelos locales: GGUF de Hugging Face que ejecuta llama.cpp (proveedor `llamacpp`). */
 import type { FicheroModeloHF, ModeloLocalInfo, ProgresoDescargaModelo, ResultadoModeloHF } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Campo, CampoBusqueda, Chip, ConMenuContextual, Etiqueta, Icono, LatticeLoader, Medidor, Selector, clases, copiarTexto } from "@aquiles/ui";
+import { Boton, BotonIcono, Campo, CampoBusqueda, Chip, ConMenuContextual, Etiqueta, Icono, LatticeLoader, Medidor, Selector, clases, copiarTexto, t } from "@aquiles/ui";
 import { useId, useState, type ReactNode } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { useCarga } from "../estado/carga";
@@ -98,19 +98,19 @@ export function SeccionModelos({
         <div className="modelos__motor">
           <Boton variante="acento" icono={instalando ? undefined : "descargar"} disabled={instalando} onClick={() => void instalar()}>
             {instalando && <LatticeLoader activo />}
-            Instalar llama.cpp
+            {t("Instalar llama.cpp")}
           </Boton>
         </div>
       )}
       <Campo
-        etiqueta="Carpeta"
+        etiqueta={t("Carpeta")}
         mono
         readOnly
         value={datos.carpeta}
         sufijo={
           puedeMostrarRutas() ? (
             <Boton variante="chip" tamano="pequeno" icono="carpeta" onClick={() => void abrirCarpeta(datos.carpeta)}>
-              Mostrar carpeta
+              {t("Mostrar carpeta")}
             </Boton>
           ) : undefined
         }
@@ -119,7 +119,7 @@ export function SeccionModelos({
 
       {datos.locales.length > 0 && (
         <div className="ajustes__grupo">
-          <Etiqueta>Descargados</Etiqueta>
+          <Etiqueta>{t("Descargados")}</Etiqueta>
           <ul className="modelos__lista">
             {datos.locales.map((m) => (
               <ModeloLocal key={m.id} m={m} cargado={datos.motor.cargado === m.id} predeterminado={porDefecto === m.id} alUsar={usar} alBorrar={borrar} />
@@ -129,7 +129,7 @@ export function SeccionModelos({
       )}
 
       {visibles.length > 0 && (
-        <ul className="modelos__lista" aria-label="Descargas">
+        <ul className="modelos__lista" aria-label={t("Descargas")}>
           {visibles.map((d) => (
             <Descarga key={d.id} d={d} alCancelar={() => void cancelar(d.id)} alQuitar={() => setQuitadas((q) => new Set(q).add(d.id))} />
           ))}
@@ -175,10 +175,10 @@ function ModeloLocal({
   return (
     <ConMenuContextual
       construir={() => [
-        { texto: "Usar por defecto", icono: "check", deshabilitado: predeterminado, alElegir: () => void alUsar(m.id) },
-        { texto: "Copiar id", icono: "copiar", alElegir: () => copiarTexto(m.id) },
+        { texto: t("Usar por defecto"), icono: "check", deshabilitado: predeterminado, alElegir: () => void alUsar(m.id) },
+        { texto: t("Copiar id"), icono: "copiar", alElegir: () => copiarTexto(m.id) },
         { tipo: "separador" },
-        { texto: "Borrar", icono: "papelera", peligrosa: true, alElegir: () => void borrar() },
+        { texto: t("Borrar"), icono: "papelera", peligrosa: true, alElegir: () => void borrar() },
       ]}
     >
       {(menu) => (
@@ -190,15 +190,15 @@ function ModeloLocal({
             <span className="modelo-local__repo">{m.repo}</span>
           </div>
           <span className="modelo-local__marcas">
-            {m.imagenes && <Chip>Visión</Chip>}
-            {predeterminado && <Chip>Por defecto</Chip>}
-            {cargado && <Chip destacado>Cargado</Chip>}
+            {m.imagenes && <Chip>{t("Visión")}</Chip>}
+            {predeterminado && <Chip>{t("Por defecto")}</Chip>}
+            {cargado && <Chip destacado>{t("Cargado")}</Chip>}
           </span>
           <span className="modelo-local__tamano">{gigas(m.bytes)}</span>
           {confirmando ? (
             <ConfirmarBorrado ocupado={borrando} alBorrar={() => void borrar()} alCancelar={() => setConfirmando(false)} />
           ) : (
-            <BotonIcono etiqueta={`Borrar ${m.nombre}`} icono="papelera" variante="pequeno" onClick={() => setConfirmando(true)} />
+            <BotonIcono etiqueta={t("Borrar {nombre}", { nombre: m.nombre })} icono="papelera" variante="pequeno" onClick={() => setConfirmando(true)} />
           )}
         </li>
       )}
@@ -222,17 +222,17 @@ function Descarga({ d, alCancelar, alQuitar }: { d: ProgresoDescargaModelo; alCa
         </span>
         {d.estado === "descargando" ? (
           <Boton variante="fantasma" tamano="pequeno" onClick={alCancelar}>
-            Cancelar
+            {t("Cancelar")}
           </Boton>
         ) : (
-          <BotonIcono etiqueta="Quitar" icono="cerrar" variante="pequeno" onClick={alQuitar} />
+          <BotonIcono etiqueta={t("Quitar")} icono="cerrar" variante="pequeno" onClick={alQuitar} />
         )}
       </div>
       {d.estado === "descargando" ? (
-        <Medidor valor={fraccion} etiqueta={`Descarga de ${d.nombre}`} />
+        <Medidor valor={fraccion} etiqueta={t("Descarga de {nombre}", { nombre: d.nombre })} />
       ) : (
         <p className="modelos__error" role="alert">
-          {d.error ?? "Error"}
+          {d.error ?? t("Error")}
         </p>
       )}
     </li>
@@ -276,12 +276,12 @@ function BuscarHF({
           void buscar();
         }}
       >
-        <CampoBusqueda etiqueta="Buscar en Hugging Face" placeholder="Buscar en Hugging Face" valor={consulta} alCambiar={setConsulta} />
+        <CampoBusqueda etiqueta={t("Buscar en Hugging Face")} placeholder={t("Buscar en Hugging Face")} valor={consulta} alCambiar={setConsulta} />
         {busqueda.cargando && <LatticeLoader activo />}
       </form>
       <TextoAlerta texto={busqueda.error} />
       {busqueda.resultados && (busqueda.resultados.length === 0 ? (
-        <p className="ajustes__estado">Sin resultados</p>
+        <p className="ajustes__estado">{t("Sin resultados")}</p>
       ) : (
         <ul className="modelos__resultados">
           {busqueda.resultados.map((r) => (
@@ -325,16 +325,16 @@ function ResultadoHF({
           <span>
             <Icono nombre="descargar" tamano={14} />
             {compacto.format(r.descargas)}
-            <span className="nx-sr"> descargas</span>
+            <span className="nx-sr"> {t("descargas")}</span>
           </span>
           <span>
             <Icono nombre="corazon" tamano={14} />
             {compacto.format(r.likes)}
-            <span className="nx-sr"> me gusta</span>
+            <span className="nx-sr"> {t("me gusta")}</span>
           </span>
         </span>
-        {r.protegido && <Chip>Protegido</Chip>}
-        {r.imagenes && <Chip>Visión</Chip>}
+        {r.protegido && <Chip>{t("Protegido")}</Chip>}
+        {r.imagenes && <Chip>{t("Visión")}</Chip>}
         <Icono nombre="chevron-abajo" tamano={16} className={clases("herramienta__chevron", abierto && "herramienta__chevron--abierto")} />
       </button>
       {abierto && (
@@ -392,16 +392,16 @@ function DetalleRepo({
     <div className="detalle-hf">
       {(d.ventana || d.proyectores.length > 0) && (
         <div className="detalle-hf__opciones">
-          {d.ventana ? <span className="detalle-hf__ventana">Contexto {tokens(d.ventana)}</span> : null}
+          {d.ventana ? <span className="detalle-hf__ventana">{t("Contexto {tokens}", { tokens: tokens(d.ventana) })}</span> : null}
           {d.proyectores.length > 0 && (
             <label className="casilla" htmlFor={idVision}>
               <input id={idVision} type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
-              Incluir visión
+              {t("Incluir visión")}
             </label>
           )}
           {vision && d.proyectores.length > 1 && (
             <Selector
-              etiqueta="Proyector"
+              etiqueta={t("Proyector")}
               className="detalle-hf__proyector"
               mono
               opciones={d.proyectores.map((p) => ({ valor: p.nombre, texto: `${p.cuantizacion ?? p.nombre} · ${gigas(p.bytes)}` }))}
@@ -413,7 +413,7 @@ function DetalleRepo({
       )}
       <TextoAlerta texto={error} />
       {d.ficheros.length === 0 ? (
-        <p className="ajustes__estado">Sin ficheros GGUF</p>
+        <p className="ajustes__estado">{t("Sin ficheros GGUF")}</p>
       ) : (
         <ul className="ficheros-hf">
           {d.ficheros.map((f) => {
@@ -423,12 +423,12 @@ function DetalleRepo({
               <li key={f.nombre} className="fichero-hf" title={f.nombre}>
                 <span className="fichero-hf__cuantizacion">{f.cuantizacion ?? f.nombre}</span>
                 <span className="fichero-hf__tamano">{gigas(f.bytes)}</span>
-                <span className="fichero-hf__partes">{f.partes.length > 1 ? `${f.partes.length} partes` : ""}</span>
+                <span className="fichero-hf__partes">{f.partes.length > 1 ? t("{n} partes", { n: f.partes.length }) : ""}</span>
                 {descargado ? (
-                  <Chip>Descargado</Chip>
+                  <Chip>{t("Descargado")}</Chip>
                 ) : (
                   <Boton variante="chip" tamano="pequeno" icono="descargar" disabled={enCurso} onClick={() => void descargar(f)}>
-                    Descargar
+                    {t("Descargar")}
                   </Boton>
                 )}
               </li>

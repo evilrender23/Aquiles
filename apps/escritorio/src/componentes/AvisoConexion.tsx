@@ -1,4 +1,4 @@
-import { Boton, Icono } from "@aquiles/ui";
+import { Boton, Icono, t } from "@aquiles/ui";
 import { useRef } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 
@@ -15,7 +15,7 @@ export function AvisoConexion() {
     return (
       <div className="aviso-conexion aviso-conexion--reinicio" role="status">
         <i className="nx-punto nx-pulso" aria-hidden="true" />
-        <span className="aviso-conexion__texto">{errorConexion ? `Reiniciando el núcleo · ${errorConexion}` : "Reiniciando el núcleo"}</span>
+        <span className="aviso-conexion__texto">{errorConexion ? t("Reiniciando el núcleo · {motivo}", { motivo: errorConexion }) : t("Reiniciando el núcleo")}</span>
       </div>
     );
   }
@@ -24,9 +24,9 @@ export function AvisoConexion() {
   return (
     <div className="aviso-conexion" role="alert">
       <Icono nombre="alerta" tamano={18} />
-      <span className="aviso-conexion__texto">{reintentando ? "Conectando…" : (errorConexion ?? "Sin conexión con el núcleo")}</span>
+      <span className="aviso-conexion__texto">{reintentando ? t("Conectando…") : (errorConexion ?? t("Sin conexión con el núcleo"))}</span>
       <Boton variante="secundario" icono="recargar" disabled={reintentando} onClick={reconectar}>
-        Reconectar
+        {t("Reconectar")}
       </Boton>
     </div>
   );

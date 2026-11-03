@@ -1,6 +1,6 @@
 /** Canales de Automatizaciones: tarjetas del lienzo y, al configurar uno, su panel. */
 import type { InfoCanal } from "@aquiles/protocolo";
-import { Boton, Campo, Chip, ConMenuContextual, Etiqueta, Tarjeta, clases } from "@aquiles/ui";
+import { Boton, Campo, Chip, ConMenuContextual, Etiqueta, Tarjeta, clases, t } from "@aquiles/ui";
 import { useEffect, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import type { Carga } from "../estado/carga";
@@ -10,35 +10,35 @@ import { ConfirmarBorrado, OpcionesChip } from "./Campos";
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** Secretos de los canales: el nombre es el del llavero y ajustes.clave. */
-const SECRETOS: Record<string, string> = {
-  telegram: "Token del bot",
-  discord: "Token del bot",
-  slack: "Token del bot",
-  "slack-app": "Token de la app",
-  correo: "Contraseña",
-};
+/** Secretos de los canales: el nombre es el del llavero y ajustes.clave. Se calcula al pintar (por el idioma). */
+const nombresSecretos = (): Record<string, string> => ({
+  telegram: t("Token del bot"),
+  discord: t("Token del bot"),
+  slack: t("Token del bot"),
+  "slack-app": t("Token de la app"),
+  correo: t("Contraseña"),
+});
 
 /** Opciones no secretas del correo (canales.configurar). */
-const OPCIONES_CORREO = [
-  { clave: "servidor", etiqueta: "Servidor" },
-  { clave: "puerto", etiqueta: "Puerto" },
-  { clave: "usuario", etiqueta: "Usuario" },
-  { clave: "de", etiqueta: "De" },
-  { clave: "para", etiqueta: "Para" },
-] as const;
+const opcionesCorreo = () => [
+  { clave: "servidor", etiqueta: t("Servidor") },
+  { clave: "puerto", etiqueta: t("Puerto") },
+  { clave: "usuario", etiqueta: t("Usuario") },
+  { clave: "de", etiqueta: t("De") },
+  { clave: "para", etiqueta: t("Para") },
+];
 
 function estadoCanal(c: InfoCanal): { texto: string; tono: "ok" | "aviso" | "error" | "nada" } {
-  if (c.error) return { texto: "Error", tono: "error" };
-  if (c.conversa && c.conectado) return { texto: "Conectado", tono: "ok" };
-  if (c.configurado) return { texto: "Configurado", tono: c.conversa ? "aviso" : "ok" };
-  return { texto: "Sin configurar", tono: "nada" };
+  if (c.error) return { texto: t("Error"), tono: "error" };
+  if (c.conversa && c.conectado) return { texto: t("Conectado"), tono: "ok" };
+  if (c.configurado) return { texto: t("Configurado"), tono: c.conversa ? "aviso" : "ok" };
+  return { texto: t("Sin configurar"), tono: "nada" };
 }
 
 /** Línea de detalle de la tarjeta: el error, los chats o la cuenta del correo. */
 function detalleCanal(c: InfoCanal): string | undefined {
   if (c.error) return c.error;
-  if (c.conversa && c.chats.length) return c.chats.length === 1 ? "1 chat" : `${c.chats.length} chats`;
+  if (c.conversa && c.chats.length) return c.chats.length === 1 ? t("1 chat") : t("{n} chats", { n: c.chats.length });
   return c.opciones.usuario ?? c.opciones.servidor;
 }
 
@@ -74,9 +74,9 @@ export function PanelCanales({ canales }: { canales: Carga<InfoCanal[]> }) {
             <ConMenuContextual
               key={c.id}
               construir={() => [
-                { texto: "Configurar", icono: "lapiz", alElegir: () => setAbierto(c.id) },
-                c.conversa && { texto: "Emparejar", icono: "chat", deshabilitado: !c.configurado, alElegir: () => pedir(c.id, "emparejar") },
-                { texto: "Probar", icono: "play", deshabilitado: !c.configurado, alElegir: () => pedir(c.id, "probar") },
+                { texto: t("Configurar"), icono: "lapiz", alElegir: () => setAbierto(c.id) },
+                c.conversa && { texto: t("Emparejar"), icono: "chat", deshabilitado: !c.configurado, alElegir: () => pedir(c.id, "emparejar") },
+                { texto: t("Probar"), icono: "play", deshabilitado: !c.configurado, alElegir: () => pedir(c.id, "probar") },
               ]}
             >
               {(menu) => (
@@ -92,7 +92,7 @@ export function PanelCanales({ canales }: { canales: Carga<InfoCanal[]> }) {
                   {estado.texto}
                 </span>
                 <button type="button" className="origen__enlace" aria-expanded={abierto === c.id} onClick={() => setAbierto((a) => (a === c.id ? undefined : c.id))}>
-                  Configurar
+                  {t("Configurar")}
                 </button>
               </div>
             </Tarjeta>
@@ -102,6 +102,18 @@ export function PanelCanales({ canales }: { canales: Carga<InfoCanal[]> }) {
         })}
       </div>
       {elegido && <ConfigCanal key={elegido.id} c={elegido} alCambiar={actualizar} pedido={pedido?.canal === elegido.id ? pedido : undefined} />}
+    </>
+  );
+}
+
+/** «Caduca a las 10:42.»: la hora va en su <time>, en el sitio del hueco {hora} de la frase traducida. */
+function Caducidad({ iso }: { iso: string }) {
+  const [antes, despues = ""] = t("Caduca a las {hora}.").split("{hora}");
+  return (
+    <>
+      {antes}
+      <time dateTime={iso}>{hora(iso)}</time>
+      {despues}
     </>
   );
 }
@@ -120,7 +132,7 @@ function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: In
   const claves = Object.keys(c.secretos);
   // El correo tiene sus campos; los demás canales, los que ya traiga el núcleo.
   const camposOpciones =
-    c.id === "correo" ? OPCIONES_CORREO.map((o) => ({ ...o })) : Object.keys(c.opciones).map((clave) => ({ clave, etiqueta: clave.charAt(0).toUpperCase() + clave.slice(1) }));
+    c.id === "correo" ? opcionesCorreo() : Object.keys(c.opciones).map((clave) => ({ clave, etiqueta: clave.charAt(0).toUpperCase() + clave.slice(1) }));
   const opcionesCambiadas = Object.entries(opciones).some(([k, v]) => (c.opciones[k] ?? "") !== v);
   const hayCambios = opcionesCambiadas || Object.values(secretos).some((v) => v.trim());
 
@@ -198,7 +210,7 @@ function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: In
           {claves.map((clave) => (
             <div key={clave} className="ajustes__clave">
               <Campo
-                etiqueta={SECRETOS[clave] ?? clave}
+                etiqueta={nombresSecretos()[clave] ?? clave}
                 type="password"
                 mono
                 autoComplete="off"
@@ -209,11 +221,11 @@ function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: In
                   setSecretos({ ...secretos, [clave]: e.target.value });
                   setEstado(undefined);
                 }}
-                sufijo={c.secretos[clave] ? <Chip destacado>Guardado</Chip> : undefined}
+                sufijo={c.secretos[clave] ? <Chip destacado>{t("Guardado")}</Chip> : undefined}
               />
               {c.secretos[clave] && (
                 <Boton variante="fantasma" tamano="pequeno" icono="papelera" onClick={() => void quitarSecreto(clave)}>
-                  Borrar
+                  {t("Borrar")}
                 </Boton>
               )}
             </div>
@@ -239,10 +251,10 @@ function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: In
           {c.id === "correo" && (
             <div className="nx-campo">
               <span className="nx-etiqueta" aria-hidden="true">
-                Seguridad
+                {t("Seguridad")}
               </span>
               <OpcionesChip
-                leyenda="Seguridad"
+                leyenda={t("Seguridad")}
                 opciones={[
                   { valor: "tls", texto: "TLS" },
                   { valor: "starttls", texto: "STARTTLS" },
@@ -257,9 +269,9 @@ function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: In
           )}
           <div className="config-canal__botones">
             <Boton variante="acento" disabled={!hayCambios || estado?.tipo === "guardando"} onClick={() => void guardar()}>
-              Guardar
+              {t("Guardar")}
             </Boton>
-            {estado?.tipo === "ok" && <span className="ajustes__estado">Guardado</span>}
+            {estado?.tipo === "ok" && <span className="ajustes__estado">{t("Guardado")}</span>}
             {estado?.tipo === "error" && (
               <span className="ajustes__estado ajustes__estado--error" role="alert">
                 {estado.texto}
@@ -271,14 +283,14 @@ function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: In
 
       <div className="config-canal__botones">
         <Boton variante="secundario" disabled={!c.configurado || prueba?.tipo === "enviando"} onClick={() => void probar()}>
-          Probar
+          {t("Probar")}
         </Boton>
         {c.conversa && (
           <Boton variante="secundario" disabled={!c.configurado} onClick={() => void emparejar()}>
-            Emparejar
+            {t("Emparejar")}
           </Boton>
         )}
-        {prueba?.tipo === "ok" && <span className="ajustes__estado">Enviado</span>}
+        {prueba?.tipo === "ok" && <span className="ajustes__estado">{t("Enviado")}</span>}
         {prueba?.tipo === "error" && (
           <span className="ajustes__estado ajustes__estado--error" role="alert">
             {prueba.texto}
@@ -295,21 +307,21 @@ function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: In
         <div className="config-canal__codigo" aria-live="polite">
           <span className="config-canal__cifras">{codigo.codigo}</span>
           <span>
-            Envíaselo al bot desde el chat que quieras emparejar. Caduca a las <time dateTime={codigo.caduca}>{hora(codigo.caduca)}</time>.
+            {t("Envíaselo al bot desde el chat que quieras emparejar.")} <Caducidad iso={codigo.caduca} />
           </span>
         </div>
       )}
 
       {c.chats.length > 0 && (
         <div className="config-canal__chats">
-          <Etiqueta>Chats</Etiqueta>
+          <Etiqueta>{t("Chats")}</Etiqueta>
           <ul>
             {c.chats.map((chat) => (
               <ConMenuContextual
                 key={chat.id}
                 construir={() => [
-                  chat.sesionId && sesiones[chat.sesionId] && { texto: "Abrir sesión", icono: "flecha-diagonal", alElegir: () => abrirSesion(chat.sesionId!) },
-                  { texto: "Desemparejar", icono: "cerrar", peligrosa: true, alElegir: () => void desemparejar(chat.id) },
+                  chat.sesionId && sesiones[chat.sesionId] && { texto: t("Abrir sesión"), icono: "flecha-diagonal", alElegir: () => abrirSesion(chat.sesionId!) },
+                  { texto: t("Desemparejar"), icono: "cerrar", peligrosa: true, alElegir: () => void desemparejar(chat.id) },
                 ]}
               >
                 {(menu) => (
@@ -323,14 +335,14 @@ function ConfigCanal({ c, alCambiar, pedido }: { c: InfoCanal; alCambiar: (c: In
                 <span className="chat__acciones">
                   {chat.sesionId && sesiones[chat.sesionId] && (
                     <Boton variante="fantasma" tamano="pequeno" onClick={() => abrirSesion(chat.sesionId!)}>
-                      Abrir
+                      {t("Abrir")}
                     </Boton>
                   )}
                   {quitando === chat.id ? (
-                    <ConfirmarBorrado texto="Desemparejar" alBorrar={() => void desemparejar(chat.id)} alCancelar={() => setQuitando(undefined)} />
+                    <ConfirmarBorrado texto={t("Desemparejar")} alBorrar={() => void desemparejar(chat.id)} alCancelar={() => setQuitando(undefined)} />
                   ) : (
                     <Boton variante="fantasma" tamano="pequeno" onClick={() => setQuitando(chat.id)}>
-                      Desemparejar
+                      {t("Desemparejar")}
                     </Boton>
                   )}
                 </span>

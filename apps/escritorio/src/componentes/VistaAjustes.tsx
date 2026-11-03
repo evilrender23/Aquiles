@@ -16,20 +16,21 @@ type Cambios = Params<"ajustes.guardar">;
 
 /** Clave de Hugging Face: no es un proveedor, pero se guarda y se pasa al núcleo igual que las suyas. */
 const HF = { id: "huggingface", nombre: "Hugging Face" };
-/** Clave de Google AI Studio: solo para generar imágenes con Gemini (generar_imagen). */
-const GEMINI = { id: "gemini", nombre: "Gemini (imágenes)" };
+/** Clave de Google AI Studio: solo para generar imágenes con Gemini (generar_imagen). El nombre se pinta con t(). */
+const GEMINI = "gemini";
 const PANEL = "ajustes-panel";
 
-const PESTANAS: Pestana<PestanaAjustes>[] = [
-  { id: "general", texto: "General" },
-  { id: "modelos", texto: "Modelos" },
-  { id: "herramientas", texto: "Herramientas" },
-  { id: "aprendizaje", texto: "Aprendizaje" },
-  { id: "aplicacion", texto: "Aplicación" },
+// Las listas con textos son funciones: se llaman al pintar, para que salgan en el idioma de la interfaz.
+const pestanas = (): Pestana<PestanaAjustes>[] => [
+  { id: "general", texto: t("General") },
+  { id: "modelos", texto: t("Modelos") },
+  { id: "herramientas", texto: t("Herramientas") },
+  { id: "aprendizaje", texto: t("Aprendizaje") },
+  { id: "aplicacion", texto: t("Aplicación") },
 ];
 
-const ENTORNOS: { valor: EntornoTerminal; texto: string }[] = [
-  { valor: "local", texto: "Este equipo" },
+const entornos = (): { valor: EntornoTerminal; texto: string }[] => [
+  { valor: "local", texto: t("Este equipo") },
   { valor: "docker", texto: "Docker" },
   { valor: "ssh", texto: "SSH" },
 ];
@@ -160,12 +161,12 @@ export function VistaAjustes() {
     <div className="ajustes">
       <div className="ajustes__pagina">
         <div className="ajustes__cabecera">
-          <Titular texto="Ajustes" tamano="l" />
+          <Titular texto={t("Ajustes")} tamano="l" />
           <span className={guardado?.tipo === "error" ? "ajustes__estado ajustes__estado--error" : "ajustes__estado"} role={guardado?.tipo === "error" ? "alert" : "status"}>
-            {guardado?.tipo === "guardando" ? "Guardando…" : guardado?.tipo === "ok" ? "Guardado" : guardado?.tipo === "error" ? guardado.texto : ""}
+            {guardado?.tipo === "guardando" ? t("Guardando…") : guardado?.tipo === "ok" ? t("Guardado") : guardado?.tipo === "error" ? guardado.texto : ""}
           </span>
         </div>
-        <Pestanas etiqueta="Ajustes" pestanas={PESTANAS} activa={pestana} alElegir={setPestana} idPanel={PANEL} />
+        <Pestanas etiqueta={t("Ajustes")} pestanas={pestanas()} activa={pestana} alElegir={setPestana} idPanel={PANEL} />
         <div role="tabpanel" id={PANEL} aria-labelledby={idPestana(PANEL, pestana)} className="ajustes__panel">
           {pestana === "general" && <General form={form} cambiar={cambiar} />}
           {pestana === "modelos" && <Modelos form={form} cambiar={cambiar} />}
@@ -198,18 +199,18 @@ function General({ form, cambiar }: PropsPestana) {
           alCambiar={(idioma) => cambiar({ idioma }, { idioma })}
         />
       </Grupo>
-      <Grupo titulo="Sesiones nuevas">
-        <Ajuste titulo="Carpeta de trabajo" descripcion="Donde empiezan las sesiones nuevas.">
-          <CampoCarpeta etiqueta="Carpeta" carpeta={form.carpeta} alCambiar={(carpeta) => cambiar({ carpeta }, { carpeta }, tauri ? 0 : ESCRIBIENDO_MS)} />
+      <Grupo titulo={t("Sesiones nuevas")}>
+        <Ajuste titulo={t("Carpeta de trabajo")} descripcion={t("Donde empiezan las sesiones nuevas.")}>
+          <CampoCarpeta etiqueta={t("Carpeta")} carpeta={form.carpeta} alCambiar={(carpeta) => cambiar({ carpeta }, { carpeta }, tauri ? 0 : ESCRIBIENDO_MS)} />
         </Ajuste>
-        <Ajuste titulo="Permisos" descripcion="Qué puede hacer sin preguntarte. Cada sesión puede cambiarlo.">
+        <Ajuste titulo={t("Permisos")} descripcion={t("Qué puede hacer sin preguntarte. Cada sesión puede cambiarlo.")}>
           <OpcionesPermisos valor={form.modoAprobacion} alCambiar={(modoAprobacion) => cambiar({ modoAprobacion }, { modoAprobacion })} />
         </Ajuste>
       </Grupo>
-      <Grupo titulo="Turnos">
+      <Grupo titulo={t("Turnos")}>
         <Ajuste
-          titulo="Pasos máximos por turno"
-          descripcion="Cuántas veces puede responder el modelo (y usar herramientas) en un turno antes de parar. Vale para todas las sesiones desde el turno siguiente."
+          titulo={t("Pasos máximos por turno")}
+          descripcion={t("Cuántas veces puede responder el modelo (y usar herramientas) en un turno antes de parar. Vale para todas las sesiones desde el turno siguiente.")}
         >
           <CampoPasos valor={form.maxPasos ?? PASOS_POR_TURNO.porDefecto} alCambiar={(maxPasos) => cambiar({ maxPasos }, { maxPasos }, ESCRIBIENDO_MS)} />
         </Ajuste>
@@ -222,10 +223,17 @@ function General({ form, cambiar }: PropsPestana) {
       )}
       {tauri && (
         <Grupo titulo={esMac ? "Mac" : "Windows"}>
-          <Ajuste titulo={esMac ? "Abrir al iniciar sesión" : "Arrancar con Windows"} descripcion={`Se queda en ${esMac ? "la barra de menús" : "la bandeja"} al iniciar sesión, para que las tareas programadas y los canales sigan.`}>
+          <Ajuste
+            titulo={esMac ? t("Abrir al iniciar sesión") : t("Arrancar con Windows")}
+            descripcion={
+              esMac
+                ? t("Se queda en la barra de menús al iniciar sesión, para que las tareas programadas y los canales sigan.")
+                : t("Se queda en la bandeja al iniciar sesión, para que las tareas programadas y los canales sigan.")
+            }
+          >
             <Arranque />
           </Ajuste>
-          <Ajuste titulo="Entrada rápida" descripcion="Un atajo de teclado que abre una caja para dar una tarea desde cualquier sitio.">
+          <Ajuste titulo={t("Entrada rápida")} descripcion={t("Un atajo de teclado que abre una caja para dar una tarea desde cualquier sitio.")}>
             <Atajo />
           </Ajuste>
         </Grupo>
@@ -234,11 +242,11 @@ function General({ form, cambiar }: PropsPestana) {
   );
 }
 
-const VELOCIDADES: { valor: string; texto: string }[] = [
-  { valor: "-25", texto: "Lenta" },
-  { valor: "0", texto: "Normal" },
-  { valor: "25", texto: "Rápida" },
-  { valor: "50", texto: "Muy rápida" },
+const velocidades = (): { valor: string; texto: string }[] => [
+  { valor: "-25", texto: t("Lenta") },
+  { valor: "0", texto: t("Normal") },
+  { valor: "25", texto: t("Rápida") },
+  { valor: "50", texto: t("Muy rápida") },
 ];
 
 /** Lectura en voz alta con las voces del sistema (Windows: System.Speech; Mac: say): cuál, a qué velocidad y una prueba. */
@@ -248,7 +256,7 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
   const [probando, setProbando] = useState(false);
   const [error, setError] = useState<string>();
   const voces = estado?.voces ?? [];
-  const AUTOMATICA = "Automática (la de español)";
+  const AUTOMATICA = t("Automática (la de español)");
   const elegida = voz.voz && voces.some((v) => v.nombre === voz.voz) ? voz.voz : AUTOMATICA;
   const probar = async () => {
     setProbando(true);
@@ -262,14 +270,14 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
     }
   };
   const avisos: { valor: AvisoAlAcabar; texto: string }[] = [
-    { valor: "nada", texto: "Nada" },
-    { valor: "notificacion", texto: "Notificación" },
-    ...(estado?.lectura ? [{ valor: "voz" as const, texto: "Notificación y voz" }] : []),
+    { valor: "nada", texto: t("Nada") },
+    { valor: "notificacion", texto: t("Notificación") },
+    ...(estado?.lectura ? [{ valor: "voz" as const, texto: t("Notificación y voz") }] : []),
   ];
   const alAcabar = (
-    <Ajuste titulo="Al acabar una tarea" descripcion="Si tarda medio minuto o más, avisa con una frase del modelo: «He acabado de…».">
+    <Ajuste titulo={t("Al acabar una tarea")} descripcion={t("Si tarda medio minuto o más, avisa con una frase del modelo: «He acabado de…».")}>
       <OpcionesChip
-        leyenda="Al acabar una tarea"
+        leyenda={t("Al acabar una tarea")}
         opciones={avisos}
         valor={voz.alAcabar === "voz" && !estado?.lectura ? "notificacion" : (voz.alAcabar ?? "voz")}
         alCambiar={(v) => alCambiar({ alAcabar: v })}
@@ -278,9 +286,9 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
   );
   if (!estado?.lectura) {
     return (
-      <Grupo titulo="Voz" descripcion="Para leer las respuestas en voz alta.">
+      <Grupo titulo={t("Voz")} descripcion={t("Para leer las respuestas en voz alta.")}>
         <p className="ajustes__nota">
-          {esMac || enTauri() ? "No se encontró ninguna voz del sistema." : "La voz es de la app de escritorio (Windows o Mac)."}
+          {esMac || enTauri() ? t("No se encontró ninguna voz del sistema.") : t("La voz es de la app de escritorio (Windows o Mac).")}
         </p>
         {alAcabar}
       </Grupo>
@@ -288,16 +296,16 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
   }
   return (
     <Grupo
-      titulo="Voz"
+      titulo={t("Voz")}
       descripcion={
         esMac
-          ? "Para leer las respuestas en voz alta. Hay voces más naturales para descargar en Ajustes del Sistema › Accesibilidad › Contenido leído."
-          : "Para leer las respuestas en voz alta, con las voces de Windows (se añaden en Configuración › Hora e idioma › Voz)."
+          ? t("Para leer las respuestas en voz alta. Hay voces más naturales para descargar en Ajustes del Sistema › Accesibilidad › Contenido leído.")
+          : t("Para leer las respuestas en voz alta, con las voces de Windows (se añaden en Configuración › Hora e idioma › Voz).")
       }
     >
-      <Ajuste titulo="Voz">
+      <Ajuste titulo={t("Voz")}>
         <Desplegable
-          etiqueta="Voz"
+          etiqueta={t("Voz")}
           lado="abajo"
           disparador={({ alternar, abierto: _a, ...aria }) => (
             <Boton variante="chip" iconoFinal="chevron-abajo" onClick={alternar} {...aria}>
@@ -329,12 +337,12 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
           ]}
         </Desplegable>
       </Ajuste>
-      <Ajuste titulo="Velocidad">
-        <OpcionesChip leyenda="Velocidad" opciones={VELOCIDADES} valor={String(voz.velocidad)} alCambiar={(v) => alCambiar({ velocidad: Number(v) })} />
+      <Ajuste titulo={t("Velocidad")}>
+        <OpcionesChip leyenda={t("Velocidad")} opciones={velocidades()} valor={String(voz.velocidad)} alCambiar={(v) => alCambiar({ velocidad: Number(v) })} />
       </Ajuste>
-      <Ajuste titulo="Probar" descripcion={error}>
+      <Ajuste titulo={t("Probar")} descripcion={error}>
         <Boton variante="chip" icono={probando ? "detener" : "altavoz"} onClick={() => (probando ? void llamar("voz.parar", {}).catch(() => {}) : void probar())}>
-          {probando ? "Parar" : "Escuchar"}
+          {probando ? t("Parar") : t("Escuchar")}
         </Boton>
       </Ajuste>
       {alAcabar}
@@ -350,13 +358,13 @@ function CampoPasos({ valor, alCambiar }: { valor: number; alCambiar: (n: number
   const valido = texto.trim() !== "" && Number.isInteger(n) && n >= min && n <= max;
   return (
     <Campo
-      etiqueta="Pasos"
+      etiqueta={t("Pasos")}
       type="number"
       inputMode="numeric"
       min={min}
       max={max}
       value={texto}
-      error={valido ? undefined : `De ${min} a ${max}`}
+      error={valido ? undefined : t("De {min} a {max}", { min, max })}
       onChange={(e) => {
         setTexto(e.target.value);
         const m = Number(e.target.value);
@@ -372,7 +380,7 @@ function Modelos({ form, cambiar }: PropsPestana) {
   const conClave = [
     ...proveedores.filter((p) => p.necesitaClave),
     { id: HF.id, nombre: HF.nombre, disponible: false },
-    { id: GEMINI.id, nombre: GEMINI.nombre, disponible: false },
+    { id: GEMINI, nombre: t("Gemini (imágenes)"), disponible: false },
   ];
 
   /** «Usar por defecto» de un modelo descargado: se guarda ya. */
@@ -383,7 +391,7 @@ function Modelos({ form, cambiar }: PropsPestana) {
 
   return (
     <>
-      <Grupo titulo="Modelo por defecto" descripcion="El de las sesiones nuevas. Cada sesión puede usar otro.">
+      <Grupo titulo={t("Modelo por defecto")} descripcion={t("El de las sesiones nuevas. Cada sesión puede usar otro.")}>
         <ProveedorModelo
           proveedores={proveedores}
           proveedor={form.proveedor}
@@ -399,14 +407,17 @@ function Modelos({ form, cambiar }: PropsPestana) {
           alEsfuerzo={(esfuerzo) => cambiar({ esfuerzo }, { esfuerzo })}
         />
       </Grupo>
-      <Grupo titulo="Claves de API" descripcion={`Se guardan en ${esMac ? "el llavero de macOS" : "el almacén de credenciales de Windows"}, no en ficheros.`}>
+      <Grupo
+        titulo={t("Claves de API")}
+        descripcion={esMac ? t("Se guardan en el llavero de macOS, no en ficheros.") : t("Se guardan en el almacén de credenciales de Windows, no en ficheros.")}
+      >
         <div className="ajustes__claves">
           {conClave.map((p) => (
             <CampoClave key={p.id} id={p.id} nombre={p.nombre} disponible={p.disponible} />
           ))}
         </div>
       </Grupo>
-      <Grupo titulo="Modelos de Hugging Face" descripcion="Descárgalos y úsalos en este equipo, sin conexión, con llama.cpp.">
+      <Grupo titulo={t("Modelos de Hugging Face")} descripcion={t("Descárgalos y úsalos en este equipo, sin conexión, con llama.cpp.")}>
         <SeccionModelos porDefecto={form.proveedor === "llamacpp" ? form.modelo : undefined} alUsar={usarModeloLocal} />
       </Grupo>
     </>
@@ -458,16 +469,16 @@ function CampoClave({ id, nombre, disponible }: { id: string; nombre: string; di
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
         error={error}
-        sufijo={guardada ? <Chip destacado>Guardada</Chip> : undefined}
+        sufijo={guardada ? <Chip destacado>{t("Guardada")}</Chip> : undefined}
       />
       {texto.trim() ? (
         <Boton type="submit" variante="secundario" tamano="pequeno" disabled={ocupado}>
-          Guardar
+          {t("Guardar")}
         </Boton>
       ) : (
         guardada && (
           <Boton variante="fantasma" tamano="pequeno" icono="papelera" disabled={ocupado} onClick={() => void actuar(() => borrarClave(id))}>
-            Borrar
+            {t("Borrar")}
           </Boton>
         )
       )}
@@ -478,8 +489,8 @@ function CampoClave({ id, nombre, disponible }: { id: string; nombre: string; di
 function Herramientas({ form, cambiar }: PropsPestana) {
   const { proveedores } = useEstado();
   const h = form.herramientas;
-  const terminal = (t: Partial<typeof h.terminal>, esperaMs = 0) =>
-    cambiar({ herramientas: { ...h, terminal: { ...h.terminal, ...t } } }, { herramientas: { terminal: t } }, esperaMs);
+  const terminal = (c: Partial<typeof h.terminal>, esperaMs = 0) =>
+    cambiar({ herramientas: { ...h, terminal: { ...h.terminal, ...c } } }, { herramientas: { terminal: c } }, esperaMs);
   const guardian = (g: Partial<typeof h.guardian>) =>
     cambiar(
       { herramientas: { ...h, guardian: { ...h.guardian, ...g } } },
@@ -487,45 +498,45 @@ function Herramientas({ form, cambiar }: PropsPestana) {
     );
   return (
     <>
-      <Grupo titulo="Terminal">
-        <Ajuste titulo="Dónde se ejecutan los comandos" descripcion="En este equipo, en un contenedor Docker o en otra máquina por SSH.">
-          <OpcionesChip leyenda="Terminal" opciones={ENTORNOS} valor={h.terminal.entorno} alCambiar={(entorno) => terminal({ entorno })} />
+      <Grupo titulo={t("Terminal")}>
+        <Ajuste titulo={t("Dónde se ejecutan los comandos")} descripcion={t("En este equipo, en un contenedor Docker o en otra máquina por SSH.")}>
+          <OpcionesChip leyenda={t("Terminal")} opciones={entornos()} valor={h.terminal.entorno} alCambiar={(entorno) => terminal({ entorno })} />
           {h.terminal.entorno === "docker" && (
-            <Campo etiqueta="Imagen" mono spellCheck={false} value={h.terminal.imagen} onChange={(e) => terminal({ imagen: e.target.value }, ESCRIBIENDO_MS)} />
+            <Campo etiqueta={t("Imagen")} mono spellCheck={false} value={h.terminal.imagen} onChange={(e) => terminal({ imagen: e.target.value }, ESCRIBIENDO_MS)} />
           )}
           {h.terminal.entorno === "ssh" && (
             <Campo
-              etiqueta="Destino"
+              etiqueta={t("Destino")}
               mono
               spellCheck={false}
-              placeholder="usuario@host"
+              placeholder={t("usuario@host")}
               value={h.terminal.ssh ?? ""}
               onChange={(e) => terminal({ ssh: e.target.value }, ESCRIBIENDO_MS)}
             />
           )}
         </Ajuste>
       </Grupo>
-      <Grupo titulo="Navegador y permisos">
-        <Ajuste titulo="Navegador" descripcion="Le deja abrir y manejar una ventana de Edge.">
-          <Interruptor aria-label="Navegador" activo={h.navegador} alCambiar={(navegador) => cambiar({ herramientas: { ...h, navegador } }, { herramientas: { navegador } })} />
+      <Grupo titulo={t("Navegador y permisos")}>
+        <Ajuste titulo={t("Navegador")} descripcion={t("Le deja abrir y manejar una ventana de Edge.")}>
+          <Interruptor aria-label={t("Navegador")} activo={h.navegador} alCambiar={(navegador) => cambiar({ herramientas: { ...h, navegador } }, { herramientas: { navegador } })} />
         </Ajuste>
-        <Ajuste titulo="Guardián" descripcion="Un modelo aprueba lo que es claramente seguro y te pregunta el resto.">
-          <Interruptor aria-label="Guardián" activo={h.guardian.activo} alCambiar={(activo) => guardian({ activo })} />
+        <Ajuste titulo={t("Guardián")} descripcion={t("Un modelo aprueba lo que es claramente seguro y te pregunta el resto.")}>
+          <Interruptor aria-label={t("Guardián")} activo={h.guardian.activo} alCambiar={(activo) => guardian({ activo })} />
           {h.guardian.activo && (
             <ProveedorModelo
               proveedores={proveedores}
               proveedor={h.guardian.proveedor ?? ""}
               modelo={h.guardian.modelo}
-              vacio="Igual que la sesión"
+              vacio={t("Igual que la sesión")}
               alCambiar={(proveedor, modelo) => guardian({ proveedor: proveedor || undefined, modelo })}
             />
           )}
         </Ajuste>
       </Grupo>
-      <Grupo titulo="Servidores MCP" descripcion="Herramientas de otros programas que Aquiles puede usar.">
+      <Grupo titulo={t("Servidores MCP")} descripcion={t("Herramientas de otros programas que Aquiles puede usar.")}>
         <SeccionMcp />
       </Grupo>
-      <Grupo titulo="Plugins">
+      <Grupo titulo={t("Plugins")}>
         <SeccionPlugins />
       </Grupo>
     </>
@@ -547,7 +558,7 @@ function Aprendizaje({ form, cambiar }: PropsPestana) {
       min={1}
       max={500}
       value={umbrales[clave]}
-      error={umbral(umbrales[clave]) === undefined ? "De 1 a 500" : undefined}
+      error={umbral(umbrales[clave]) === undefined ? t("De {min} a {max}", { min: 1, max: 500 }) : undefined}
       onChange={(e) => {
         setUmbrales({ ...umbrales, [clave]: e.target.value });
         const n = umbral(e.target.value);
@@ -558,30 +569,30 @@ function Aprendizaje({ form, cambiar }: PropsPestana) {
     />
   );
   return (
-    <Grupo titulo="Revisión de lo aprendido">
-      <Ajuste titulo="Revisar las conversaciones" descripcion="De vez en cuando revisa la conversación y propone qué recordar (memoria y habilidades).">
-        <Interruptor aria-label="Revisar las conversaciones" activo={a.activo} alCambiar={(activo) => aprender({ activo }, { activo })} />
+    <Grupo titulo={t("Revisión de lo aprendido")}>
+      <Ajuste titulo={t("Revisar las conversaciones")} descripcion={t("De vez en cuando revisa la conversación y propone qué recordar (memoria y habilidades).")}>
+        <Interruptor aria-label={t("Revisar las conversaciones")} activo={a.activo} alCambiar={(activo) => aprender({ activo }, { activo })} />
       </Ajuste>
       {a.activo && (
         <>
-          <Ajuste titulo="Aplicar sin preguntar" descripcion="Guarda lo aprendido directamente, sin pasar por Memoria → Propuestas.">
-            <Interruptor aria-label="Aplicar sin preguntar"
+          <Ajuste titulo={t("Aplicar sin preguntar")} descripcion={t("Guarda lo aprendido directamente, sin pasar por Memoria → Propuestas.")}>
+            <Interruptor aria-label={t("Aplicar sin preguntar")}
               activo={a.aplicarSinPreguntar}
               alCambiar={(aplicarSinPreguntar) => aprender({ aplicarSinPreguntar }, { aplicarSinPreguntar })}
             />
           </Ajuste>
-          <Ajuste titulo="Cada cuánto" descripcion="Revisa al llegar a cualquiera de los dos.">
+          <Ajuste titulo={t("Cada cuánto")} descripcion={t("Revisa al llegar a cualquiera de los dos.")}>
             <div className="ajustes__rejilla">
-              {campoUmbral("herramientas", "Herramientas usadas")}
-              {campoUmbral("mensajes", "Mensajes")}
+              {campoUmbral("herramientas", t("Herramientas usadas"))}
+              {campoUmbral("mensajes", t("Mensajes"))}
             </div>
           </Ajuste>
-          <Ajuste titulo="Modelo de la revisión">
+          <Ajuste titulo={t("Modelo de la revisión")}>
             <ProveedorModelo
               proveedores={proveedores}
               proveedor={a.proveedor ?? ""}
               modelo={a.modelo}
-              vacio="Igual que la sesión"
+              vacio={t("Igual que la sesión")}
               alCambiar={(proveedor, modelo) => aprender({ proveedor: proveedor || undefined, modelo }, { proveedor, modelo: modelo ?? "" })}
             />
           </Ajuste>
@@ -596,18 +607,18 @@ function AplicacionAjustes() {
   return (
     <>
       {tauri && (
-        <Grupo titulo="Actualizaciones" descripcion="Aquiles se compila desde la rama main de GitHub.">
+        <Grupo titulo={t("Actualizaciones")} descripcion={t("Aquiles se compila desde la rama main de GitHub.")}>
           <Actualizaciones />
         </Grupo>
       )}
-      <Grupo titulo="Perfiles" descripcion="Cada perfil tiene sus propias sesiones, memoria, habilidades y ajustes.">
+      <Grupo titulo={t("Perfiles")} descripcion={t("Cada perfil tiene sus propias sesiones, memoria, habilidades y ajustes.")}>
         <Perfiles />
       </Grupo>
-      <Grupo titulo="Copias de seguridad" descripcion="Copias del perfil actual, para restaurarlo si algo sale mal.">
+      <Grupo titulo={t("Copias de seguridad")} descripcion={t("Copias del perfil actual, para restaurarlo si algo sale mal.")}>
         <Copias />
       </Grupo>
       {tauri && (
-        <Grupo titulo="Núcleo remoto" descripcion="Conecta la app a un núcleo de Aquiles que corre en otra máquina.">
+        <Grupo titulo={t("Núcleo remoto")} descripcion={t("Conecta la app a un núcleo de Aquiles que corre en otra máquina.")}>
           <Remoto />
         </Grupo>
       )}
