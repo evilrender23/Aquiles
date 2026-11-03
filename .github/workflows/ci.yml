@@ -78,6 +78,9 @@ jobs:
           bun-version: 1.4.4
       # Las mismas bibliotecas que instala instalar.sh con apt.
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      # Ubuntu 24.04 no deja crear user namespaces sin privilegios (AppArmor) y el sandbox de Chrome los necesita: sin
+      # esto, el Chrome del runner no llega a abrir el puerto de depuración en el test del navegador real.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: bun install --frozen-lockfile
       - run: bun run tipos
       - run: bun run lint
