@@ -85,7 +85,7 @@ Hace lo mismo que en Windows:
 
 Se actualiza sola igual que en Windows. Opciones: `--repo`, `--rama`, `--destino` y `--app`.
 
-Para compilarla sin instalar: `bun run app:mac` deja `Aquiles.app` y un `.dmg` en `apps/escritorio/src-tauri/target/release/bundle/`. Va firmada solo en local (ad hoc), así que en otro Mac hay que abrirla la primera vez con clic derecho → Abrir.
+Para compilarla sin instalar: `bun run app:mac` deja `Aquiles.app` y un `.dmg` en `apps/escritorio/src-tauri/target/release/bundle/` para la arquitectura de ese Mac; `bun run app:mac:universal`, una sola app para Apple Silicon e Intel (en `target/universal-apple-darwin/`). Va firmada solo en local (ad hoc), así que en otro Mac hay que abrirla la primera vez con clic derecho → Abrir. Con una cuenta de desarrollador de Apple, define `APPLE_SIGNING_IDENTITY` (y `APPLE_ID`, `APPLE_PASSWORD` y `APPLE_TEAM_ID` para notarizarla) antes de compilar: Tauri la firma y la notariza.
 
 El dictado de Mac es un pequeño programa en Swift (`apps/escritorio/src-tauri/macos/dictado.swift`) que el instalador compila dentro de la app. La primera vez que dictas, macOS pide permiso para el micrófono y el reconocimiento de voz.
 
@@ -110,7 +110,7 @@ bun run comprobar                        # tipos, Biome, tests y validación del
 bun test                                 # tests del núcleo y del estado de la interfaz
 bun run e2e                              # de extremo a extremo: núcleo simulado + interfaz + Chromium (Playwright)
 bun run cli                              # chat por terminal; --proveedor, --modelo, --continuar, --reanudar <id>
-bun run compilar:nucleo                  # núcleo → un único .exe (el sidecar de la app)
+bun run compilar:nucleo                  # núcleo → un único ejecutable para este sistema y arquitectura (el sidecar de la app)
 bun banco/ejecutar.ts --proveedor agy    # mide el motor con el banco de tareas (usa un modelo real)
 ```
 

@@ -58,9 +58,12 @@ jobs:
       # El test del llavero toca el Llavero de verdad: se salta en CI.
       - run: cargo test -- --skip llavero
         working-directory: apps/escritorio/src-tauri
-      # El dictado de Mac compila (instalar.sh lo hace dentro de Aquiles.app).
+      # El dictado de Mac compila (instalar.sh lo hace dentro de Aquiles.app), también universal.
       - run: swiftc -O -swift-version 5 -o /tmp/aquiles-dictado dictado.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker dictado-Info.plist
         working-directory: apps/escritorio/src-tauri/macos
+      - run: mkdir -p /tmp/App.app/Contents/MacOS && /usr/libexec/PlistBuddy -c "Add :CFBundleName string App" /tmp/App.app/Contents/Info.plist && bash apps/escritorio/src-tauri/macos/compilar-dictado.sh /tmp/App.app --universal && lipo -info /tmp/App.app/Contents/MacOS/aquiles-dictado
+      # El núcleo para Apple Silicon e Intel en uno (para la app universal).
+      - run: bun scripts/compilar-nucleo.ts --universal && lipo -info apps/escritorio/src-tauri/binaries/aquiles-nucleo-universal-apple-darwin
 
   # De extremo a extremo: el núcleo con el proveedor simulado, la interfaz compilada y Chromium (Playwright).
   e2e:
