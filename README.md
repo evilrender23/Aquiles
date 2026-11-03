@@ -107,7 +107,8 @@ Requisitos: los mismos que la instalación, es decir, Bun ≥ 1.4.4, Rust MSVC (
 bun install
 bun run escritorio                       # app en modo desarrollo (compila el núcleo y abre Tauri con Vite)
 bun run comprobar                        # tipos, Biome, tests y validación del banco (lo mismo que el CI)
-bun test                                 # tests del núcleo
+bun test                                 # tests del núcleo y del estado de la interfaz
+bun run e2e                              # de extremo a extremo: núcleo simulado + interfaz + Chromium (Playwright)
 bun run cli                              # chat por terminal; --proveedor, --modelo, --continuar, --reanudar <id>
 bun run compilar:nucleo                  # núcleo → un único .exe (el sidecar de la app)
 bun banco/ejecutar.ts --proveedor agy    # mide el motor con el banco de tareas (usa un modelo real)

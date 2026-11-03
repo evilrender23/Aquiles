@@ -61,3 +61,15 @@ jobs:
       # El dictado de Mac compila (instalar.sh lo hace dentro de Aquiles.app).
       - run: swiftc -O -swift-version 5 -o /tmp/aquiles-dictado dictado.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker dictado-Info.plist
         working-directory: apps/escritorio/src-tauri/macos
+
+  # De extremo a extremo: el núcleo con el proveedor simulado, la interfaz compilada y Chromium (Playwright).
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run e2e

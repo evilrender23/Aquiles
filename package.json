@@ -2,7 +2,10 @@
   "name": "aquiles",
   "private": true,
   "license": "MIT",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "test": "bun test",
     "tipos": "tsc -p packages/nucleo && tsc -p packages/protocolo && tsc -p packages/ui && tsc -p apps/escritorio && tsc -p banco",
@@ -15,11 +18,13 @@
     "compilar:nucleo:mac": "bun build packages/nucleo/src/main.ts --compile --outfile apps/escritorio/src-tauri/binaries/aquiles-nucleo-aarch64-apple-darwin",
     "escritorio:mac": "bun run compilar:nucleo:mac && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri dev",
     "app:mac": "bun run compilar:nucleo:mac && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri build && bash src-tauri/macos/compilar-dictado.sh src-tauri/target/release/bundle/macos/Aquiles.app && codesign --force --deep --sign - src-tauri/target/release/bundle/macos/Aquiles.app",
-    "banco": "bun banco/ejecutar.ts"
+    "banco": "bun banco/ejecutar.ts",
+    "e2e": "bun run --cwd apps/escritorio build && bun test ./apps/escritorio/e2e/flujo.e2e.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "@types/bun": "1.3.2",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "playwright": "1.63.0"
   }
 }
