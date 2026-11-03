@@ -11,11 +11,10 @@ import { ErrorHerramienta } from "../src/herramientas/herramienta";
 import { leer } from "../src/herramientas/leer";
 import { ProveedorSimulado } from "../src/proveedores/simulado";
 import { iniciarServidor, type Servidor } from "../src/servidor";
+import { miembrosZip } from "../src/zip";
 import { carpetaTemporal, contextoPrueba } from "./contexto-prueba";
 import { png, zip } from "./ficheros-prueba";
 
-// El tar de Windows y el de macOS (bsdtar) abren y crean zip; el GNU tar de Linux, no.
-const TAR = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
 
 let dir = "";
 let borrar = async () => {};
@@ -87,14 +86,11 @@ describe("markdown → Word → HTML", () => {
   });
 
   test("la numeración respeta el número de inicio, y cada lista numerada vuelve a empezar", async () => {
-    // El .docx es un zip: el tar de Windows (bsdtar) lo abre.
-    const destino = join(dir, "numeracion");
-    await mkdir(destino, { recursive: true });
-    await writeFile(join(destino, "n.docx"), await markdownADocx("3. tres\n4. cuatro\n\n- corte\n\n1. otra\n"));
-    const tar = Bun.spawn([TAR, "-x", "-f", "n.docx", "word/numbering.xml", "word/document.xml"], { cwd: destino, stdout: "ignore", stderr: "ignore" });
-    expect(await tar.exited).toBe(0);
-    const numeracion = await readFile(join(destino, "word", "numbering.xml"), "utf8");
-    const documento = await readFile(join(destino, "word", "document.xml"), "utf8");
+    // El .docx es un zip.
+    const miembros = miembrosZip(await markdownADocx("3. tres\n4. cuatro\n\n- corte\n\n1. otra\n"));
+    const xml = (nombre: string) => new TextDecoder().decode(miembros.find((m) => m.nombre === nombre)!.leer());
+    const numeracion = xml("word/numbering.xml");
+    const documento = xml("word/document.xml");
     expect(numeracion).toContain('<w:startOverride w:val="3"/>');
     const ids = [...documento.matchAll(/<w:numId w:val="(\d+)"\/>/g)].map((m) => m[1]);
     expect(ids).toHaveLength(4);

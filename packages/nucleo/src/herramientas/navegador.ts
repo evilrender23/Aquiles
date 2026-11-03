@@ -186,6 +186,14 @@ export function buscarEdge(): string | undefined {
     const mac = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge";
     return existsSync(mac) ? mac : undefined;
   }
+  if (process.platform === "linux") {
+    // Edge si está; si no, Chrome o Chromium, que hablan el mismo DevTools Protocol.
+    for (const n of ["microsoft-edge-stable", "microsoft-edge", "google-chrome-stable", "google-chrome", "chromium", "chromium-browser"]) {
+      const r = Bun.which(n);
+      if (r) return r;
+    }
+    return undefined;
+  }
   const env = process.env;
   return [env["ProgramFiles(x86)"], env.ProgramFiles, env.LOCALAPPDATA]
     .filter((r): r is string => !!r)
@@ -209,7 +217,11 @@ function leerPuerto(fichero: string): string | undefined {
 
 async function lanzarEdge(o: OpcionesNavegador): Promise<Edge> {
   const exe = o.ejecutable ?? buscarEdge();
-  if (!exe || !existsSync(exe)) throw new ErrorHerramienta("No se encuentra Microsoft Edge (msedge.exe): instálalo o configura su ruta.");
+  if (!exe || !existsSync(exe)) throw new ErrorHerramienta(
+      process.platform === "linux"
+        ? "No se encuentra Microsoft Edge, Chrome ni Chromium: instala uno (p. ej. el paquete chromium) o configura su ruta."
+        : "No se encuentra Microsoft Edge (msedge.exe): instálalo o configura su ruta.",
+    );
   const temporal = o.perfil ? undefined : mkdtempSync(join(tmpdir(), "aquiles-navegador-"));
   const datos = temporal ?? join(o.perfil!, "navegador");
   mkdirSync(datos, { recursive: true });

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Instala o actualiza Aquiles en Mac compilándolo desde una rama del repositorio (main por defecto).
+# Instala o actualiza Aquiles en Mac o en Linux compilándolo desde una rama del repositorio (main por defecto).
 # Es el equivalente de instalar.ps1.
 #
 #   git clone https://github.com/evilrender23/Aquiles
@@ -7,25 +7,34 @@
 #
 # También vale descargado suelto, o con `curl -fsSL <url de raw.githubusercontent.com> | bash` si el
 # repo es público. Desde un clon, sin --repo, instala desde el origin de ese clon. Con un repo privado,
-# git pide las credenciales la primera vez (o usa las del llavero de macOS).
+# git pide las credenciales la primera vez (o usa las del llavero del sistema).
 # La app lo relanza con --actualizar --esperar-pid <su pid> --relanzar.
 #
-# En <destino> (por defecto ~/Library/Application Support/Aquiles) deja:
+# En <destino> (por defecto ~/Library/Application Support/Aquiles en Mac y ~/.local/share/Aquiles en Linux) deja:
 #   codigo/    el clon, con las cachés (node_modules, target) para que la siguiente compilación sea rápida;
 #   registro/  actualizacion.log, con las líneas que lee la app (PASO n/total, LISTO, APLICADO, ERROR),
 #              y compilacion.log, con la salida de git, bun y cargo.
-# La app va en --app: por defecto /Applications/Aquiles.app (~/Applications si no se puede escribir en
+# Mac: la app va en --app, por defecto /Applications/Aquiles.app (~/Applications si no se puede escribir en
 # /Applications), con version.json (commit, fecha, rama, repo, destino) en Contents/Resources.
+# Linux: como en Windows, en <destino>/app (aquiles, aquiles-nucleo, skills/ y version.json), con un lanzador
+# en ~/.local/share/applications/aquiles.desktop para que salga en el menú de aplicaciones.
 #
-# Sin --actualizar pregunta e instala lo que falte (herramientas de línea de comandos de Xcode, Bun, Rust).
+# Sin --actualizar pregunta e instala lo que falte (Mac: herramientas de línea de comandos de Xcode; Linux: el
+# compilador de C y las bibliotecas de GTK y WebKit, con el gestor de paquetes y sudo; y Bun y Rust).
 # Con --actualizar (lo que lanza la app) no instala ni pregunta nada. Compila en app.nuevo y, si ya hay
 # app, espera a que Aquiles se cierre (--esperar-pid) para cambiarla.
 
 set -uo pipefail
 
+case "$(uname -s)" in
+    Darwin) LINUX=false ;;
+    Linux) LINUX=true ;;
+    *) echo "Este instalador es para Mac y Linux; en Windows, usa instalar.ps1." >&2; exit 2 ;;
+esac
+
 REPO='https://github.com/evilrender23/Aquiles'
 RAMA='main'
-DESTINO="$HOME/Library/Application Support/Aquiles"
+if $LINUX; then DESTINO="${XDG_DATA_HOME:-$HOME/.local/share}/Aquiles"; else DESTINO="$HOME/Library/Application Support/Aquiles"; fi
 APP=''
 ACTUALIZAR=false
 ESPERAR_PID=0
@@ -45,7 +54,9 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ -z "$APP" ]; then
+if $LINUX; then
+    APP="$DESTINO/app"
+elif [ -z "$APP" ]; then
     if [ -w /Applications ]; then APP='/Applications/Aquiles.app'; else APP="$HOME/Applications/Aquiles.app"; fi
 fi
 INTERACTIVO=true
@@ -117,12 +128,33 @@ tiene() {
 }
 
 hay_xcode() { xcode-select -p >/dev/null 2>&1; }
+# Lo que Tauri necesita en Linux para compilar: C, pkg-config, GTK y WebKitGTK 4.1, y D-Bus (el llavero).
+hay_sistema() { tiene cc && tiene pkg-config && pkg-config --exists webkit2gtk-4.1 dbus-1 && tiene git && tiene curl; }
 hay_rust() { tiene rustup && rustup toolchain list 2>/dev/null | grep -q '^stable'; }
 
 instalar_xcode() {
     xcode-select --install >/dev/null 2>&1
     echo 'Acepta la ventana de macOS que pide instalar las herramientas de línea de comandos; se espera a que acabe…'
     until hay_xcode; do sleep 5; done
+}
+
+# Los paquetes de cada familia de distribuciones (los de la guía de Tauri, más D-Bus para el llavero).
+instalar_sistema() {
+    if tiene apt-get; then
+        sudo apt-get update && sudo apt-get install -y build-essential pkg-config curl git file \
+            libwebkit2gtk-4.1-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+    elif tiene dnf; then
+        sudo dnf install -y gcc gcc-c++ make pkgconf-pkg-config curl git file \
+            webkit2gtk4.1-devel dbus-devel libappindicator-gtk3-devel librsvg2-devel libxdo-devel openssl-devel
+    elif tiene pacman; then
+        sudo pacman -S --needed --noconfirm base-devel curl git file \
+            webkit2gtk-4.1 dbus libappindicator-gtk3 librsvg xdotool openssl
+    elif tiene zypper; then
+        sudo zypper install -y -t pattern devel_basis && sudo zypper install -y pkg-config curl git file \
+            webkit2gtk3-devel dbus-1-devel libappindicator3-1 librsvg-devel libxdo-devel libopenssl-devel
+    else
+        fallar "No se reconoce el gestor de paquetes: instala a mano un compilador de C, pkg-config, git, curl y las bibliotecas de desarrollo de WebKitGTK 4.1 y D-Bus (ver https://v2.tauri.app/start/prerequisites/)."
+    fi
 }
 
 instalar_bun() {
@@ -136,11 +168,12 @@ instalar_rust() {
     ejecutar "$DESTINO" rustup toolchain install stable --profile minimal
 }
 
-# En orden: git viene con las herramientas de Xcode, y Rust las necesita para enlazar.
-REQUISITOS='xcode bun rust'
+# En orden: git viene con las herramientas de Xcode (o con los paquetes del sistema), y Rust las necesita para enlazar.
+if $LINUX; then REQUISITOS='sistema bun rust'; else REQUISITOS='xcode bun rust'; fi
 nombre_de() {
     case "$1" in
         xcode) echo 'Herramientas de línea de comandos de Xcode (con Git)' ;;
+        sistema) echo 'Compilador de C, Git, curl y las bibliotecas de GTK, WebKitGTK y D-Bus (con sudo)' ;;
         bun) echo 'Bun' ;;
         rust) echo 'Rust (rustup, toolchain stable)' ;;
     esac
@@ -148,6 +181,7 @@ nombre_de() {
 hay() {
     case "$1" in
         xcode) hay_xcode && tiene git ;;
+        sistema) hay_sistema ;;
         bun) tiene bun ;;
         rust) hay_rust ;;
     esac
@@ -215,7 +249,8 @@ json() {
 }
 
 procesos_de_la_app() {
-    pgrep -f "$APP/Contents/MacOS/" >/dev/null 2>&1
+    # En Linux casa con aquiles y con aquiles-nucleo.
+    if $LINUX; then pgrep -f "^$APP/aquiles" >/dev/null 2>&1; else pgrep -f "$APP/Contents/MacOS/" >/dev/null 2>&1; fi
 }
 
 esperar_pid() {
@@ -229,19 +264,52 @@ esperar_cierre() {
     esperar_pid
     while procesos_de_la_app; do
         if $INTERACTIVO && ! $avisado; then
-            printf '\033[33mCierra Aquiles (Salir, en el icono de la barra de menús) para terminar la instalación…\033[0m\n'
+            printf '\033[33mCierra Aquiles (Salir, en su icono de la bandeja o de la barra de menús) para terminar la instalación…\033[0m\n'
             avisado=true
         fi
         sleep 1
     done
 }
 
+# Lo compilado dentro de app.nuevo: el .app en Mac; en Linux, la propia carpeta.
+pieza_nueva() {
+    if $LINUX; then printf '%s' "$NUEVO"; else printf '%s' "$NUEVO/Aquiles.app"; fi
+}
+
 cambiar_app() {
     rm -rf "$ANTERIOR"
     mv "$APP" "$ANTERIOR" || fallar "No se pudo apartar la versión anterior ($APP)."
-    if ! mv "$NUEVO/Aquiles.app" "$APP"; then
+    if ! mv "$(pieza_nueva)" "$APP"; then
         mv "$ANTERIOR" "$APP"
         fallar "No se pudo cambiar a la versión nueva; sigue la anterior."
+    fi
+}
+
+# El lanzador del menú de aplicaciones (Linux).
+crear_lanzador() {
+    local carpeta="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    mkdir -p "$carpeta" || return 1
+    cat > "$carpeta/aquiles.desktop" <<LANZADOR
+[Desktop Entry]
+Type=Application
+Name=Aquiles
+Comment=Agente de programación
+Exec="$APP/aquiles"
+Icon=$APP/aquiles.png
+Terminal=false
+Categories=Development;
+StartupWMClass=aquiles
+LANZADOR
+    tiene update-desktop-database && update-desktop-database "$carpeta" >/dev/null 2>&1
+    return 0
+}
+
+abrir_app() {
+    if $LINUX; then
+        # Sin la terminal ni este script: sigue abierta cuando acaban.
+        (cd "$HOME" && setsid "$APP/aquiles" >/dev/null 2>&1 < /dev/null &)
+    else
+        open "$APP"
     fi
 }
 
@@ -298,7 +366,8 @@ principal() {
     : > "$LOG_COMPILACION"
     rm -f "$NO_RELANZAR"
 
-    paso 1 'Comprobando las herramientas de Xcode, Git, Bun y Rust'
+    if $LINUX; then paso 1 'Comprobando el compilador, Git, las bibliotecas de GTK y WebKit, Bun y Rust'
+    else paso 1 'Comprobando las herramientas de Xcode, Git, Bun y Rust'; fi
     comprobar_requisitos
 
     paso 2 "Descargando el código ($RAMA)"
@@ -312,7 +381,7 @@ principal() {
     ejecutar "$CODIGO" bun install --frozen-lockfile || fallar "bun install falló (detalles en $LOG_COMPILACION)"
 
     paso 4 'Compilando el núcleo'
-    # El sidecar se llama con el triple de Rust: aarch64-apple-darwin o x86_64-apple-darwin.
+    # El sidecar se llama con el triple de Rust: aarch64-apple-darwin, x86_64-unknown-linux-gnu…
     triple=$(RUSTUP_TOOLCHAIN=stable rustc -vV | sed -n 's/^host: //p')
     [ -n "$triple" ] || fallar 'No se pudo saber la arquitectura con rustc.'
     ejecutar "$CODIGO" bun build packages/nucleo/src/main.ts --compile \
@@ -320,25 +389,40 @@ principal() {
 
     paso 5 'Compilando la app (la primera vez tarda varios minutos)'
     escritorio="$CODIGO/apps/escritorio"
-    # rust-toolchain.toml pide el toolchain MSVC de Windows: en Mac se usa el stable.
-    ejecutar "$escritorio" env RUSTUP_TOOLCHAIN=stable bun run tauri build --bundles app \
-        || fallar "La compilación de la app falló (detalles en $LOG_COMPILACION)"
-    compilado="$escritorio/src-tauri/target/release/bundle/macos/Aquiles.app"
-    [ -x "$compilado/Contents/MacOS/aquiles" ] || fallar "La compilación no dejó $compilado"
-    # El dictado por voz (Swift, con el reconocedor de macOS). Si no compila, Aquiles funciona igual, sin dictado.
-    if ! ejecutar "$escritorio" bash src-tauri/macos/compilar-dictado.sh "$compilado"; then
-        anotar "AVISO sin dictado por voz: no compiló aquiles-dictado (detalles en $LOG_COMPILACION)"
+    if $LINUX; then
+        # Sin paquete (.deb, AppImage): el ejecutable, el núcleo y las skills, como en Windows.
+        ejecutar "$escritorio" env RUSTUP_TOOLCHAIN=stable bun run tauri build --no-bundle \
+            || fallar "La compilación de la app falló (detalles en $LOG_COMPILACION)"
+        compilado="$escritorio/src-tauri/target/release"
+        [ -x "$compilado/aquiles" ] || fallar "La compilación no dejó $compilado/aquiles"
+    else
+        # rust-toolchain.toml pide el toolchain MSVC de Windows: en Mac se usa el stable.
+        ejecutar "$escritorio" env RUSTUP_TOOLCHAIN=stable bun run tauri build --bundles app \
+            || fallar "La compilación de la app falló (detalles en $LOG_COMPILACION)"
+        compilado="$escritorio/src-tauri/target/release/bundle/macos/Aquiles.app"
+        [ -x "$compilado/Contents/MacOS/aquiles" ] || fallar "La compilación no dejó $compilado"
+        # El dictado por voz (Swift, con el reconocedor de macOS). Si no compila, Aquiles funciona igual, sin dictado.
+        if ! ejecutar "$escritorio" bash src-tauri/macos/compilar-dictado.sh "$compilado"; then
+            anotar "AVISO sin dictado por voz: no compiló aquiles-dictado (detalles en $LOG_COMPILACION)"
+        fi
     fi
 
     paso 6 'Preparando la versión nueva'
     rm -rf "$NUEVO"
     mkdir -p "$NUEVO"
-    ditto "$compilado" "$NUEVO/Aquiles.app" || fallar 'No se pudo copiar la app compilada.'
-    printf '{\n  "commit": %s,\n  "fecha": %s,\n  "rama": %s,\n  "repo": %s,\n  "destino": %s\n}\n' \
-        "$(json "$commit")" "$(json "$fecha")" "$(json "$RAMA")" "$(json "$origen")" "$(json "$DESTINO")" \
-        > "$NUEVO/Aquiles.app/Contents/Resources/version.json"
-    # version.json cambia el contenido del paquete: se vuelve a firmar (en local, sin identidad).
-    ejecutar "$DESTINO" codesign --force --deep --sign - "$NUEVO/Aquiles.app" || fallar 'No se pudo firmar la app.'
+    local version
+    version=$(printf '{\n  "commit": %s,\n  "fecha": %s,\n  "rama": %s,\n  "repo": %s,\n  "destino": %s\n}\n' \
+        "$(json "$commit")" "$(json "$fecha")" "$(json "$RAMA")" "$(json "$origen")" "$(json "$DESTINO")")
+    if $LINUX; then
+        cp "$compilado/aquiles" "$compilado/aquiles-nucleo" "$NUEVO/" && cp -R "$compilado/skills" "$NUEVO/" \
+            && cp "$escritorio/src-tauri/icons/128x128.png" "$NUEVO/aquiles.png" || fallar 'No se pudo copiar la app compilada.'
+        printf '%s\n' "$version" > "$NUEVO/version.json"
+    else
+        ditto "$compilado" "$NUEVO/Aquiles.app" || fallar 'No se pudo copiar la app compilada.'
+        printf '%s\n' "$version" > "$NUEVO/Aquiles.app/Contents/Resources/version.json"
+        # version.json cambia el contenido del paquete: se vuelve a firmar (en local, sin identidad).
+        ejecutar "$DESTINO" codesign --force --deep --sign - "$NUEVO/Aquiles.app" || fallar 'No se pudo firmar la app.'
+    fi
     anotar "LISTO $commit"
 
     if [ -d "$APP" ]; then
@@ -351,16 +435,17 @@ principal() {
         paso 7 "Instalando en $(dirname "$APP")"
         fase cambiando
         mkdir -p "$(dirname "$APP")"
-        mv "$NUEVO/Aquiles.app" "$APP" || fallar "No se pudo instalar en $APP."
+        mv "$(pieza_nueva)" "$APP" || fallar "No se pudo instalar en $APP."
     fi
     rm -rf "$NUEVO"
+    if $LINUX && ! crear_lanzador; then anotar "AVISO no se pudo crear el lanzador del menú de aplicaciones"; fi
     fase hecho
     anotar "APLICADO $commit"
     # Instalada desde una copia de desarrollo: esa copia tiene que cerrarse antes, porque solo puede
     # haber un Aquiles abierto (en una actualización ya se esperó a que se cerrara).
     esperar_pid
     if { $RELANZAR || $INTERACTIVO; } && [ ! -e "$NO_RELANZAR" ]; then
-        open "$APP"
+        abrir_app
     fi
     rm -f "$NO_RELANZAR"
     if $INTERACTIVO; then printf '\033[32mAquiles %s está en %s.\033[0m\n' "${commit:0:7}" "$APP"; fi

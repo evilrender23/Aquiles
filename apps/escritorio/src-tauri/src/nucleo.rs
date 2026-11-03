@@ -136,7 +136,7 @@ fn lanzar(app: &AppHandle, token: &str, perfil: &str, generacion: u64, avisar: b
     if let Ok(carpeta) = app.path().home_dir() {
         orden = orden.current_dir(carpeta);
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     if let Some(path) = path_de_la_shell() {
         orden = orden.env("PATH", path);
     }
@@ -177,16 +177,17 @@ fn lanzar(app: &AppHandle, token: &str, perfil: &str, generacion: u64, avisar: b
     Ok(hijo)
 }
 
-/// Abierta desde el Finder o el Dock, la app hereda un PATH mínimo (/usr/bin:/bin…) y el núcleo
-/// no encontraría `claude`, `codex`, `agy`, `git` ni lo de Homebrew. Se pide el de la shell del
-/// usuario una vez, con sus ficheros de inicio; las marcas separan el PATH de lo que impriman.
-#[cfg(target_os = "macos")]
+/// Abierta desde el Finder o el Dock (o, en Linux, desde el menú de aplicaciones), la app hereda un
+/// PATH mínimo (/usr/bin:/bin…) y el núcleo no encontraría `claude`, `codex`, `agy`, `git` ni lo de
+/// Homebrew, nvm o ~/.local/bin. Se pide el de la shell del usuario una vez, con sus ficheros de
+/// inicio; las marcas separan el PATH de lo que impriman.
+#[cfg(unix)]
 fn path_de_la_shell() -> Option<String> {
     use std::process::{Command, Stdio};
     use std::sync::OnceLock;
     static PATH: OnceLock<Option<String>> = OnceLock::new();
     PATH.get_or_init(|| {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/bash" }.into());
         let mut hijo = Command::new(shell)
             .args(["-ilc", "printf '<<PATH>>%s<<PATH>>' \"$PATH\""])
             .stdin(Stdio::null())

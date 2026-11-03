@@ -1,4 +1,5 @@
-//! Claves en el llavero del sistema (Administrador de credenciales en Windows).
+//! Claves en el llavero del sistema (Administrador de credenciales en Windows, Llavero en Mac y
+//! Secret Service —el de GNOME o KDE— en Linux).
 
 const SERVICIO: &str = "Aquiles";
 
@@ -20,7 +21,15 @@ pub const CLAVES: [(&str, &str); 11] = [
 ];
 
 fn entrada(nombre: &str) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(SERVICIO, nombre).map_err(|e| e.to_string())
+    keyring::Entry::new(SERVICIO, nombre).map_err(explicar)
+}
+
+/// En Linux el llavero es un servicio aparte (Secret Service) que no siempre está: se dice qué falta.
+fn explicar(e: keyring::Error) -> String {
+    if cfg!(target_os = "linux") && matches!(e, keyring::Error::PlatformFailure(_) | keyring::Error::NoStorageAccess(_)) {
+        return format!("No hay llavero disponible ({e}): instala y abre uno compatible con Secret Service, como gnome-keyring o KWallet.");
+    }
+    e.to_string()
 }
 
 pub fn leer(nombre: &str) -> Option<String> {
@@ -29,7 +38,7 @@ pub fn leer(nombre: &str) -> Option<String> {
 
 #[tauri::command]
 pub fn guardar_clave(proveedor: String, clave: String) -> Result<(), String> {
-    entrada(&proveedor)?.set_password(&clave).map_err(|e| e.to_string())
+    entrada(&proveedor)?.set_password(&clave).map_err(explicar)
 }
 
 #[tauri::command]
@@ -37,7 +46,7 @@ pub fn hay_clave(proveedor: String) -> Result<bool, String> {
     match entrada(&proveedor)?.get_password() {
         Ok(_) => Ok(true),
         Err(keyring::Error::NoEntry) => Ok(false),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(explicar(e)),
     }
 }
 
@@ -45,7 +54,7 @@ pub fn hay_clave(proveedor: String) -> Result<bool, String> {
 pub fn borrar_clave(proveedor: String) -> Result<(), String> {
     match entrada(&proveedor)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(explicar(e)),
     }
 }
 

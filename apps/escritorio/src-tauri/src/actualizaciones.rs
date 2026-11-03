@@ -9,6 +9,8 @@
 //! - En Mac hace lo mismo `instalar.sh`: el clon en `~/Library/Application Support/Aquiles/codigo`,
 //!   la app en `/Applications/Aquiles.app` y `version.json` en su `Contents/Resources`, que dice
 //!   también dónde está `<Destino>`.
+//! - En Linux, `instalar.sh` como en Windows: el clon en `~/.local/share/Aquiles/codigo` y la app
+//!   (`aquiles`, `aquiles-nucleo`, `skills/` y `version.json`) en `~/.local/share/Aquiles/app`.
 //! - Para actualizar se lanza `codigo\instalar.ps1 -Actualizar -EsperarPid <este> -Relanzar`
 //!   oculto. Compila en `app.nuevo` y escribe `LISTO`; cuando la app sale, cambia las carpetas
 //!   y la vuelve a abrir. Aquí se va leyendo su registro y se emite el progreso.
@@ -196,14 +198,14 @@ fn carpeta_del_exe() -> Option<PathBuf> {
     std::env::current_exe().ok()?.parent().map(Path::to_path_buf)
 }
 
-/// Junto al .exe en Windows; en Mac, en `Contents/Resources` del .app (el ejecutable está en `Contents/MacOS`).
+/// Junto al ejecutable en Windows y Linux; en Mac, en `Contents/Resources` del .app (el ejecutable está en `Contents/MacOS`).
 fn version_instalada() -> Option<VersionInstalada> {
     let exe = carpeta_del_exe()?;
     let ruta = if cfg!(target_os = "macos") { exe.parent()?.join("Resources") } else { exe };
     interpretar_version(&fs::read_to_string(ruta.join("version.json")).ok()?)
 }
 
-/// `<Destino>` de una versión instalada: el que diga `version.json` o, en Windows, el padre de `app\`.
+/// `<Destino>` de una versión instalada: el que diga `version.json` o, en Windows y Linux, el padre de `app/`.
 fn destino_instalado(version: &VersionInstalada) -> Option<PathBuf> {
     version.destino.clone().or_else(|| carpeta_del_exe()?.parent().map(Path::to_path_buf))
 }
@@ -214,8 +216,13 @@ fn destino_por_defecto() -> Result<PathBuf, String> {
         let local = std::env::var_os("LOCALAPPDATA").ok_or("No se encuentra %LOCALAPPDATA%")?;
         return Ok(PathBuf::from(local).join("Aquiles"));
     }
-    let casa = std::env::var_os("HOME").ok_or("No se encuentra la carpeta de usuario")?;
-    Ok(PathBuf::from(casa).join("Library").join("Application Support").join("Aquiles"))
+    let casa = PathBuf::from(std::env::var_os("HOME").ok_or("No se encuentra la carpeta de usuario")?);
+    if cfg!(target_os = "macos") {
+        return Ok(casa.join("Library").join("Application Support").join("Aquiles"));
+    }
+    // Linux: los datos de las aplicaciones del usuario (XDG).
+    let datos = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).filter(|d| d.is_absolute()).unwrap_or_else(|| casa.join(".local").join("share"));
+    Ok(datos.join("Aquiles"))
 }
 
 /// El .app en el que va este ejecutable (`Aquiles.app/Contents/MacOS/aquiles`).
@@ -250,7 +257,7 @@ fn comparar(clon: &Path, version: Option<VersionInstalada>) -> Result<InfoActual
     })
 }
 
-/// `<Destino>`: la carpeta que tiene `codigo\` (y en Windows `app\`, donde está este .exe). En una
+/// `<Destino>`: la carpeta que tiene `codigo/` (y en Windows y Linux `app/`, donde está este ejecutable). En una
 /// copia de desarrollo, donde instala el instalador por defecto: actualizarla es instalarse ahí.
 fn destino() -> Result<PathBuf, String> {
     let Some(version) = version_instalada() else {

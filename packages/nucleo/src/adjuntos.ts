@@ -3,16 +3,17 @@
  *
  * Cada uno se guarda en `<perfil>/adjuntos/<sesión>/<id>-<nombre>` (sin perfil, en una carpeta temporal), copiado de
  * su ruta o decodificado del base64, y al guardarlo se saca el texto que recibirá el modelo: los de texto, tal cual;
- * Word, Excel, PowerPoint y ODT, del XML (se descomprimen con el tar del sistema, que lee zip); los PDF, con pdf.js
+ * Word, Excel, PowerPoint y ODT, del XML (descomprimido con zip.ts, en memoria); los PDF, con pdf.js
  * (unpdf). Las imágenes las ven los proveedores que aceptan imágenes; lo demás llega como una nota con la ruta.
  */
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, isAbsolute, join } from "node:path";
 import { type InfoAdjunto, MAX_BYTES_ADJUNTO } from "@aquiles/protocolo";
 import type { AdjuntoGuardado, Mensaje } from "./tipos";
+import { casa, miembrosZip } from "./zip";
 
 export type ClaseAdjunto = InfoAdjunto["clase"];
 
@@ -31,8 +32,6 @@ export class ErrorAdjunto extends Error {}
 export const MAX_CARACTERES = 100_000;
 /** De cada XML de un documento se lee como mucho esto: un zip pequeño puede esconder un XML enorme. */
 const MAX_BYTES_XML = 50 * 1024 * 1024;
-const ESPERA_TAR_MS = 30_000;
-const TAR = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
 
 const IMAGENES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
 const OFFICE = {
@@ -290,40 +289,28 @@ const MIEMBROS: Record<FormatoOffice, string[]> = {
   odt: ["content.xml"],
 };
 
-/** Descomprime del documento solo lo que hace falta, en una carpeta temporal, y saca el texto del XML. */
+/** Saca del documento (un zip) solo los XML que hacen falta y su texto. */
 async function textoOffice(bytes: Uint8Array, formato: FormatoOffice): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "aquiles-doc-"));
-  try {
-    // Todo relativo a la carpeta temporal: el tar de Windows no se lleva bien con rutas que no son ASCII.
-    await writeFile(join(dir, "doc.zip"), bytes);
-    const p = Bun.spawn([TAR, "-xf", "doc.zip", ...MIEMBROS[formato]], { cwd: dir, stdout: "ignore", stderr: "ignore" });
-    const limite = setTimeout(() => p.kill(), ESPERA_TAR_MS);
-    // Si falta algún miembro (un libro sin cadenas compartidas), tar acaba con error pero saca los demás.
-    await p.exited;
-    clearTimeout(limite);
-    const xml = async (ruta: string) => (existsSync(join(dir, ruta)) ? await Bun.file(join(dir, ruta)).slice(0, MAX_BYTES_XML).text() : undefined);
+  const miembros = miembrosZip(bytes).filter((m) => MIEMBROS[formato].some((p) => casa(m.nombre, p)));
+  const porNombre = new Map(miembros.map((m) => [m.nombre, m]));
+  const xml = (ruta: string) => {
+    const m = porNombre.get(ruta);
+    return m ? new TextDecoder().decode(m.leer(MAX_BYTES_XML)) : undefined;
+  };
 
-    if (formato === "docx") return textoOoxml((await xml("word/document.xml")) ?? "");
-    if (formato === "odt") return textoOdt((await xml("content.xml")) ?? "");
-    if (formato === "pptx") {
-      const carpeta = join(dir, "ppt", "slides");
-      const numeros = existsSync(carpeta)
-        ? (await readdir(carpeta)).flatMap((f) => /^slide(\d+)\.xml$/.exec(f)?.[1] ?? []).map(Number).sort((a, b) => a - b)
-        : [];
-      const partes: string[] = [];
-      for (const n of numeros) partes.push(`[Diapositiva ${n}]\n${textoOoxml((await xml(`ppt/slides/slide${n}.xml`)) ?? "")}`);
-      return partes.join("\n\n");
-    }
-    const compartidas = cadenasCompartidas((await xml("xl/sharedStrings.xml")) ?? "");
-    const partes: string[] = [];
-    for (const h of hojasXlsx((await xml("xl/workbook.xml")) ?? "", (await xml("xl/_rels/workbook.xml.rels")) ?? "")) {
-      const hoja = await xml(h.ruta);
-      if (hoja !== undefined) partes.push(`[Hoja: ${h.nombre}]\n${filasHoja(hoja, compartidas)}`);
-    }
-    return partes.join("\n\n");
-  } finally {
-    await rm(dir, { recursive: true, force: true });
+  if (formato === "docx") return textoOoxml(xml("word/document.xml") ?? "");
+  if (formato === "odt") return textoOdt(xml("content.xml") ?? "");
+  if (formato === "pptx") {
+    const numeros = miembros.flatMap((m) => /^ppt\/slides\/slide(\d+)\.xml$/.exec(m.nombre)?.[1] ?? []).map(Number).sort((a, b) => a - b);
+    return numeros.map((n) => `[Diapositiva ${n}]\n${textoOoxml(xml(`ppt/slides/slide${n}.xml`) ?? "")}`).join("\n\n");
   }
+  const compartidas = cadenasCompartidas(xml("xl/sharedStrings.xml") ?? "");
+  const partes: string[] = [];
+  for (const h of hojasXlsx(xml("xl/workbook.xml") ?? "", xml("xl/_rels/workbook.xml.rels") ?? "")) {
+    const hoja = xml(h.ruta);
+    if (hoja !== undefined) partes.push(`[Hoja: ${h.nombre}]\n${filasHoja(hoja, compartidas)}`);
+  }
+  return partes.join("\n\n");
 }
 
 // ——— XML sin dependencias ———

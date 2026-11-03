@@ -1,9 +1,10 @@
-/** Ficheros de prueba hechos a mano: una imagen PNG, un PDF y documentos de Office (zip con el tar del sistema). */
-import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+/** Ficheros de prueba hechos a mano: una imagen PNG, un PDF y documentos de Office (zip con zip.ts). */
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { guardarAdjuntos } from "../src/adjuntos";
+import { escribirZip } from "../src/zip";
 import type { AdjuntoGuardado } from "../src/tipos";
 
 const TABLA_CRC = Array.from({ length: 256 }, (_, n) => {
@@ -80,22 +81,7 @@ export async function adjuntosDePrueba(): Promise<{ foto: AdjuntoGuardado; nota:
   return { foto: foto!, nota: nota! };
 }
 
-// El tar de Windows y el de macOS (bsdtar) abren y crean zip; el GNU tar de Linux, no.
-const TAR = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
-
-/** Zip con estos ficheros (ruta → contenido), hecho con `tar -a -c`, en `destino`. */
+/** Zip con estos ficheros (ruta → contenido), hecho con zip.ts, en `destino`. */
 export async function zip(destino: string, ficheros: Record<string, string>): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "aquiles-zip-prueba-"));
-  try {
-    for (const [ruta, contenido] of Object.entries(ficheros)) {
-      await mkdir(dirname(join(dir, "c", ruta)), { recursive: true });
-      await writeFile(join(dir, "c", ruta), contenido);
-    }
-    const raices = [...new Set(Object.keys(ficheros).map((r) => r.split("/")[0] ?? r))];
-    const p = Bun.spawn([TAR, "-a", "-c", "-f", join(dir, "doc.zip"), "-C", join(dir, "c"), ...raices], { stdout: "ignore", stderr: "pipe" });
-    if ((await p.exited) !== 0) throw new Error(`tar: ${await new Response(p.stderr).text()}`);
-    await rename(join(dir, "doc.zip"), destino);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  escribirZip(destino, Object.entries(ficheros).map(([nombre, contenido]) => ({ nombre, datos: () => new TextEncoder().encode(contenido) })));
 }

@@ -59,9 +59,16 @@ if (anterior) log(`perfil restaurado desde una copia; el anterior quedó en ${an
 
 const herramientas = herramientasPorDefecto();
 const perfil = directorioPerfil(op.perfil);
-/** Skills que vienen con Aquiles: junto al .exe compilado o, en desarrollo, en `skills/` del repo. */
+/**
+ * Skills que vienen con Aquiles: junto al núcleo compilado (Windows y Linux), en `Contents/Resources` del .app
+ * (Mac, donde el núcleo está en `Contents/MacOS`) o, en desarrollo, en `skills/` del repo.
+ */
 const skillsIncluidas =
-  [join(dirname(process.execPath), "skills"), join(import.meta.dir, "..", "..", "..", "skills")].find((d) => existsSync(d)) ?? null;
+  [
+    join(dirname(process.execPath), "skills"),
+    join(dirname(process.execPath), "..", "Resources", "skills"),
+    join(import.meta.dir, "..", "..", "..", "skills"),
+  ].find((d) => existsSync(d)) ?? null;
 
 if (op.cli) {
   await ejecutarCli({

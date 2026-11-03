@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from
 import { basename, join } from "node:path";
 import type { InfoCopia, InfoPerfil } from "@aquiles/protocolo";
 import { directorioDatos } from "./rutas";
+import { comprimirCarpeta, descomprimir } from "./zip";
 
 export const NOMBRE_PERFIL = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 /** Lo que no se copia: se reconstruye solo (índice de búsqueda) o es temporal. */
@@ -63,12 +64,8 @@ export function listarCopias(datos = directorioDatos()): InfoCopia[] {
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
 
-async function tar(args: string[]): Promise<void> {
-  // bsdtar de Windows (System32\tar.exe) escribe y lee zip con -a / por la extensión.
-  const p = Bun.spawn([process.platform === "win32" ? "C:\\Windows\\System32\\tar.exe" : "tar", ...args], { stdout: "pipe", stderr: "pipe" });
-  const [codigo, error] = await Promise.all([p.exited, new Response(p.stderr).text()]);
-  if (codigo !== 0) throw new Error(`tar falló (${codigo}): ${error.trim().slice(0, 500)}`);
-}
+/** Lo de EXCLUIR: el índice en cualquier carpeta y lo demás en la raíz del perfil. */
+const excluida = (ruta: string) => /(^|\/)busqueda\.db[^/]*$/.test(ruta) || EXCLUIR.some((e) => !e.includes("*") && (ruta === e || ruta.startsWith(`${e}/`)));
 
 export async function crearCopia(perfil: string, datos = directorioDatos(), ahora = new Date()): Promise<InfoCopia> {
   const origen = join(datos, "perfiles", perfil);
@@ -77,7 +74,7 @@ export async function crearCopia(perfil: string, datos = directorioDatos(), ahor
   mkdirSync(dir, { recursive: true });
   const nombre = `${perfil}-${sello(ahora)}.zip`;
   const destino = join(dir, nombre);
-  await tar(["-a", "-c", "-f", destino, ...EXCLUIR.flatMap((e) => ["--exclude", e]), "-C", origen, "."]);
+  comprimirCarpeta(origen, destino, excluida, ahora);
   return listarCopias(datos).find((c) => c.nombre === nombre)!;
 }
 
@@ -88,7 +85,7 @@ export async function prepararRestauracion(nombre: string, datos = directorioDat
   const destino = join(datos, "restaurar", copia.perfil);
   rmSync(destino, { recursive: true, force: true });
   mkdirSync(destino, { recursive: true });
-  await tar(["-x", "-f", join(datos, "copias", copia.nombre), "-C", destino]);
+  descomprimir(join(datos, "copias", copia.nombre), destino);
   return copia.perfil;
 }
 
