@@ -22,6 +22,7 @@ import type {
   Resultados,
   VersionSkill,
 } from "@aquiles/protocolo";
+import { t } from "@aquiles/ui";
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { datosConexion } from "../conexion";
 import { borrarClaveLlavero, guardarClaveLlavero } from "../plataforma/claves";
@@ -294,7 +295,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
   const oyentes = useRef(new Set<(e: Evento) => void>());
 
   const rpc = useCallback((): ClienteRpc => {
-    if (!cliente.current) throw new Error("Sin conexión con el núcleo");
+    if (!cliente.current) throw new Error(t("Sin conexión con el núcleo"));
     return cliente.current;
   }, []);
 
@@ -364,7 +365,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
             });
           }),
       );
-      c.alCerrar(() => vigente() && despachar({ tipo: "conexion", estado: "caida", error: "Se perdió la conexión con el núcleo" }));
+      c.alCerrar(() => vigente() && despachar({ tipo: "conexion", estado: "caida", error: t("Se perdió la conexión con el núcleo") }));
       const [{ sesiones }, ajustes] = await Promise.all([c.llamar("sesion.listar", {}), c.llamar("ajustes.leer", {})]);
       if (!vigente()) return;
       despachar({ tipo: "inicial", sesiones, ajustes });
@@ -413,7 +414,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
         if (n === intento.current) void conectar();
       } catch {
         if (vez < 40) setTimeout(() => void probar(vez + 1), 1000);
-        else if (n === intento.current) despachar({ tipo: "conexion", estado: "caida", error: "El núcleo no ha vuelto tras reiniciarse" });
+        else if (n === intento.current) despachar({ tipo: "conexion", estado: "caida", error: t("El núcleo no ha vuelto tras reiniciarse") });
       }
     };
     // El núcleo viejo tarda un poco en cerrarse: no hay que volver a conectarse a él.

@@ -1,5 +1,5 @@
 import type { InfoSesion } from "@aquiles/protocolo";
-import { Boton, BranchedMenu, CampoBusqueda, Etiqueta, LogoAscii, clases, type GrupoRamas } from "@aquiles/ui";
+import { Boton, BranchedMenu, CampoBusqueda, Etiqueta, LogoAscii, clases, t, type GrupoRamas } from "@aquiles/ui";
 import { useEffect, useMemo, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { abrirCarpeta, puedeMostrarRutas } from "../plataforma/aplicacion";
@@ -61,31 +61,31 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
   // Como en el lienzo: la cifra en lima junto a Memoria son las propuestas pendientes.
   const pendientes = usePropuestas().datos?.length ?? 0;
   const secciones = [
-    { n: "01", etiqueta: "Habilidades", activa: estado.vista === "habilidades", ir: ir(abrirHabilidades) },
+    { n: "01", etiqueta: t("Habilidades"), activa: estado.vista === "habilidades", ir: ir(abrirHabilidades) },
     {
       n: "02",
-      etiqueta: "Memoria",
+      etiqueta: t("Memoria"),
       activa: estado.vista === "memoria",
       ir: ir(() => abrirMemoria()),
       cuenta: pendientes || undefined,
-      tituloCuenta: pendientes === 1 ? "1 propuesta pendiente" : `${pendientes} propuestas pendientes`,
+      tituloCuenta: pendientes === 1 ? t("1 propuesta pendiente") : t("{n} propuestas pendientes", { n: pendientes }),
     },
-    { n: "03", etiqueta: "Automatizaciones", activa: estado.vista === "automatizaciones", ir: ir(abrirAutomatizaciones) },
-    { n: "04", etiqueta: "Estadísticas", activa: estado.vista === "estadisticas", ir: ir(abrirEstadisticas) },
-    { n: "05", etiqueta: "Ajustes", activa: estado.vista === "ajustes", ir: ir(() => abrirAjustes()) },
+    { n: "03", etiqueta: t("Automatizaciones"), activa: estado.vista === "automatizaciones", ir: ir(abrirAutomatizaciones) },
+    { n: "04", etiqueta: t("Estadísticas"), activa: estado.vista === "estadisticas", ir: ir(abrirEstadisticas) },
+    { n: "05", etiqueta: t("Ajustes"), activa: estado.vista === "ajustes", ir: ir(() => abrirAjustes()) },
   ];
 
   return (
     <aside className="lateral">
-      <button type="button" className="lateral__logo" aria-label="Aquiles, nueva sesión" onClick={ir(nuevaSesion)}>
+      <button type="button" className="lateral__logo" aria-label={t("Aquiles, nueva sesión")} onClick={ir(nuevaSesion)}>
         <LogoAscii />
       </button>
 
       <Boton variante="secundario" tamano="alto" ancho icono="mas" onClick={ir(nuevaSesion)}>
-        Nueva sesión
+        {t("Nueva sesión")}
       </Boton>
 
-      <nav aria-label="Secciones" className="lateral__secciones">
+      <nav aria-label={t("Secciones")} className="lateral__secciones">
         {secciones.map((s) => (
           <button key={s.n} type="button" className={clases("seccion", s.activa && "seccion--activa")} aria-current={s.activa ? "page" : undefined} onClick={s.ir}>
             <span className="seccion__numero">{s.n}</span>
@@ -104,23 +104,23 @@ export function BarraLateral({ alElegir }: { alElegir: () => void }) {
 
       {grupos.length > 0 && (
         <div className="lateral__historial">
-          <CampoBusqueda className="lateral__buscar" tamano="pequeno" etiqueta="Buscar en las conversaciones" placeholder="Buscar" valor={consulta} alCambiar={setConsulta} />
+          <CampoBusqueda className="lateral__buscar" tamano="pequeno" etiqueta={t("Buscar en las conversaciones")} placeholder={t("Buscar")} valor={consulta} alCambiar={setConsulta} />
           {consulta.trim() ? (
             <ResultadosBusqueda consulta={consulta} ahora={ahora} alAbrir={(id) => ir(() => abrirSesion(id))()} />
           ) : (
             <>
-              <Etiqueta className="lateral__titulo-historial">Historial</Etiqueta>
+              <Etiqueta className="lateral__titulo-historial">{t("Historial")}</Etiqueta>
               <BranchedMenu
-                etiqueta="Historial de conversaciones"
+                etiqueta={t("Historial de conversaciones")}
                 grupos={grupos}
                 abiertos={abiertos}
                 alAlternar={alternar}
                 claveHijo={(s) => s.sesionId}
                 menuGrupo={(g, abierto) => [
-                  { texto: "Nueva sesión en esta carpeta", icono: "mas", alElegir: () => ir(() => void nuevaSesionEn(g.id))() },
-                  puedeMostrarRutas() && { texto: "Mostrar carpeta", icono: "carpeta", alElegir: () => abrirCarpeta(g.id) },
+                  { texto: t("Nueva sesión en esta carpeta"), icono: "mas", alElegir: () => ir(() => void nuevaSesionEn(g.id))() },
+                  puedeMostrarRutas() && { texto: t("Mostrar carpeta"), icono: "carpeta", alElegir: () => abrirCarpeta(g.id) },
                   { tipo: "separador" },
-                  { texto: abierto ? "Plegar" : "Desplegar", icono: abierto ? "chevron-abajo" : "chevron-derecha", alElegir: () => alternar(g.id) },
+                  { texto: abierto ? t("Plegar") : t("Desplegar"), icono: abierto ? "chevron-abajo" : "chevron-derecha", alElegir: () => alternar(g.id) },
                 ]}
                 esActual={(s) => estado.vista === "conversacion" && s.sesionId === estado.activa}
                 renderHijo={(s, actual) => (

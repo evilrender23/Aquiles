@@ -1,11 +1,11 @@
 import type { BloqueMemoria, DestinoMemoria } from "@aquiles/protocolo";
-import { Boton, BotonIcono, ConMenuContextual, Medidor, Pestanas, Titular, copiarTexto, idPestana, type Pestana } from "@aquiles/ui";
+import { Boton, BotonIcono, ConMenuContextual, Medidor, Pestanas, Titular, copiarTexto, idPestana, t, type Pestana } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { cwdActiva, useAcciones, useEstado } from "../estado/almacen";
-import { DESTINOS, usePropuestas } from "../estado/aprendizaje";
+import { usePropuestas } from "../estado/aprendizaje";
 import { useCarga } from "../estado/carga";
 import type { PestanaMemoria } from "../estado/tipos";
-import { PanelAprendido, PanelPropuestas } from "./Aprendizaje";
+import { PanelAprendido, PanelPropuestas, nombresDestinos } from "./Aprendizaje";
 
 const PANEL = "memoria-panel";
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -27,12 +27,12 @@ export function VistaMemoria() {
   }, [estado.pestanaMemoria]);
 
   const pestanas: Pestana<PestanaMemoria>[] = [
-    { id: "usuario", texto: "Tú" },
-    { id: "agente", texto: "Agente" },
-    ...(m?.proyecto ? [{ id: "proyecto" as const, texto: "Proyecto", titulo: m.proyecto.cwd }] : []),
-    { id: "alma", texto: "Personalidad" },
-    { id: "propuestas", texto: pendientes ? `Propuestas · ${pendientes}` : "Propuestas" },
-    { id: "aprendido", texto: "Aprendido" },
+    { id: "usuario", texto: t("Tú") },
+    { id: "agente", texto: t("Agente") },
+    ...(m?.proyecto ? [{ id: "proyecto" as const, texto: t("Proyecto"), titulo: m.proyecto.cwd }] : []),
+    { id: "alma", texto: t("Personalidad") },
+    { id: "propuestas", texto: pendientes ? `${t("Propuestas")} · ${pendientes}` : t("Propuestas") },
+    { id: "aprendido", texto: t("Aprendido") },
   ];
   const activa = pestanas.some((p) => p.id === elegida) ? elegida : "usuario";
 
@@ -60,8 +60,8 @@ export function VistaMemoria() {
   return (
     <div className="memoria">
       <div className="memoria__pagina">
-        <Titular texto="Memoria" tamano="l" />
-        <Pestanas etiqueta="Memoria" pestanas={pestanas} activa={activa} alElegir={setElegida} idPanel={PANEL} />
+        <Titular texto={t("Memoria")} tamano="l" />
+        <Pestanas etiqueta={t("Memoria")} pestanas={pestanas} activa={activa} alElegir={setElegida} idPanel={PANEL} />
         <div role="tabpanel" id={PANEL} aria-labelledby={idPestana(PANEL, activa)} className="memoria__panel">
           {deMemoria && memoria.error && (
             <p className="memoria__error" role="alert">
@@ -149,14 +149,14 @@ function BloqueEditable({
     void guardar(entradas.filter((_, k) => k !== j));
   };
 
-  const etiquetaUso = `${cifra(usados)} de ${cifra(limite)} caracteres`;
+  const etiquetaUso = t("{usados} de {limite} caracteres", { usados: cifra(usados), limite: cifra(limite) });
 
   return (
     <div className="memoria__bloque">
       <div className="memoria__uso">
         <div className="memoria__cifras">
           <span className="memoria__usados">{cifra(usados)}</span>
-          <span className="memoria__limite">de {cifra(limite)} caracteres</span>
+          <span className="memoria__limite">{t("de {limite} caracteres", { limite: cifra(limite) })}</span>
         </div>
         <Medidor valor={limite > 0 ? usados / limite : 0} etiqueta={etiquetaUso} />
       </div>
@@ -171,35 +171,35 @@ function BloqueEditable({
                 key={i}
                 construir={() => [
                   {
-                    texto: "Editar",
+                    texto: t("Editar"),
                     icono: "lapiz",
                     alElegir: () => {
                       setError(undefined);
                       setEdicion({ tipo: "editar", i, original: texto });
                     },
                   },
-                  { texto: "Copiar", icono: "copiar", alElegir: () => copiarTexto(texto) },
+                  { texto: t("Copiar"), icono: "copiar", alElegir: () => copiarTexto(texto) },
                   otrosDestinos.length > 0 && {
                     tipo: "submenu",
-                    texto: "Mover a",
+                    texto: t("Mover a"),
                     elementos: otrosDestinos.map((d) => ({
-                      texto: DESTINOS[d],
+                      texto: nombresDestinos()[d],
                       alElegir: () => void alMover(texto, d).catch((e: unknown) => setError(mensaje(e))),
                     })),
                   },
                   { tipo: "separador" },
-                  { texto: "Quitar", icono: "papelera", peligrosa: true, alElegir: () => quitar(i, texto) },
+                  { texto: t("Quitar"), icono: "papelera", peligrosa: true, alElegir: () => quitar(i, texto) },
                 ]}
               >
                 {(menu) => (
               <li className="entrada" {...menu}>
                 {esta === "editar" ? (
                   <EditorEntrada
-                    etiqueta="Entrada"
+                    etiqueta={t("Entrada")}
                     inicial={texto}
                     guardando={guardando}
                     error={error}
-                    alGuardar={(t) => editar(i, texto, t)}
+                    alGuardar={(nuevo) => editar(i, texto, nuevo)}
                     alCancelar={cerrar}
                   />
                 ) : (
@@ -211,7 +211,7 @@ function BloqueEditable({
                       <span className="entrada__acciones">
                         <BotonIcono
                           variante="pequeno"
-                          etiqueta="Editar"
+                          etiqueta={t("Editar")}
                           icono="lapiz"
                           tamanoIcono={15}
                           onClick={() => {
@@ -221,7 +221,7 @@ function BloqueEditable({
                         />
                         <BotonIcono
                           variante="pequeno"
-                          etiqueta="Quitar"
+                          etiqueta={t("Quitar")}
                           icono="papelera"
                           tamanoIcono={15}
                           onClick={() => {
@@ -240,7 +240,7 @@ function BloqueEditable({
           })}
           {edicion?.tipo === "nueva" && (
             <li className="entrada">
-              <EditorEntrada etiqueta="Nueva entrada" inicial="" guardando={guardando} error={error} alGuardar={(t) => void guardar([...entradas, t])} alCancelar={cerrar} />
+              <EditorEntrada etiqueta={t("Nueva entrada")} inicial="" guardando={guardando} error={error} alGuardar={(nueva) => void guardar([...entradas, nueva])} alCancelar={cerrar} />
             </li>
           )}
         </ul>
@@ -256,7 +256,7 @@ function BloqueEditable({
               setEdicion({ tipo: "nueva" });
             }}
           >
-            Añadir
+            {t("Añadir")}
           </Boton>
         </div>
       )}
@@ -271,10 +271,10 @@ function ConfirmarQuitar({ guardando, error, alQuitar, alCancelar }: { guardando
   return (
     <span className="entrada__confirmar">
       <Boton variante="acento" tamano="pequeno" disabled={guardando} onClick={alQuitar}>
-        Quitar
+        {t("Quitar")}
       </Boton>
       <Boton variante="fantasma" tamano="pequeno" ref={cancelar} onClick={alCancelar} onKeyDown={(e) => e.key === "Escape" && alCancelar()}>
-        Cancelar
+        {t("Cancelar")}
       </Boton>
       {error && (
         <span className="entrada__error" role="alert">
@@ -307,10 +307,10 @@ function EditorEntrada({
   const listo = !!limpio && limpio !== inicial.trim() && !guardando;
 
   useEffect(() => {
-    const t = caja.current;
-    if (!t) return;
-    t.focus();
-    t.setSelectionRange(t.value.length, t.value.length);
+    const area = caja.current;
+    if (!area) return;
+    area.focus();
+    area.setSelectionRange(area.value.length, area.value.length);
   }, []);
 
   return (
@@ -336,10 +336,10 @@ function EditorEntrada({
       />
       <div className="entrada-editor__botones">
         <Boton variante="acento" tamano="pequeno" disabled={!listo} onClick={() => alGuardar(limpio)}>
-          Guardar
+          {t("Guardar")}
         </Boton>
         <Boton variante="fantasma" tamano="pequeno" onClick={alCancelar}>
-          Cancelar
+          {t("Cancelar")}
         </Boton>
       </div>
       {error && (
@@ -374,7 +374,7 @@ function EditorAlma({ texto, alGuardado }: { texto: string; alGuardado: (texto: 
   return (
     <div className="alma">
       <textarea
-        aria-label="Personalidad"
+        aria-label={t("Personalidad")}
         className="alma__texto"
         spellCheck={false}
         value={valor}
@@ -385,9 +385,9 @@ function EditorAlma({ texto, alGuardado }: { texto: string; alGuardado: (texto: 
       />
       <div className="alma__pie">
         <Boton variante="principal" iconoFinal="flecha-diagonal" disabled={!cambiado || estado?.tipo === "guardando"} onClick={() => void guardar()}>
-          Guardar
+          {t("Guardar")}
         </Boton>
-        {estado?.tipo === "ok" && <span className="alma__estado">Guardado</span>}
+        {estado?.tipo === "ok" && <span className="alma__estado">{t("Guardado")}</span>}
         {estado?.tipo === "error" && (
           <span className="alma__estado alma__estado--error" role="alert">
             {estado.texto}

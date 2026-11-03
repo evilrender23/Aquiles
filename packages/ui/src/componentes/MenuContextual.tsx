@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import { clases } from "../clases";
+import { t } from "../i18n";
 import { Icono, type NombreIcono } from "./Icono";
 
 export interface AccionMenu {
@@ -102,14 +103,14 @@ export async function copiarTexto(texto: string): Promise<void> {
     await navigator.clipboard.writeText(texto);
   } catch {
     // Sin permiso para la API del portapapeles: el método clásico con un textarea temporal.
-    const t = document.createElement("textarea");
-    t.value = texto;
-    t.style.position = "fixed";
-    t.style.opacity = "0";
-    document.body.append(t);
-    t.select();
+    const area = document.createElement("textarea");
+    area.value = texto;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.append(area);
+    area.select();
     document.execCommand("copy");
-    t.remove();
+    area.remove();
   }
 }
 
@@ -142,7 +143,7 @@ export async function elementosCampoTexto(campo: HTMLInputElement | HTMLTextArea
   };
   return [
     {
-      texto: "Cortar",
+      texto: t("Cortar"),
       icono: "tijeras",
       atajo: "Ctrl+X",
       deshabilitado: !seleccion || soloLectura || oculto,
@@ -153,9 +154,9 @@ export async function elementosCampoTexto(campo: HTMLInputElement | HTMLTextArea
         document.execCommand("delete");
       },
     },
-    { texto: "Copiar", icono: "copiar", atajo: "Ctrl+C", deshabilitado: !seleccion || oculto, alElegir: () => copiarTexto(seleccion) },
+    { texto: t("Copiar"), icono: "copiar", atajo: "Ctrl+C", deshabilitado: !seleccion || oculto, alElegir: () => copiarTexto(seleccion) },
     {
-      texto: "Pegar",
+      texto: t("Pegar"),
       icono: "portapapeles",
       atajo: "Ctrl+V",
       deshabilitado: soloLectura || portapapeles === false,
@@ -168,7 +169,7 @@ export async function elementosCampoTexto(campo: HTMLInputElement | HTMLTextArea
     },
     { tipo: "separador" },
     {
-      texto: "Seleccionar todo",
+      texto: t("Seleccionar todo"),
       atajo: "Ctrl+A",
       deshabilitado: !campo.value,
       alElegir: () => {
@@ -223,7 +224,7 @@ export function ProveedorMenuContextual({ children, seleccion }: PropsProveedorM
         y: e.clientY,
         origen,
         porTeclado: !e.isTrusted,
-        elementos: limpiar([{ texto: "Copiar", icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(texto) }, ...(deSeleccion.current?.(texto) ?? [])]),
+        elementos: limpiar([{ texto: t("Copiar"), icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(texto) }, ...(deSeleccion.current?.(texto) ?? [])]),
       });
     };
     // Tecla de menú o Mayús+F10: el menú del elemento con el foco, como si se hubiera pulsado con el botón derecho.
@@ -541,7 +542,7 @@ function ConfirmarCancelar({ alCancelar }: { alCancelar: () => void }) {
   useEffect(() => ref.current?.focus(), []);
   return (
     <button ref={ref} type="button" role="menuitem" tabIndex={-1} className="nx-menu__opcion nx-menu__opcion--cancelar" onClick={alCancelar}>
-      <span className="nx-menu__texto">Cancelar</span>
+      <span className="nx-menu__texto">{t("Cancelar")}</span>
     </button>
   );
 }

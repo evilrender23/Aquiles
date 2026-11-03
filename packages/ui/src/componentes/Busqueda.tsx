@@ -1,5 +1,6 @@
 import type { InputHTMLAttributes } from "react";
 import { clases } from "../clases";
+import { t } from "../i18n";
 import { BotonIcono } from "./Boton";
 import { Icono } from "./Icono";
 
@@ -33,7 +34,7 @@ export function CampoBusqueda({ etiqueta, valor, alCambiar, tamano = "normal", c
         }}
         {...resto}
       />
-      {valor && <BotonIcono variante="pequeno" etiqueta="Vaciar" icono="cerrar" tamanoIcono={14} className="nx-busqueda__vaciar" onClick={() => alCambiar("")} />}
+      {valor && <BotonIcono variante="pequeno" etiqueta={t("Vaciar")} icono="cerrar" tamanoIcono={14} className="nx-busqueda__vaciar" onClick={() => alCambiar("")} />}
     </div>
   );
 }

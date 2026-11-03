@@ -1,4 +1,4 @@
-import { ProveedorMenuContextual, clases } from "@aquiles/ui";
+import { ProveedorMenuContextual, clases, t } from "@aquiles/ui";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { AvisoConexion } from "./componentes/AvisoConexion";
 import { BarraLateral } from "./componentes/BarraLateral";
@@ -38,7 +38,7 @@ function ConIdioma({ children }: { children: ReactNode }) {
 function Menus({ children }: { children: ReactNode }) {
   const { buscarEnConversaciones } = useAcciones();
   return (
-    <ProveedorMenuContextual seleccion={(texto) => [{ texto: "Buscar en conversaciones", icono: "buscar", alElegir: () => buscarEnConversaciones(texto) }]}>
+    <ProveedorMenuContextual seleccion={(texto) => [{ texto: t("Buscar en conversaciones"), icono: "buscar", alElegir: () => buscarEnConversaciones(texto) }]}>
       {children}
     </ProveedorMenuContextual>
   );
