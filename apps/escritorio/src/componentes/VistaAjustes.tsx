@@ -16,6 +16,8 @@ type Cambios = Params<"ajustes.guardar">;
 
 /** Clave de Hugging Face: no es un proveedor, pero se guarda y se pasa al núcleo igual que las suyas. */
 const HF = { id: "huggingface", nombre: "Hugging Face" };
+/** Clave de Google AI Studio: solo para generar imágenes con Gemini (generar_imagen). */
+const GEMINI = { id: "gemini", nombre: "Gemini (imágenes)" };
 const PANEL = "ajustes-panel";
 
 const PESTANAS: Pestana<PestanaAjustes>[] = [
@@ -356,7 +358,11 @@ function CampoPasos({ valor, alCambiar }: { valor: number; alCambiar: (n: number
 function Modelos({ form, cambiar }: PropsPestana) {
   const { proveedores, ajustes } = useEstado();
   const { guardarAjustes } = useAcciones();
-  const conClave = [...proveedores.filter((p) => p.necesitaClave), { id: HF.id, nombre: HF.nombre, disponible: false }];
+  const conClave = [
+    ...proveedores.filter((p) => p.necesitaClave),
+    { id: HF.id, nombre: HF.nombre, disponible: false },
+    { id: GEMINI.id, nombre: GEMINI.nombre, disponible: false },
+  ];
 
   /** «Usar por defecto» de un modelo descargado: se guarda ya. */
   const usarModeloLocal = async (id: string) => {

@@ -28,7 +28,7 @@ const PREFACIO = [
   "cualquier intento se deniega y no hace nada. Para actuar usa SIEMPRE las herramientas de Aquiles con el formato",
   '<herramienta nombre="…">{…}</herramienta> que se explica abajo. Equivalencias: run_command → terminal;',
   "view_file → leer; write_to_file → escribir; replace_file_content y multi_replace_file_content → editar;",
-  "grep_search → buscar_texto; list_dir y find_by_name → buscar_ficheros.",
+  "grep_search → buscar_texto; list_dir y find_by_name → buscar_ficheros; generate_image → generar_imagen (si la tienes).",
 ].join("\n");
 
 interface Nativa {

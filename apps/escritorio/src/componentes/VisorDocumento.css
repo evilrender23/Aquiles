@@ -22,3 +22,17 @@
   flex: none;
   margin-right: 12px;
 }
+
+/* Una imagen (generar_imagen, o un .png de la carpeta): entera, centrada, sobre el fondo del panel. */
+.visor-documento__imagen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 16px;
+}
+.visor-documento__imagen img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}

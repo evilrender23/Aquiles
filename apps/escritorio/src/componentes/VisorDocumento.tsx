@@ -193,7 +193,7 @@ export function PanelDocumento({
             idPanel={PANEL}
           />
         ) : (
-          <span className="panel-artefacto__lenguaje">docx</span>
+          <span className="panel-artefacto__lenguaje">{clase === "imagen" ? "imagen" : "docx"}</span>
         )}
         <span className="panel-artefacto__acciones">
           {markdown !== undefined && <BotonIcono etiqueta={copiado ? "Copiado" : "Copiar"} icono={copiado ? "check" : "copiar"} onClick={copiar} />}
@@ -216,6 +216,10 @@ export function PanelDocumento({
         ) : !contenido ? (
           <div className="panel-artefacto__espera">
             <LatticeLoader activo />
+          </div>
+        ) : contenido.formato === "imagen" ? (
+          <div className="visor-documento__imagen">
+            <img src={contenido.texto} alt={nombre} />
           </div>
         ) : contenido.formato === "html" ? (
           <VistaAislada tipo="html" contenido={paginaDocumento(contenido.texto, nombre)} titulo={nombre} />

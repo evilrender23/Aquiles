@@ -59,6 +59,8 @@ import { AlmacenSesiones, historial, info, type OpcionesSesion, type Sesion, tit
 import { ErrorSkill } from "./skills";
 import { herramientaDelegar, type LanzarSubagente } from "./subagentes";
 import { Voz } from "./voz";
+import { herramientaGenerarImagen } from "./herramientas/imagen";
+import { serviciosDisponibles } from "./imagenes";
 import { AVISO_DESDE_MS, fraseDeFin } from "./aviso-fin";
 import type { AdjuntoGuardado, Mensaje, Proveedor } from "./tipos";
 
@@ -489,6 +491,9 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
   extras.push(() => mcp.herramientas());
   // Navegador: desactivado por defecto; un solo Edge para todas las sesiones.
   let navegador: Herramienta<any> | undefined;
+  // Generar imágenes: solo con alguna clave de un servicio que las haga (Gemini, OpenAI, OpenRouter).
+  const generarImagen = herramientaGenerarImagen();
+  extras.push(() => (serviciosDisponibles().length ? [generarImagen] : []));
   extras.push(() => {
     if (!ajustes.leer().herramientas.navegador) return [];
     navegador ??= herramientaNavegador({ perfil: o.perfil });

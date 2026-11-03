@@ -108,13 +108,14 @@ export const nombreFichero = (a: Pick<Artefacto, "id" | "tipo" | "lenguaje">) =>
 
 /* ── Documentos (visor de .md y .docx) ────────────── */
 
-/** Lo que se abre en el visor: markdown (Vista y Código) o Word (Vista). */
-export type ClaseDocumento = "markdown" | "word";
+/** Lo que se abre en el visor: markdown (Vista y Código), Word (Vista) o una imagen. */
+export type ClaseDocumento = "markdown" | "word" | "imagen";
 
 export function claseDocumento(ruta: string): ClaseDocumento | undefined {
   const ext = /\.([^.\\/]+)$/.exec(ruta)?.[1]?.toLowerCase();
   if (ext === "md" || ext === "markdown") return "markdown";
   if (ext === "docx") return "word";
+  if (ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "webp" || ext === "gif") return "imagen";
   return undefined;
 }
 

@@ -455,7 +455,8 @@ export interface Resultados {
   "buscar.sesiones": { resultados: ResultadoBusqueda[] };
   /** Rutas relativas a `cwd`, con `/`. */
   "ficheros.buscar": { ficheros: string[] };
-  "documentos.leer": { nombre: string; formato: "markdown" | "html"; contenido: string };
+  /** imagen: `contenido` es un data URL. */
+  "documentos.leer": { nombre: string; formato: "markdown" | "html" | "imagen"; contenido: string };
   "documentos.exportar": { ruta: string };
   "comandos.listar": { comandos: InfoComando[] };
   /** Ruta en el servidor del núcleo (`/vista/…`); la app le antepone http(s)://host:puerto de su conexión. */

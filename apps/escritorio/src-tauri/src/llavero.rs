@@ -4,7 +4,7 @@ const SERVICIO: &str = "Aquiles";
 
 /// Entrada del llavero → variable de entorno con la que la lee el núcleo
 /// (proveedores en packages/nucleo/src/proveedores/index.ts, canales y búsqueda web).
-pub const CLAVES: [(&str, &str); 10] = [
+pub const CLAVES: [(&str, &str); 11] = [
     ("anthropic", "AQUILES_CLAVE_ANTHROPIC"),
     ("openrouter", "OPENROUTER_API_KEY"),
     ("openai", "OPENAI_API_KEY"),
@@ -15,6 +15,8 @@ pub const CLAVES: [(&str, &str); 10] = [
     ("correo", "AQUILES_CORREO_CLAVE"),
     ("brave", "AQUILES_BRAVE_KEY"),
     ("huggingface", "HF_TOKEN"),
+    // Google AI Studio, para generar imágenes con Gemini.
+    ("gemini", "GEMINI_API_KEY"),
 ];
 
 fn entrada(nombre: &str) -> Result<keyring::Entry, String> {

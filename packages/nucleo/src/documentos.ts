@@ -15,13 +15,16 @@ import type * as Docx from "docx";
 import type { FootnoteDefinition, List, ListItem, Nodes, PhrasingContent, Root, RootContent, Table } from "mdast";
 import { guardarArtefacto } from "./artefactos";
 
-export type FormatoDocumento = "markdown" | "html";
+export type FormatoDocumento = "markdown" | "html" | "imagen";
 
 export interface DocumentoLeido {
   nombre: string;
   formato: FormatoDocumento;
   contenido: string;
 }
+
+/** Imágenes que el visor enseña (como data URL), con su tipo. */
+const IMAGENES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif" };
 
 /** Lo que el visor enseña como markdown, tal cual. */
 export const EXTENSIONES_MARKDOWN = [".md", ".markdown", ".txt"];
@@ -37,7 +40,8 @@ export async function leerDocumento(ruta: string): Promise<DocumentoLeido> {
   const nombre = basename(ruta);
   const ext = extname(ruta).toLowerCase();
   const markdown = EXTENSIONES_MARKDOWN.includes(ext);
-  if (!markdown && ext !== ".docx") throw new Error(`${nombre} no es un documento que se pueda ver (.md o .docx)`);
+  const imagen = IMAGENES[ext];
+  if (!markdown && !imagen && ext !== ".docx") throw new Error(`${nombre} no es un documento que se pueda ver (.md, .docx o una imagen)`);
   const info = await stat(ruta).catch(() => undefined);
   if (!info) throw new Error(`No existe ${ruta}`);
   if (!info.isFile()) throw new Error(`${ruta} no es un fichero`);
@@ -45,6 +49,7 @@ export async function leerDocumento(ruta: string): Promise<DocumentoLeido> {
   const bytes = await readFile(ruta);
   // TextDecoder quita el BOM.
   if (markdown) return { nombre, formato: "markdown", contenido: new TextDecoder().decode(bytes) };
+  if (imagen) return { nombre, formato: "imagen", contenido: `data:${imagen};base64,${bytes.toString("base64")}` };
   return { nombre, formato: "html", contenido: await docxAHtml(bytes) };
 }
 

@@ -17,12 +17,13 @@ const ICONOS: Record<string, NombreIcono> = {
   escribir: "lapiz",
   editar: "lapiz",
   escribir_documento: "documento",
+  generar_imagen: "imagen",
   buscar_ficheros: "buscar",
   buscar_texto: "buscar",
 };
 
 /** Herramientas cuyo resumen es la ruta del fichero (el primer trozo, sin espacios). */
-const CON_RUTA = new Set(["leer", "escribir", "editar", "escribir_documento"]);
+const CON_RUTA = new Set(["leer", "escribir", "editar", "escribir_documento", "generar_imagen"]);
 
 /**
  * El .md o .docx que se puede abrir en el visor: el resumen entero es la ruta (en `leer`, con «:desde-hasta» detrás).

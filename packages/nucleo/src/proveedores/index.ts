@@ -59,6 +59,8 @@ export const VARIABLES_SECRETOS: Record<string, string> = {
   correo: "AQUILES_CORREO_CLAVE",
   brave: "AQUILES_BRAVE_KEY",
   huggingface: "HF_TOKEN",
+  /** Google AI Studio: solo para generar imágenes (generar_imagen). */
+  gemini: "GEMINI_API_KEY",
 };
 
 const MODELOS_ANTHROPIC = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"];
