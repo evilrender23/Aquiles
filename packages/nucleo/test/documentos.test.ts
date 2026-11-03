@@ -14,7 +14,8 @@ import { iniciarServidor, type Servidor } from "../src/servidor";
 import { carpetaTemporal, contextoPrueba } from "./contexto-prueba";
 import { png, zip } from "./ficheros-prueba";
 
-const TAR = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+// El tar de Windows y el de macOS (bsdtar) abren y crean zip; el GNU tar de Linux, no.
+const TAR = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
 
 let dir = "";
 let borrar = async () => {};

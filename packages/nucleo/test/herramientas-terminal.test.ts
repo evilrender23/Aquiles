@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -60,13 +61,15 @@ describe.skipIf(!bash)("terminal (bash)", () => {
     const ctx = nuevoCtx();
     await terminal.ejecutar({ comando: "cd sub && export X='it'\"'\"'s'" }, ctx);
     expect(await terminal.ejecutar({ comando: 'basename "$PWD"\necho "$X"' }, ctx)).toBe("sub\nit's\n[código de salida 0]");
-    expect(estadoTerminal(ctx.estado).shell?.cwd.toLowerCase()).toBe(join(dir, "sub").toLowerCase());
+    // En macOS la carpeta temporal es un enlace (/var → /private/var): se compara la ruta real.
+    expect(realpathSync(estadoTerminal(ctx.estado).shell!.cwd).toLowerCase()).toBe(realpathSync(join(dir, "sub")).toLowerCase());
   });
 
   test("errores de sintaxis no rompen el shell", async () => {
     const ctx = nuevoCtx();
     const r = await terminal.ejecutar({ comando: 'echo "sin cerrar' }, ctx);
-    expect(r).toMatch(/\[código de salida 2\]$/);
+    // bash 5 sale con 2 y el bash 3.2 de macOS, con 1.
+    expect(r).toMatch(/\[código de salida [12]\]$/);
     expect(await terminal.ejecutar({ comando: "echo sigue" }, ctx)).toBe("sigue\n[código de salida 0]");
   });
 

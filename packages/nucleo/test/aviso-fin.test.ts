@@ -74,6 +74,8 @@ test("servidor: al acabar un turno de la app, notificación «He acabado …»; 
       return eventos.filter((e) => e.tipo === "notificacion");
     };
 
+    // Solo la notificación: con «voz», en Mac leería la frase con say de verdad.
+    await llamar("ajustes.guardar", { voz: { alAcabar: "notificacion" } });
     const { result: s } = await llamar("sesion.crear", {});
     await llamar("prompt.enviar", { sesionId: s.sesionId, texto: "saluda" });
     expect(await notificaciones()).toEqual([{ tipo: "notificacion", titulo: "Aquiles", texto: "He acabado de saludar.", sesionId: s.sesionId }]);

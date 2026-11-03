@@ -80,7 +80,8 @@ export async function adjuntosDePrueba(): Promise<{ foto: AdjuntoGuardado; nota:
   return { foto: foto!, nota: nota! };
 }
 
-const TAR = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+// El tar de Windows y el de macOS (bsdtar) abren y crean zip; el GNU tar de Linux, no.
+const TAR = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
 
 /** Zip con estos ficheros (ruta → contenido), hecho con `tar -a -c`, en `destino`. */
 export async function zip(destino: string, ficheros: Record<string, string>): Promise<void> {
