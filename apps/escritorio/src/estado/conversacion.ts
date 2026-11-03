@@ -171,9 +171,28 @@ function cerrar(c: Conversacion): Conversacion {
   return { ...c, elementos: cerrarTexto(c.elementos) };
 }
 
+const CLAVES_RESUMEN = ["comando", "ruta", "patron", "pregunta"];
+
 function resumenArgumentos(args: unknown): string {
   if (!args || typeof args !== "object") return "";
   const a = args as Record<string, unknown>;
-  for (const clave of ["comando", "ruta", "patron", "pregunta"]) if (typeof a[clave] === "string") return a[clave] as string;
+  for (const clave of CLAVES_RESUMEN) if (typeof a[clave] === "string") return a[clave] as string;
+  // JSON que el modelo escribió mal (el proveedor lo deja en bruto): se saca lo que se pueda leer, sin las comillas escapadas.
+  if (typeof a.__json_invalido === "string") return resumenDeJsonRoto(a.__json_invalido);
   return JSON.stringify(args);
+}
+
+function resumenDeJsonRoto(bruto: string): string {
+  for (const clave of CLAVES_RESUMEN) {
+    // El valor de la clave hasta su comilla de cierre, o hasta el final si quedó cortado.
+    const m = bruto.match(new RegExp(`"${clave}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)`));
+    if (!m) continue;
+    const valor = m[1]!.replace(/\\$/, "");
+    try {
+      return JSON.parse(`"${valor}"`);
+    } catch {
+      return valor;
+    }
+  }
+  return bruto;
 }

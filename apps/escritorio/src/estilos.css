@@ -754,18 +754,35 @@ body {
 .compositor__texto:focus-visible {
   outline: none;
 }
+/* Dos grupos que bajan de línea: los controles a la izquierda y, si no caben al lado, la derecha
+   (contexto, modelo, esfuerzo y enviar) en la línea siguiente, pegada al borde derecho. */
 .compositor__barra {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px 6px;
 }
-.compositor__controles {
+.compositor__controles,
+.compositor__derecha {
   display: flex;
-  flex: 1 1 auto;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
+}
+.compositor__controles {
+  flex: 1 1 auto;
+}
+.compositor__derecha {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+/* Un chip nunca más ancho que la caja: su texto se corta con puntos suspensivos. */
+.compositor__barra .nx-desplegable,
+.compositor__barra .nx-boton--chip {
+  min-width: 0;
+  max-width: 100%;
 }
 .compositor__detener.nx-boton {
   height: 56px;

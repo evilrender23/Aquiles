@@ -167,7 +167,7 @@ export function Compositor({
         }}
       />
       <div className="compositor__barra">
-        {/* Si los chips no caben, bajan de línea entre ellos: el botón de enviar se queda a la derecha. */}
+        {/* Si no cabe todo, los chips bajan de línea en vez de pisarse; el grupo de la derecha baja entero y el botón de enviar sigue a la derecha. */}
         <div className="compositor__controles">
           <BotonAdjuntar alRutas={adj.anadirRutas} alFicheros={(f) => void adj.anadirFicheros(f)} deshabilitado={deshabilitado} />
           {dictar && (
@@ -182,16 +182,18 @@ export function Compositor({
           )}
           {izquierda}
         </div>
-        {derecha}
-        {trabajando && !hayAlgo && alDetener ? (
-          <Boton variante="secundario" className="compositor__detener" icono="detener" onClick={alDetener}>
-            Detener
-          </Boton>
-        ) : (
-          <Boton type="submit" variante="principal" iconoFinal="flecha-diagonal" disabled={!hayAlgo || deshabilitado}>
-            {textoEnviar}
-          </Boton>
-        )}
+        <div className="compositor__derecha">
+          {derecha}
+          {trabajando && !hayAlgo && alDetener ? (
+            <Boton variante="secundario" className="compositor__detener" icono="detener" onClick={alDetener}>
+              Detener
+            </Boton>
+          ) : (
+            <Boton type="submit" variante="principal" iconoFinal="flecha-diagonal" disabled={!hayAlgo || deshabilitado}>
+              {textoEnviar}
+            </Boton>
+          )}
+        </div>
       </div>
       {(errorVoz || adj.error) && (
         <p className="compositor__error-voz" role="alert">
