@@ -4,7 +4,7 @@
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Subprocess } from "bun";
 import { z } from "zod";
 import { type ContextoHerramienta, definir, ErrorHerramienta, type Herramienta } from "./herramienta";
@@ -239,17 +239,20 @@ async function lanzarEdge(o: OpcionesNavegador): Promise<Edge> {
       ...(o.visible ? [] : ["--headless=new", "--window-size=1280,900"]),
       "about:blank",
     ],
-    { stdout: "ignore", stderr: "ignore", windowsHide: !o.visible },
+    { stdout: "ignore", stderr: "pipe", windowsHide: !o.visible },
   );
+  const diario = leerDiario(proc.stderr);
+  // El nombre del navegador para los mensajes (en Linux puede ser Chrome o Chromium).
+  const nombre = /chrom/i.test(basename(exe)) ? "El navegador" : "Edge";
   const fin = Date.now() + 20_000;
   let url = leerPuerto(fichero);
   while (!url) {
     if (proc.exitCode !== null) {
-      throw new ErrorHerramienta(`Edge se cerró al arrancar (código ${proc.exitCode}). ¿Hay otro Edge usando el perfil ${datos}?`);
+      throw new ErrorHerramienta(`${nombre} se cerró al arrancar (código ${proc.exitCode}). ¿Hay otro usando el perfil ${datos}?${diario()}`);
     }
     if (Date.now() > fin) {
       await matarArbol(proc);
-      throw new ErrorHerramienta("Edge no abrió el puerto de depuración en 20 s.");
+      throw new ErrorHerramienta(`${nombre} no abrió el puerto de depuración en 20 s.${diario()}`);
     }
     await Bun.sleep(50);
     url = leerPuerto(fichero);
@@ -262,6 +265,21 @@ async function lanzarEdge(o: OpcionesNavegador): Promise<Edge> {
     await matarArbol(proc);
     throw new ErrorHerramienta(`No se pudo controlar Edge: ${e instanceof Error ? e.message : e}`);
   }
+}
+
+/** Lee el stderr del navegador mientras viva (si nadie lo lee, se atasca) y guarda lo último para explicar un fallo. */
+function leerDiario(flujo: ReadableStream<Uint8Array>): () => string {
+  let ultimo = "";
+  void (async () => {
+    const decodificar = new TextDecoder();
+    try {
+      for await (const trozo of flujo) ultimo = (ultimo + decodificar.decode(trozo, { stream: true })).slice(-4000);
+    } catch {}
+  })();
+  return () => {
+    const lineas = ultimo.trim().split(/\r?\n/).filter(Boolean).slice(-8);
+    return lineas.length ? `\nLo último que dijo:\n${lineas.join("\n")}` : "";
+  };
 }
 
 // Los enlaces con target y window.open abrirían otra pestaña que la sesión no ve: se quedan en la misma.
