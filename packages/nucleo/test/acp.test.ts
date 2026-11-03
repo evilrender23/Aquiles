@@ -6,7 +6,9 @@ import { servirAcp, textoDelPrompt } from "../src/acp";
 import type { RespuestaAprobacion, ResultadoTurno } from "../src/bucle";
 import type { Motor, PeticionTurno } from "../src/motor";
 
-const CWD = "C:\\proyecto";
+/** Rutas absolutas del sistema en que corre el test. */
+const ABS = (nombre: string) => (process.platform === "win32" ? `C:\\${nombre}` : `/${nombre}`);
+const CWD = ABS("proyecto");
 const DIFF: Diff = {
   ruta: "a.txt", nuevo: false, anadidas: 1, quitadas: 1,
   bloques: [{ lineaAntes: 1, lineaDespues: 1, lineas: [{ tipo: " ", texto: "cero" }, { tipo: "-", texto: "uno" }, { tipo: "+", texto: "dos" }] }],
@@ -141,11 +143,11 @@ test("prompt: crea la sesión de Aquiles en el primero y traduce texto y plan", 
   const m = motorFalso();
   const c = cliente(m.motor);
   await c.llamar("initialize", { protocolVersion: 1 });
-  const s = await c.sesion("C:\\otro");
+  const s = await c.sesion(ABS("otro"));
   expect(s).toStartWith("aquiles-");
   const r = await c.llamar("session/prompt", { sessionId: s, prompt: [{ type: "text", text: "hola" }] });
   expect(r.result).toEqual({ stopReason: "end_turn" });
-  expect(m.peticiones[0]).toMatchObject({ nueva: { cwd: "C:\\otro", titulo: "Editor" }, texto: "hola" });
+  expect(m.peticiones[0]).toMatchObject({ nueva: { cwd: ABS("otro"), titulo: "Editor" }, texto: "hola" });
   expect(m.peticiones[0]!.nueva).not.toHaveProperty("origen");
   expect(c.actualizaciones(s)).toEqual([
     { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Hola, " } },

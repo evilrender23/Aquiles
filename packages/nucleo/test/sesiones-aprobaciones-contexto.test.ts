@@ -67,11 +67,19 @@ describe("aprobaciones", () => {
     expect(d).toMatchObject({ tipo: "preguntar" });
   });
 
-  test("dentroDe", () => {
+  // Las rutas de cada sistema: con letra de unidad en Windows, desde / en Mac y Linux.
+  test.if(process.platform === "win32")("dentroDe (Windows)", () => {
     expect(dentroDe("C:\\p\\a\\b.txt", "C:\\p")).toBe(true);
     expect(dentroDe("C:\\p", "C:\\p")).toBe(true);
     expect(dentroDe("C:\\pp\\x", "C:\\p")).toBe(false);
     expect(dentroDe("D:\\p\\x", "C:\\p")).toBe(false);
+  });
+
+  test.if(process.platform !== "win32")("dentroDe (Mac y Linux)", () => {
+    expect(dentroDe("/p/a/b.txt", "/p")).toBe(true);
+    expect(dentroDe("/p", "/p")).toBe(true);
+    expect(dentroDe("/pp/x", "/p")).toBe(false);
+    expect(dentroDe("/p/../q/x", "/p")).toBe(false);
   });
 });
 

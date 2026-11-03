@@ -35,3 +35,29 @@ jobs:
       # El test del llavero toca el almacén de credenciales del sistema: se salta en CI.
       - run: cargo test -- --skip llavero
         working-directory: apps/escritorio/src-tauri
+
+  # macOS como plataforma de primera clase: el núcleo, la interfaz y la app de Tauri, como en Windows.
+  mac:
+    runs-on: macos-latest
+    env:
+      # rust-toolchain.toml pide el toolchain MSVC de Windows.
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run tipos
+      - run: bun run lint
+      - run: bun test
+      - run: bun banco/ejecutar.ts --validar
+      - run: bun run compilar:nucleo:mac
+      - run: bun run build
+        working-directory: apps/escritorio
+      # El test del llavero toca el Llavero de verdad: se salta en CI.
+      - run: cargo test -- --skip llavero
+        working-directory: apps/escritorio/src-tauri
+      # El dictado de Mac compila (instalar.sh lo hace dentro de Aquiles.app).
+      - run: swiftc -O -swift-version 5 -o /tmp/aquiles-dictado dictado.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker dictado-Info.plist
+        working-directory: apps/escritorio/src-tauri/macos
