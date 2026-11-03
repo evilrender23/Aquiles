@@ -1,10 +1,14 @@
 /** Objetivo de la sesión: tras cada turno un juez decide si se cumplió; si no, Aquiles sigue solo hasta agotar los intentos. */
 import type { InfoSesion, ObjetivoSesion } from "@aquiles/protocolo";
-import { Boton, Etiqueta, clases } from "@aquiles/ui";
+import { Boton, Etiqueta, clases, t } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones } from "../estado/almacen";
 
-const ESTADOS: Record<ObjetivoSesion["estado"], string> = { activo: "Activo", cumplido: "Cumplido", agotado: "Agotado" };
+function nombreEstado(estado: ObjetivoSesion["estado"]): string {
+  if (estado === "activo") return t("Activo");
+  if (estado === "cumplido") return t("Cumplido");
+  return t("Agotado");
+}
 const INTENTOS_POR_DEFECTO = 5;
 
 /** El objetivo puesto (con su estado y el último veredicto del juez) o el editor para ponerlo. */
@@ -26,22 +30,22 @@ export function PanelObjetivo({ sesion, editando, alEditar }: { sesion: InfoSesi
   if (editando) return <EditorObjetivo sesion={sesion} alCerrar={() => alEditar(false)} alQuitar={o ? () => void quitar() : undefined} />;
   if (!o) return null;
   return (
-    <section className={clases("objetivo", `objetivo--${o.estado}`)} aria-label="Objetivo">
+    <section className={clases("objetivo", `objetivo--${o.estado}`)} aria-label={t("Objetivo")}>
       <div className="objetivo__cabecera">
-        <Etiqueta>Objetivo</Etiqueta>
+        <Etiqueta>{t("Objetivo")}</Etiqueta>
         <span className="objetivo__estado">
           {o.estado === "activo" && <i className="nx-punto nx-pulso" aria-hidden="true" />}
-          {ESTADOS[o.estado]}
+          {nombreEstado(o.estado)}
         </span>
-        <span className="objetivo__intentos" title="Intentos">
+        <span className="objetivo__intentos" title={t("Intentos")}>
           {o.intentos} / {o.maxIntentos}
         </span>
         <span className="objetivo__hueco" />
         <Boton variante="fantasma" tamano="pequeno" onClick={() => alEditar(true)}>
-          Editar
+          {t("Editar")}
         </Boton>
         <Boton variante="fantasma" tamano="pequeno" onClick={() => void quitar()}>
-          Quitar
+          {t("Quitar")}
         </Boton>
       </div>
       <p className="objetivo__texto">{o.texto}</p>
@@ -82,7 +86,7 @@ function EditorObjetivo({ sesion, alCerrar, alQuitar }: { sesion: InfoSesion; al
   return (
     <form
       className="objetivo objetivo--editor"
-      aria-label="Objetivo"
+      aria-label={t("Objetivo")}
       onSubmit={(e) => {
         e.preventDefault();
         if (listo) void guardar();
@@ -92,7 +96,7 @@ function EditorObjetivo({ sesion, alCerrar, alQuitar }: { sesion: InfoSesion; al
         <textarea
           ref={caja}
           className="objetivo__entrada"
-          aria-label="Objetivo"
+          aria-label={t("Objetivo")}
           rows={2}
           maxLength={2000}
           value={texto}
@@ -100,7 +104,7 @@ function EditorObjetivo({ sesion, alCerrar, alQuitar }: { sesion: InfoSesion; al
           onKeyDown={(e) => e.key === "Escape" && alCerrar()}
         />
         <label className="objetivo__campo-intentos">
-          <span className="nx-etiqueta">Intentos</span>
+          <span className="nx-etiqueta">{t("Intentos")}</span>
           <input
             className="objetivo__numero"
             type="number"
@@ -120,14 +124,14 @@ function EditorObjetivo({ sesion, alCerrar, alQuitar }: { sesion: InfoSesion; al
       )}
       <div className="objetivo__botones">
         <Boton type="submit" variante="acento" tamano="pequeno" disabled={!listo}>
-          Guardar
+          {t("Guardar")}
         </Boton>
         <Boton variante="fantasma" tamano="pequeno" onClick={alCerrar}>
-          Cancelar
+          {t("Cancelar")}
         </Boton>
         {alQuitar && (
           <Boton variante="fantasma" tamano="pequeno" onClick={alQuitar}>
-            Quitar
+            {t("Quitar")}
           </Boton>
         )}
       </div>

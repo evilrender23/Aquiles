@@ -1,6 +1,19 @@
 import type { InfoProveedor, InfoSesion, ModoAprobacion } from "@aquiles/protocolo";
+import { idiomaActual, t } from "@aquiles/ui";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+/** Formato de fechas de Intl para el idioma de la interfaz. */
+const locale = () => (idiomaActual() === "en" ? "en-US" : "es-ES");
+
+const mismoDia = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+/** «27 oct» o «27 oct 2025» (en inglés, «Oct 27» o «Oct 27, 2025»). */
+function diaMes(d: Date, conAnio: boolean): string {
+  if (idiomaActual() !== "es") return d.toLocaleDateString(locale(), { month: "short", day: "numeric", ...(conAnio ? { year: "numeric" } : {}) });
+  const base = `${d.getDate()} ${MESES[d.getMonth()]}`;
+  return conAnio ? `${base} ${d.getFullYear()}` : base;
+}
 
 export function hora(ts: number | string | Date): string {
   const d = new Date(ts);
@@ -10,19 +23,17 @@ export function hora(ts: number | string | Date): string {
 /** «ahora», «hace 5 min», «hoy 08:00», «ayer», «27 oct», «27 oct 2025». */
 export function fechaRelativa(iso: string, ahora = Date.now()): string {
   const d = new Date(iso);
-  const t = d.getTime();
-  if (Number.isNaN(t)) return "";
-  const min = Math.floor((ahora - t) / 60_000);
-  if (min < 1) return "ahora";
-  if (min < 60) return `hace ${min} min`;
+  const ms = d.getTime();
+  if (Number.isNaN(ms)) return "";
+  const min = Math.floor((ahora - ms) / 60_000);
+  if (min < 1) return t("ahora");
+  if (min < 60) return t("hace {n} min", { n: min });
   const hoy = new Date(ahora);
-  const mismoDia = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (mismoDia(d, hoy)) return `hoy ${hora(d)}`;
+  if (mismoDia(d, hoy)) return t("hoy {hora}", { hora: hora(d) });
   const ayer = new Date(ahora);
   ayer.setDate(ayer.getDate() - 1);
-  if (mismoDia(d, ayer)) return "ayer";
-  const base = `${d.getDate()} ${MESES[d.getMonth()]}`;
-  return d.getFullYear() === hoy.getFullYear() ? base : `${base} ${d.getFullYear()}`;
+  if (mismoDia(d, ayer)) return t("ayer");
+  return diaMes(d, d.getFullYear() !== hoy.getFullYear());
 }
 
 /** Para cifras grandes: «hoy», «ayer», «27 oct», «27 oct 2025». */
@@ -32,23 +43,24 @@ export function fechaCorta(iso: string, ahora = Date.now()): string {
   const hoy = new Date(ahora);
   const ayer = new Date(ahora);
   ayer.setDate(ayer.getDate() - 1);
-  const mismoDia = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (mismoDia(d, hoy)) return "hoy";
-  if (mismoDia(d, ayer)) return "ayer";
-  const base = `${d.getDate()} ${MESES[d.getMonth()]}`;
-  return d.getFullYear() === hoy.getFullYear() ? base : `${base} ${d.getFullYear()}`;
+  if (mismoDia(d, hoy)) return t("hoy");
+  if (mismoDia(d, ayer)) return t("ayer");
+  return diaMes(d, d.getFullYear() !== hoy.getFullYear());
 }
 
 /** Como fechaRelativa, con la hora también en días pasados: «hace 5 min», «hoy 08:00», «ayer 21:10», «27 oct 09:30». */
 export function fechaConHora(iso: string, ahora = Date.now()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   const r = fechaRelativa(iso, ahora);
-  return r === "" || r === "ahora" || r.startsWith("hace") || r.startsWith("hoy") ? r : `${r} ${hora(iso)}`;
+  // «ahora», «hace 5 min» y «hoy 08:00» ya dicen cuándo.
+  return Math.floor((ahora - d.getTime()) / 60_000) < 60 || mismoDia(d, new Date(ahora)) ? r : `${r} ${hora(d)}`;
 }
 
 /** Fecha y hora completas, para el title. */
 export function fechaCompleta(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(locale(), { dateStyle: "long", timeStyle: "short" });
 }
 
 const decimal = (n: number) => n.toFixed(1).replace(/\.0$/, "").replace(".", ",");
@@ -96,10 +108,17 @@ export function carpetasRecientes(sesiones: readonly InfoSesion[], porDefecto: s
   return lista;
 }
 
+/** Nombres de los modos; con getters, para que salgan en el idioma de cada momento. */
 export const MODOS: Record<ModoAprobacion, string> = {
-  "preguntar-siempre": "Preguntar siempre",
-  "preguntar-ejecutar": "Preguntar al ejecutar",
-  "libre-proyecto": "Libre en el proyecto",
+  get "preguntar-siempre"() {
+    return t("Preguntar siempre");
+  },
+  get "preguntar-ejecutar"() {
+    return t("Preguntar al ejecutar");
+  },
+  get "libre-proyecto"() {
+    return t("Libre en el proyecto");
+  },
 };
 
 /** Lo que se enseña como modelo de una sesión o de los ajustes. */
@@ -117,11 +136,15 @@ export function fechaProxima(iso: string, ahora = Date.now()): string {
   const hoy = new Date(ahora);
   const manana = new Date(ahora);
   manana.setDate(manana.getDate() + 1);
-  const mismoDia = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (mismoDia(d, hoy)) return `hoy ${hora(d)}`;
-  if (mismoDia(d, manana)) return `mañana ${hora(d)}`;
+  if (mismoDia(d, hoy)) return t("hoy {hora}", { hora: hora(d) });
+  if (mismoDia(d, manana)) return t("mañana {hora}", { hora: hora(d) });
+  const conAnio = d.getFullYear() !== hoy.getFullYear();
+  if (idiomaActual() !== "es") {
+    const fecha = d.toLocaleDateString(locale(), { weekday: "short", month: "short", day: "numeric", ...(conAnio ? { year: "numeric" } : {}) });
+    return `${fecha} ${hora(d)}`;
+  }
   const base = `${DIAS[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]}`;
-  return `${d.getFullYear() === hoy.getFullYear() ? base : `${base} ${d.getFullYear()}`} ${hora(d)}`;
+  return `${conAnio ? `${base} ${d.getFullYear()}` : base} ${hora(d)}`;
 }
 
 /** Duración entre dos fechas ISO («41,0 s», «1 min 12 s»); vacío si falta el fin. */

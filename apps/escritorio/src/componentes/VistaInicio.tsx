@@ -1,5 +1,5 @@
 import type { ModoAprobacion } from "@aquiles/protocolo";
-import { CrystalizedBall, Etiqueta, GradientAscii, Titular } from "@aquiles/ui";
+import { CrystalizedBall, Etiqueta, GradientAscii, Titular, t } from "@aquiles/ui";
 import { useCallback, useMemo, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { esfuerzoTrasCambio } from "../estado/esfuerzo";
@@ -36,13 +36,13 @@ export function VistaInicio() {
           <CrystalizedBall tamano={200} desnudo />
         </div>
         <div className="inicio__titulo">
-          <Etiqueta>Nueva sesión</Etiqueta>
-          <Titular texto="Dale una tarea" tamano="l" />
+          <Etiqueta>{t("Nueva sesión")}</Etiqueta>
+          <Titular texto={t("Dale una tarea")} tamano="l" />
         </div>
         <Compositor
-          etiqueta="Instrucción para Aquiles"
-          placeholder="Describe qué quieres que haga"
-          textoEnviar="Empezar"
+          etiqueta={t("Instrucción para Aquiles")}
+          placeholder={t("Describe qué quieres que haga")}
+          textoEnviar={t("Empezar")}
           buscarFicheros={buscarFicheros}
           comandos={comandos}
           filas={3}

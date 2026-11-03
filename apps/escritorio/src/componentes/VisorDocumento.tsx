@@ -7,7 +7,7 @@
  * permiso); con `herramienta.fin` se lee el fichero de verdad.
  */
 import type { Resultados } from "@aquiles/protocolo";
-import { BotonIcono, LatticeLoader, Pestanas, copiarTexto, idPestana, useMenuContextual } from "@aquiles/ui";
+import { BotonIcono, LatticeLoader, Pestanas, copiarTexto, idPestana, t, useMenuContextual } from "@aquiles/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAcciones } from "../estado/almacen";
 import { claseDocumento, nombreDeRuta, nombreWord, paginaDocumento, rutaAbsoluta } from "../estado/artefactos";
@@ -90,7 +90,7 @@ export function usePanelDocumento(sesionId: string, cwd: string | undefined, alA
 type Leido = Resultados["documentos.leer"];
 
 /** Primera frase del motivo de un fallo (el resultado de la herramienta va dirigido al modelo). */
-const motivoCorto = (t: string) => (/^[^\n]*?[.!?](?=\s|$)/.exec(t)?.[0] ?? t.split("\n")[0] ?? t).slice(0, 240);
+const motivoCorto = (motivo: string) => (/^[^\n]*?[.!?](?=\s|$)/.exec(motivo)?.[0] ?? motivo.split("\n")[0] ?? motivo).slice(0, 240);
 
 export function PanelDocumento({
   sesionId,
@@ -128,8 +128,8 @@ export function PanelDocumento({
   }, [llamar, ruta, n, previo]);
   useEffect(() => {
     if (!copiado) return;
-    const t = setTimeout(() => setCopiado(false), 1400);
-    return () => clearTimeout(t);
+    const espera = setTimeout(() => setCopiado(false), 1400);
+    return () => clearTimeout(espera);
   }, [copiado]);
 
   // Mientras el agente lo escribe, su markdown (también el de un .docx, que sale de él); después, el fichero.
@@ -151,15 +151,15 @@ export function PanelDocumento({
   const comoWord = () => markdown !== undefined && void guardar({ tipo: "word", nombre: nombreWord(nombre), contenido: markdown });
 
   const menu = useMenuContextual(({ seleccion }) => [
-    seleccion.trim() && { texto: "Copiar", icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
+    seleccion.trim() && { texto: t("Copiar"), icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
     seleccion.trim() && { tipo: "separador" },
-    markdown !== undefined && { texto: seleccion.trim() ? "Copiar todo" : "Copiar", icono: "copiar", alElegir: copiar },
-    recargable && { texto: "Recargar", icono: "recargar", alElegir: alRecargar },
-    word && { texto: "Guardar como Word", icono: "documento", deshabilitado: guardado?.tipo === "guardando", alElegir: comoWord },
-    { texto: "Copiar ruta", icono: "copiar", alElegir: () => copiarTexto(ruta) },
-    enDisco && puedeMostrarRutas() && { texto: "Mostrar fichero", icono: "carpeta", alElegir: () => void mostrarFichero(ruta) },
+    markdown !== undefined && { texto: seleccion.trim() ? t("Copiar todo") : t("Copiar"), icono: "copiar", alElegir: copiar },
+    recargable && { texto: t("Recargar"), icono: "recargar", alElegir: alRecargar },
+    word && { texto: t("Guardar como Word"), icono: "documento", deshabilitado: guardado?.tipo === "guardando", alElegir: comoWord },
+    { texto: t("Copiar ruta"), icono: "copiar", alElegir: () => copiarTexto(ruta) },
+    enDisco && puedeMostrarRutas() && { texto: t("Mostrar fichero"), icono: "carpeta", alElegir: () => void mostrarFichero(ruta) },
     { tipo: "separador" },
-    { texto: "Cerrar", icono: "cerrar", alElegir: alCerrar },
+    { texto: t("Cerrar"), icono: "cerrar", alElegir: alCerrar },
   ]);
 
   return (
@@ -174,7 +174,7 @@ export function PanelDocumento({
         !escribiendo.fallo && (
           <span className="visor-documento__escribiendo">
             <i className="nx-punto nx-pulso" aria-hidden="true" />
-            Escribiendo
+            {t("Escribiendo")}
           </span>
         )
       }
@@ -182,29 +182,29 @@ export function PanelDocumento({
       <div className="panel-artefacto__barra">
         {conPestanas ? (
           <Pestanas
-            etiqueta="Documento"
+            etiqueta={t("Documento")}
             className="panel-artefacto__pestanas"
             pestanas={[
-              { id: "codigo", texto: "Código" },
-              { id: "vista", texto: "Vista" },
+              { id: "codigo", texto: t("Código") },
+              { id: "vista", texto: t("Vista") },
             ]}
             activa={activa}
             alElegir={alPestana}
             idPanel={PANEL}
           />
         ) : (
-          <span className="panel-artefacto__lenguaje">{clase === "imagen" ? "imagen" : "docx"}</span>
+          <span className="panel-artefacto__lenguaje">{clase === "imagen" ? t("imagen") : "docx"}</span>
         )}
         <span className="panel-artefacto__acciones">
-          {markdown !== undefined && <BotonIcono etiqueta={copiado ? "Copiado" : "Copiar"} icono={copiado ? "check" : "copiar"} onClick={copiar} />}
-          {recargable && <BotonIcono etiqueta="Recargar" icono="recargar" onClick={alRecargar} />}
-          {word && <BotonIcono etiqueta="Guardar como Word" icono="documento" disabled={guardado?.tipo === "guardando"} onClick={comoWord} />}
-          {enDisco && puedeMostrarRutas() && <BotonIcono etiqueta="Mostrar fichero" icono="carpeta" onClick={() => void mostrarFichero(ruta)} />}
+          {markdown !== undefined && <BotonIcono etiqueta={copiado ? t("Copiado") : t("Copiar")} icono={copiado ? "check" : "copiar"} onClick={copiar} />}
+          {recargable && <BotonIcono etiqueta={t("Recargar")} icono="recargar" onClick={alRecargar} />}
+          {word && <BotonIcono etiqueta={t("Guardar como Word")} icono="documento" disabled={guardado?.tipo === "guardando"} onClick={comoWord} />}
+          {enDisco && puedeMostrarRutas() && <BotonIcono etiqueta={t("Mostrar fichero")} icono="carpeta" onClick={() => void mostrarFichero(ruta)} />}
         </span>
       </div>
       {escribiendo?.fallo && (
         <p className="panel-artefacto__aviso panel-artefacto__aviso--error" role="alert" title={escribiendo.fallo}>
-          No se ha escrito: {motivoCorto(escribiendo.fallo)}
+          {t("No se ha escrito: {motivo}", { motivo: motivoCorto(escribiendo.fallo) })}
         </p>
       )}
       <EstadoGuardado guardado={guardado} alGuardar={(d, s) => void guardar(d, s)} alCancelar={olvidar} />

@@ -3,6 +3,7 @@
  * el navegador y el portapapeles, el contenido en base64. El núcleo valida lo demás.
  */
 import { MAX_ADJUNTOS, MAX_BYTES_ADJUNTO, type Params } from "@aquiles/protocolo";
+import { t } from "@aquiles/ui";
 import type { AdjuntoVisto } from "./tipos";
 
 export interface AdjuntoPendiente {
@@ -59,7 +60,7 @@ function comoDataUrl(f: Blob): Promise<string> {
   return new Promise((ok, mal) => {
     const r = new FileReader();
     r.onload = () => ok(String(r.result));
-    r.onerror = () => mal(r.error ?? new Error("No se pudo leer el fichero"));
+    r.onerror = () => mal(r.error ?? new Error(t("No se pudo leer el fichero")));
     r.readAsDataURL(f);
   });
 }
@@ -83,7 +84,12 @@ export async function desdeFicheros(ficheros: File[]): Promise<{ adjuntos: Adjun
       ...(f.type.startsWith("image/") ? { miniatura: url } : {}),
     });
   }
-  const error = grandes.length ? `${grandes.map((n) => `«${n}»`).join(", ")} ${grandes.length === 1 ? "pasa" : "pasan"} de ${MB_MAXIMO} MB` : undefined;
+  const nombres = grandes.map((n) => `«${n}»`).join(", ");
+  const error = !grandes.length
+    ? undefined
+    : grandes.length === 1
+      ? t("{nombres} pasa de {mb} MB", { nombres, mb: MB_MAXIMO })
+      : t("{nombres} pasan de {mb} MB", { nombres, mb: MB_MAXIMO });
   return { adjuntos, ...(error ? { error } : {}) };
 }
 
@@ -91,7 +97,7 @@ export async function desdeFicheros(ficheros: File[]): Promise<{ adjuntos: Adjun
 export function admitir(actuales: AdjuntoPendiente[], nuevos: AdjuntoPendiente[]): { lista: AdjuntoPendiente[]; error?: string } {
   const sitio = Math.max(0, MAX_ADJUNTOS - actuales.length);
   const lista = [...actuales, ...nuevos.slice(0, sitio)];
-  return nuevos.length > sitio ? { lista, error: `Máximo ${MAX_ADJUNTOS} adjuntos por mensaje` } : { lista };
+  return nuevos.length > sitio ? { lista, error: t("Máximo {n} adjuntos por mensaje", { n: MAX_ADJUNTOS }) } : { lista };
 }
 
 /** Imagen pegada: «pegado-14-05-32.png». */

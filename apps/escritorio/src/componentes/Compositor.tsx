@@ -1,4 +1,4 @@
-import { Boton, BotonIcono, clases, elementosCampoTexto, useMenuContextual } from "@aquiles/ui";
+import { Boton, BotonIcono, clases, elementosCampoTexto, t, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AdjuntoPendiente } from "../estado/adjuntos";
 import { BotonAdjuntar, ChipsAdjuntos, ZonaSoltar, useAdjuntos } from "./Adjuntos";
@@ -90,7 +90,7 @@ export function Compositor({
       return [
         ...(await elementosCampoTexto(c)),
         dictar && { tipo: "separador" as const },
-        dictar && { texto: escuchando ? "Dejar de dictar" : "Dictar", icono: "microfono" as const, deshabilitado, alElegir: () => void escuchar() },
+        dictar && { texto: escuchando ? t("Dejar de dictar") : t("Dictar"), icono: "microfono" as const, deshabilitado, alElegir: () => void escuchar() },
       ];
     },
     { campos: true },
@@ -157,7 +157,7 @@ export function Compositor({
       return;
     }
     if (adjuntos.length && !adjuntosPermitidos) {
-      adj.setError("Los adjuntos se envían cuando acabe el turno");
+      adj.setError(t("Los adjuntos se envían cuando acabe el turno"));
       return;
     }
     setTexto("");
@@ -213,7 +213,7 @@ export function Compositor({
           <BotonAdjuntar alRutas={adj.anadirRutas} alFicheros={(f) => void adj.anadirFicheros(f)} deshabilitado={deshabilitado} />
           {dictar && (
             <BotonIcono
-              etiqueta={escuchando ? "Dictando: pulsa para parar" : "Dictar"}
+              etiqueta={escuchando ? t("Dictando: pulsa para parar") : t("Dictar")}
               icono="microfono"
               className={clases("compositor__microfono", escuchando && "compositor__microfono--escuchando")}
               aria-pressed={escuchando}
@@ -227,7 +227,7 @@ export function Compositor({
           {derecha}
           {trabajando && !hayAlgo && alDetener ? (
             <Boton variante="secundario" className="compositor__detener" icono="detener" onClick={alDetener}>
-              Detener
+              {t("Detener")}
             </Boton>
           ) : (
             <Boton type="submit" variante="principal" iconoFinal="flecha-diagonal" disabled={!hayAlgo || deshabilitado}>

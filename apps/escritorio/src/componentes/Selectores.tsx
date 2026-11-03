@@ -1,6 +1,6 @@
 import type { InfoProveedor, ModoAprobacion } from "@aquiles/protocolo";
 import { MODOS_APROBACION } from "@aquiles/protocolo";
-import { Boton, Desplegable, GrupoOpciones, Icono, Medidor, Opcion } from "@aquiles/ui";
+import { Boton, Desplegable, GrupoOpciones, Icono, Medidor, Opcion, t } from "@aquiles/ui";
 import { useState } from "react";
 import { MODOS, mismaCarpeta, nombreCarpeta, nombreModelo, rutaCorta, tokens } from "../estado/formato";
 import { esfuerzoDe, nombreEsfuerzo, opcionesEsfuerzo } from "../estado/esfuerzo";
@@ -20,7 +20,7 @@ export interface PropsSelectorModelo {
 export function SelectorModelo({ proveedor, modelo, proveedores, alElegir, deshabilitado, alineacion = "derecha" }: PropsSelectorModelo) {
   return (
     <Desplegable
-      etiqueta="Modelo"
+      etiqueta={t("Modelo")}
       alineacion={alineacion}
       disparador={({ alternar, abierto: _a, ...aria }) => (
         <Boton variante="chip" iconoFinal="chevron-abajo" disabled={deshabilitado} onClick={alternar} {...aria}>
@@ -50,8 +50,8 @@ export function SelectorModelo({ proveedor, modelo, proveedores, alElegir, desha
                 ))
               ) : (
                 <TextoEscrito
-                  etiqueta="Id del modelo"
-                  placeholder="id del modelo"
+                  etiqueta={t("Id del modelo")}
+                  placeholder={t("id del modelo")}
                   activo={p.id === proveedor}
                   valor={p.id === proveedor ? (modelo ?? "") : ""}
                   deshabilitado={!p.disponible}
@@ -93,11 +93,11 @@ export function SelectorEsfuerzo({
   const visible = actual || e.porDefecto;
   return (
     <Desplegable
-      etiqueta="Esfuerzo"
+      etiqueta={t("Esfuerzo")}
       alineacion={alineacion}
       disparador={({ alternar, abierto: _a, ...aria }) => (
-        <Boton variante="chip" icono="esfuerzo" iconoFinal="chevron-abajo" disabled={deshabilitado} onClick={alternar} title="Esfuerzo" {...aria}>
-          {visible ? nombreEsfuerzo(visible) : "Por defecto"}
+        <Boton variante="chip" icono="esfuerzo" iconoFinal="chevron-abajo" disabled={deshabilitado} onClick={alternar} title={t("Esfuerzo")} {...aria}>
+          {visible ? nombreEsfuerzo(visible) : t("Por defecto")}
         </Boton>
       )}
     >
@@ -134,7 +134,7 @@ export function SelectorCarpeta({
 }) {
   return (
     <Desplegable
-      etiqueta="Carpeta"
+      etiqueta={t("Carpeta")}
       alineacion={alineacion}
       disparador={({ alternar, abierto: _a, ...aria }) => (
         <Boton variante="chip" icono="carpeta" iconoFinal="chevron-abajo" disabled={deshabilitado} onClick={alternar} title={carpeta} {...aria}>
@@ -158,7 +158,7 @@ export function SelectorCarpeta({
           ))}
           {enTauri() ? (
             <Opcion
-              texto="Elegir otra…"
+              texto={t("Elegir otra…")}
               alElegir={async () => {
                 cerrar();
                 const c = await elegirCarpeta(carpeta).catch(() => null);
@@ -167,8 +167,8 @@ export function SelectorCarpeta({
             />
           ) : (
             <TextoEscrito
-              etiqueta="Ruta de la carpeta"
-              placeholder="C:\ruta\de\la\carpeta"
+              etiqueta={t("Ruta de la carpeta")}
+              placeholder={t("C:\\ruta\\de\\la\\carpeta")}
               activo={!recientes.some((c) => mismaCarpeta(c, carpeta))}
               valor=""
               deshabilitado={false}
@@ -212,7 +212,7 @@ function TextoEscrito({
         }}
       />
       <button type="button" className="nx-opcion modelo-escrito__usar" role="menuitemradio" aria-checked={activo} disabled={deshabilitado} onClick={() => alUsar(texto.trim())}>
-        Usar
+        {t("Usar")}
         {activo && <Icono nombre="check" tamano={14} grosor={2.5} className="nx-opcion__marca" />}
       </button>
     </div>
@@ -232,7 +232,7 @@ export function SelectorPermisos({
 }) {
   return (
     <Desplegable
-      etiqueta="Permisos"
+      etiqueta={t("Permisos")}
       alineacion={alineacion}
       disparador={({ alternar, abierto: _a, ...aria }) => (
         <Boton variante="chip" iconoFinal="chevron-abajo" disabled={deshabilitado} onClick={alternar} {...aria}>
@@ -261,14 +261,16 @@ export function SelectorPermisos({
 export function MedidorContexto({ uso, grande }: { uso?: { tokens: number; ventana?: number }; grande?: boolean }) {
   if (!uso) return null;
   const fraccion = uso.ventana ? uso.tokens / uso.ventana : undefined;
-  const etiqueta = uso.ventana ? `Contexto: ${tokens(uso.tokens)} de ${tokens(uso.ventana)} tokens` : `Contexto: ${tokens(uso.tokens)} tokens`;
+  const etiqueta = uso.ventana
+    ? t("Contexto: {usados} de {ventana} tokens", { usados: tokens(uso.tokens), ventana: tokens(uso.ventana) })
+    : t("Contexto: {usados} tokens", { usados: tokens(uso.tokens) });
   if (grande) {
     return (
       <div className="contexto-grande">
-        <span className="nx-etiqueta">Contexto</span>
+        <span className="nx-etiqueta">{t("Contexto")}</span>
         <div className="contexto-grande__cifras">
           <span className="contexto-grande__valor">{tokens(uso.tokens)}</span>
-          <span className="contexto-grande__total">{uso.ventana ? `de ${tokens(uso.ventana)} tokens` : "tokens"}</span>
+          <span className="contexto-grande__total">{uso.ventana ? t("de {ventana} tokens", { ventana: tokens(uso.ventana) }) : t("tokens")}</span>
         </div>
         {fraccion !== undefined && <Medidor valor={fraccion} etiqueta={etiqueta} />}
       </div>

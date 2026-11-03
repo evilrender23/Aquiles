@@ -12,6 +12,7 @@ import {
   copiarTexto,
   idPestana,
   type NombreIcono,
+  t,
   useMenuContextual,
 } from "@aquiles/ui";
 import {
@@ -49,7 +50,7 @@ export interface ContextoArtefactos {
 export const ArtefactosHilo = createContext<ContextoArtefactos | null>(null);
 export const useArtefactosHilo = () => useContext(ArtefactosHilo);
 
-const lineas = (n: number) => (n === 1 ? "1 línea" : `${n} líneas`);
+const lineas = (n: number) => (n === 1 ? t("1 línea") : t("{n} líneas", { n }));
 
 export function TarjetaArtefacto({ a, version, activa, alAbrir }: { a: Artefacto; version: number; activa: boolean; alAbrir: () => void }) {
   return (
@@ -152,7 +153,7 @@ export function MarcoPanel({
         className="panel-artefacto__asa"
         role="separator"
         aria-orientation="vertical"
-        aria-label="Ancho del panel"
+        aria-label={t("Ancho del panel")}
         aria-valuenow={ancho}
         aria-valuemin={ANCHO_MINIMO}
         tabIndex={0}
@@ -165,7 +166,7 @@ export function MarcoPanel({
           {titulo}
         </h2>
         {cabecera}
-        <BotonIcono etiqueta="Cerrar" icono="cerrar" onClick={alCerrar} />
+        <BotonIcono etiqueta={t("Cerrar")} icono="cerrar" onClick={alCerrar} />
       </header>
       {children}
     </aside>
@@ -214,20 +215,25 @@ export function EstadoGuardado({ guardado, alGuardar, alCancelar }: { guardado?:
     if (existe) cancelar.current?.focus();
   }, [existe]);
   if (!guardado || guardado.tipo === "guardando") return null;
-  if (guardado.tipo === "existe")
+  if (guardado.tipo === "existe") {
+    // La frase lleva el nombre en <code>: se parte por el hueco.
+    const [antes, despues] = t("{nombre} ya existe").split("{nombre}");
     return (
       <div className="panel-artefacto__aviso" role="alert">
         <span>
-          <code>{guardado.destino.nombre}</code> ya existe
+          {antes}
+          <code>{guardado.destino.nombre}</code>
+          {despues}
         </span>
         <Boton variante="acento" tamano="pequeno" onClick={() => alGuardar(guardado.destino, true)}>
-          Sobrescribir
+          {t("Sobrescribir")}
         </Boton>
         <Boton variante="fantasma" tamano="pequeno" ref={cancelar} onClick={alCancelar} onKeyDown={(e) => e.key === "Escape" && alCancelar()}>
-          Cancelar
+          {t("Cancelar")}
         </Boton>
       </div>
     );
+  }
   if (guardado.tipo === "error")
     return (
       <p className="panel-artefacto__aviso panel-artefacto__aviso--error" role="alert">
@@ -242,7 +248,7 @@ export function EstadoGuardado({ guardado, alGuardar, alCancelar }: { guardado?:
       </span>
       {puedeMostrarRutas() && (
         <Boton variante="fantasma" tamano="pequeno" icono="carpeta" onClick={() => void mostrarFichero(guardado.ruta)}>
-          Mostrar fichero
+          {t("Mostrar fichero")}
         </Boton>
       )}
     </div>
@@ -277,8 +283,8 @@ export function PanelArtefacto({
   useEffect(() => olvidar(), [a?.id, indice]);
   useEffect(() => {
     if (!copiado) return;
-    const t = setTimeout(() => setCopiado(false), 1400);
-    return () => clearTimeout(t);
+    const espera = setTimeout(() => setCopiado(false), 1400);
+    return () => clearTimeout(espera);
   }, [copiado]);
 
   const conVista = a ? renderizable(a.tipo) : false;
@@ -295,13 +301,13 @@ export function PanelArtefacto({
   const comoWord = () => a && void guardar({ tipo: "word", nombre: nombreWord(a.id), contenido: a.contenido });
 
   const menu = useMenuContextual(({ seleccion }) => [
-    seleccion.trim() && { texto: "Copiar", icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
+    seleccion.trim() && { texto: t("Copiar"), icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
     seleccion.trim() && { tipo: "separador" },
-    { texto: seleccion.trim() ? "Copiar todo" : "Copiar", icono: "copiar", alElegir: copiar },
-    { texto: "Guardar en la carpeta", icono: "guardar", deshabilitado: !a?.completo, alElegir: enCarpeta },
-    conWord && { texto: "Guardar como Word", icono: "documento", deshabilitado: !a?.completo, alElegir: comoWord },
+    { texto: seleccion.trim() ? t("Copiar todo") : t("Copiar"), icono: "copiar", alElegir: copiar },
+    { texto: t("Guardar en la carpeta"), icono: "guardar", deshabilitado: !a?.completo, alElegir: enCarpeta },
+    conWord && { texto: t("Guardar como Word"), icono: "documento", deshabilitado: !a?.completo, alElegir: comoWord },
     { tipo: "separador" },
-    { texto: "Cerrar", icono: "cerrar", alElegir: alCerrar },
+    { texto: t("Cerrar"), icono: "cerrar", alElegir: alCerrar },
   ]);
 
   if (!a) return null;
@@ -315,10 +321,10 @@ export function PanelArtefacto({
       cabecera={
         versiones.length > 1 && (
           <Desplegable
-            etiqueta="Versión"
+            etiqueta={t("Versión")}
             alineacion="derecha"
             disparador={({ alternar, abierto: _a, ...aria }) => (
-              <Boton variante="chip" tamano="pequeno" iconoFinal="chevron-abajo" onClick={alternar} title="Versión" {...aria}>
+              <Boton variante="chip" tamano="pequeno" iconoFinal="chevron-abajo" onClick={alternar} title={t("Versión")} {...aria}>
                 v{indice + 1}
               </Boton>
             )}
@@ -345,11 +351,11 @@ export function PanelArtefacto({
       <div className="panel-artefacto__barra">
         {conVista ? (
           <Pestanas
-            etiqueta="Artefacto"
+            etiqueta={t("Artefacto")}
             className="panel-artefacto__pestanas"
             pestanas={[
-              { id: "codigo", texto: "Código" },
-              { id: "vista", texto: "Vista" },
+              { id: "codigo", texto: t("Código") },
+              { id: "vista", texto: t("Vista") },
             ]}
             activa={activa}
             alElegir={alPestana}
@@ -359,9 +365,9 @@ export function PanelArtefacto({
           <span className="panel-artefacto__lenguaje">{a.lenguaje ?? ""}</span>
         )}
         <span className="panel-artefacto__acciones">
-          <BotonIcono etiqueta={copiado ? "Copiado" : "Copiar"} icono={copiado ? "check" : "copiar"} onClick={copiar} />
-          <BotonIcono etiqueta="Guardar en la carpeta" icono="guardar" disabled={ocupado} onClick={enCarpeta} />
-          {conWord && <BotonIcono etiqueta="Guardar como Word" icono="documento" disabled={ocupado} onClick={comoWord} />}
+          <BotonIcono etiqueta={copiado ? t("Copiado") : t("Copiar")} icono={copiado ? "check" : "copiar"} onClick={copiar} />
+          <BotonIcono etiqueta={t("Guardar en la carpeta")} icono="guardar" disabled={ocupado} onClick={enCarpeta} />
+          {conWord && <BotonIcono etiqueta={t("Guardar como Word")} icono="documento" disabled={ocupado} onClick={comoWord} />}
         </span>
       </div>
       <EstadoGuardado guardado={guardado} alGuardar={(d, s) => void guardar(d, s)} alCancelar={olvidar} />
@@ -405,7 +411,7 @@ export function CodigoConLineas({ texto, seguir }: { texto: string; seguir: bool
       className="artefacto-codigo"
       // biome-ignore lint/a11y/noNoninteractiveTabindex: una zona con scroll tiene que poder enfocarse para moverse con el teclado.
       tabIndex={0}
-      aria-label="Código"
+      aria-label={t("Código")}
       onScroll={(e) => {
         const d = e.currentTarget;
         pegado.current = d.scrollHeight - d.scrollTop - d.clientHeight < 40;

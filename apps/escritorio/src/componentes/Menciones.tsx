@@ -1,4 +1,4 @@
-import { clases, Icono } from "@aquiles/ui";
+import { clases, Icono, t } from "@aquiles/ui";
 import { type KeyboardEvent, type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
 
 /** `@` al principio o tras un espacio, hasta el cursor: lo que se está escribiendo como mención. */
@@ -111,7 +111,7 @@ export function useMenciones(
   };
 
   const lista = abierta ? (
-    <div id={id} role="listbox" aria-label="Ficheros" className="menciones">
+    <div id={id} role="listbox" aria-label={t("Ficheros")} className="menciones">
       {sugerencias.map((ruta, i) => {
         const corte = ruta.lastIndexOf("/");
         return (

@@ -1,5 +1,5 @@
 import type { InfoComando } from "@aquiles/protocolo";
-import { clases } from "@aquiles/ui";
+import { clases, t } from "@aquiles/ui";
 import { type KeyboardEvent, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAcciones } from "../estado/almacen";
 import "./Comandos.css";
@@ -31,11 +31,11 @@ export function useFuenteComandos(sesionId?: string): FuenteComandos {
       listar: async () => (await llamar("comandos.listar", sesionId ? { sesionId } : {})).comandos,
       app: sesionId
         ? [
-            { nombre: "nueva", descripcion: "Abre una sesión nueva", origen: "aquiles", ejecutar: () => (nuevaSesion(), true) },
+            { nombre: "nueva", descripcion: t("Abre una sesión nueva"), origen: "aquiles", ejecutar: () => (nuevaSesion(), true) },
             {
               nombre: "renombrar",
-              argumentos: "<título>",
-              descripcion: "Cambia el título de esta sesión",
+              argumentos: t("<título>"),
+              descripcion: t("Cambia el título de esta sesión"),
               origen: "aquiles",
               ejecutar: (titulo) => {
                 if (!titulo) return false;
@@ -144,9 +144,9 @@ export function useComandos(
     setConsulta(undefined);
   };
 
-  /** Si `t` es un comando de la app, lo ejecuta: true si se hizo, false si no se pudo; undefined si no es de la app. */
-  const ejecutarApp = (t: string): boolean | undefined => {
-    const m = COMANDO.exec(t.trim());
+  /** Si `escrito` es un comando de la app, lo ejecuta: true si se hizo, false si no se pudo; undefined si no es de la app. */
+  const ejecutarApp = (escrito: string): boolean | undefined => {
+    const m = COMANDO.exec(escrito.trim());
     const c = m && fuente.current?.app.find((x) => x.nombre === m[1]);
     if (!c) return undefined;
     return c.ejecutar((m[2] ?? "").trim()) !== false;
@@ -199,7 +199,7 @@ export function useComandos(
   };
 
   const lista = abierta ? (
-    <div id={id} role="listbox" aria-label="Comandos" className="comandos">
+    <div id={id} role="listbox" aria-label={t("Comandos")} className="comandos">
       {sugerencias.map((c, i) => (
         // biome-ignore lint/a11y/useKeyWithClickEvents: el teclado se maneja desde la caja (aria-activedescendant).
         <div

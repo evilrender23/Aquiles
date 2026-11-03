@@ -1,6 +1,6 @@
 /** Subagentes de una sesión (herramienta `delegar`): estado, tarea, lo que van escribiendo, y parar, reconducir o abrir. */
 import type { MotivoFin } from "@aquiles/protocolo";
-import { Boton, BotonIcono, Etiqueta, clases, useMenuContextual } from "@aquiles/ui";
+import { Boton, BotonIcono, Etiqueta, clases, t, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import type { EstadoApp } from "../estado/tipos";
@@ -15,7 +15,20 @@ interface Hijo {
   error?: string;
 }
 
-const ESTADOS: Record<"en-curso" | MotivoFin, string> = { "en-curso": "Trabajando", fin: "Terminado", parado: "Parado", limite: "Límite de pasos", error: "Error" };
+function nombreEstado(estado: "en-curso" | MotivoFin): string {
+  switch (estado) {
+    case "en-curso":
+      return t("Trabajando");
+    case "fin":
+      return t("Terminado");
+    case "parado":
+      return t("Parado");
+    case "limite":
+      return t("Límite de pasos");
+    case "error":
+      return t("Error");
+  }
+}
 
 /** Hijos de una sesión: los de los eventos y los que lista el núcleo (origen subagente con este padre). */
 export function hijosDe(s: EstadoApp, padre: string): Hijo[] {
@@ -30,7 +43,7 @@ export function hijosDe(s: EstadoApp, padre: string): Hijo[] {
     const estado = ev?.estado ?? (sesion?.trabajando ? "en-curso" : undefined);
     return {
       subId,
-      nombre: sesion?.titulo?.replace(/ · subagente$/, "") || "Subagente",
+      nombre: sesion?.titulo?.replace(/ · subagente$/, "") || t("Subagente"),
       ...(ev?.tarea ? { tarea: ev.tarea } : {}),
       ...(estado ? { estado } : {}),
       ...(ev?.texto ? { texto: ev.texto } : {}),
@@ -55,16 +68,16 @@ export function PanelSubagentes({ sesionId, compacto = false }: { sesionId: stri
   );
   if (!compacto) {
     return (
-      <section className="subagentes" aria-label="Subagentes">
-        <Etiqueta>Subagentes</Etiqueta>
+      <section className="subagentes" aria-label={t("Subagentes")}>
+        <Etiqueta>{t("Subagentes")}</Etiqueta>
         {lista}
       </section>
     );
   }
   return (
-    <section className="subagentes subagentes--compacto" aria-label="Subagentes">
+    <section className="subagentes subagentes--compacto" aria-label={t("Subagentes")}>
       <button type="button" className="subagentes__plegar" aria-expanded={abierto} onClick={() => setAbierto((a) => !a)}>
-        <Etiqueta>{enCurso ? `Subagentes · ${enCurso} / ${hijos.length}` : `Subagentes · ${hijos.length}`}</Etiqueta>
+        <Etiqueta>{enCurso ? t("Subagentes · {activos} / {total}", { activos: enCurso, total: hijos.length }) : t("Subagentes · {total}", { total: hijos.length })}</Etiqueta>
       </button>
       {abierto && lista}
     </section>
@@ -84,16 +97,16 @@ function TarjetaSubagente({ h }: { h: Hijo }) {
   }, [reconduciendo]);
 
   const menu = useMenuContextual(() => [
-    trabajando && { texto: "Parar", icono: "detener", alElegir: () => detener(h.subId) },
-    trabajando && { texto: "Reconducir…", icono: "enviar", alElegir: () => setReconduciendo(true) },
-    { texto: "Abrir", icono: "flecha-diagonal", alElegir: () => abrirSesion(h.subId) },
+    trabajando && { texto: t("Parar"), icono: "detener", alElegir: () => detener(h.subId) },
+    trabajando && { texto: t("Reconducir…"), icono: "enviar", alElegir: () => setReconduciendo(true) },
+    { texto: t("Abrir"), icono: "flecha-diagonal", alElegir: () => abrirSesion(h.subId) },
   ]);
 
   const enviar = async () => {
-    const t = texto.trim();
-    if (!t) return;
+    const limpio = texto.trim();
+    if (!limpio) return;
     try {
-      await reconducir(h.subId, t);
+      await reconducir(h.subId, limpio);
       setTexto("");
       setReconduciendo(false);
       setError(undefined);
@@ -109,7 +122,7 @@ function TarjetaSubagente({ h }: { h: Hijo }) {
         {h.estado && (
           <span className="subagente__estado">
             {trabajando && <i className="nx-punto nx-pulso" aria-hidden="true" />}
-            {ESTADOS[h.estado]}
+            {nombreEstado(h.estado)}
           </span>
         )}
       </div>
@@ -139,27 +152,27 @@ function TarjetaSubagente({ h }: { h: Hijo }) {
           <input
             ref={entrada}
             className="subagente__entrada"
-            aria-label={`Reconducir a ${h.nombre}`}
+            aria-label={t("Reconducir a {nombre}", { nombre: h.nombre })}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setReconduciendo(false)}
           />
-          <BotonIcono type="submit" variante="pequeno" etiqueta="Enviar" icono="enviar" disabled={!texto.trim()} />
+          <BotonIcono type="submit" variante="pequeno" etiqueta={t("Enviar")} icono="enviar" disabled={!texto.trim()} />
         </form>
       ) : (
         <div className="subagente__botones">
           {trabajando && (
             <Boton variante="fantasma" tamano="pequeno" icono="detener" onClick={() => detener(h.subId)}>
-              Parar
+              {t("Parar")}
             </Boton>
           )}
           {trabajando && (
             <Boton variante="fantasma" tamano="pequeno" onClick={() => setReconduciendo(true)}>
-              Reconducir
+              {t("Reconducir")}
             </Boton>
           )}
           <Boton variante="fantasma" tamano="pequeno" iconoFinal="flecha-diagonal" onClick={() => abrirSesion(h.subId)}>
-            Abrir
+            {t("Abrir")}
           </Boton>
         </div>
       )}

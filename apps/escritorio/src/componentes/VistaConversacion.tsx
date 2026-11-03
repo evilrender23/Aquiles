@@ -1,4 +1,4 @@
-import { Boton, Icono, Titular, clases } from "@aquiles/ui";
+import { Boton, Icono, Titular, clases, t } from "@aquiles/ui";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { estaTrabajando, useAcciones, useEstado } from "../estado/almacen";
 import { type ArtefactosSesion, recogerArtefactos, renderizable } from "../estado/artefactos";
@@ -145,7 +145,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
           <header className={clases("conversacion__cabecera", !sesion.titulo && "conversacion__cabecera--sin-titulo")}>
             {sesion.titulo && <Titular texto={sesion.titulo} tamano="m" />}
             <Boton variante="chip" icono="reloj" className="conversacion__cambios" aria-pressed={cambios} onClick={() => (cambios ? setCambios(false) : abrirCambios())}>
-              Cambios
+              {t("Cambios")}
             </Boton>
           </header>
           {conversacion.cargando ? null : (
@@ -165,9 +165,9 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
           {sesion.interrumpida && !trabajando && (
             <div className="interrumpida" role="status">
               <Icono nombre="pausa" tamano={16} />
-              <span className="interrumpida__texto">Interrumpida</span>
+              <span className="interrumpida__texto">{t("Interrumpida")}</span>
               <Boton variante="acento" tamano="pequeno" disabled={!conectada} onClick={() => void enviar(sesionId, "Continúa donde lo dejaste.")}>
-                Continuar
+                {t("Continuar")}
               </Boton>
             </div>
           )}
@@ -179,14 +179,14 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
             dictar={estado.voz?.dictado ? async () => (await llamar("voz.dictar", {})).texto : undefined}
             pararDictado={() => void llamar("voz.parar", {}).catch(() => {})}
             insercion={estado.pedidos.caja}
-            etiqueta="Mensaje para Aquiles"
-            placeholder="Escribe una instrucción"
-            textoEnviar="Enviar"
+            etiqueta={t("Mensaje para Aquiles")}
+            placeholder={t("Escribe una instrucción")}
+            textoEnviar={t("Enviar")}
             buscarFicheros={buscarFicheros}
             comandos={comandos}
             deshabilitado={!conectada || conversacion.cargando}
             trabajando={trabajando}
-            alEnviar={(t, adjuntos) => enviar(sesionId, t, adjuntos)}
+            alEnviar={(texto, adjuntos) => enviar(sesionId, texto, adjuntos)}
             adjuntosPermitidos={!trabajando && !pendientes.some((p) => p.tipo === "pregunta")}
             alDetener={() => detener(sesionId)}
             izquierda={
@@ -204,7 +204,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
                 <SelectorPermisos modo={sesion.modoAprobacion} deshabilitado={!conectada} alElegir={(modoAprobacion) => void ajustarSesion(sesionId, { modoAprobacion })} />
                 {!sesion.objetivo && !editandoObjetivo && (
                   <Boton variante="chip" icono="diana" disabled={!conectada} onClick={() => setEditandoObjetivo(true)}>
-                    Objetivo
+                    {t("Objetivo")}
                   </Boton>
                 )}
               </>
@@ -241,7 +241,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
           alCerrar={() => setPanel(undefined)}
         />
       ) : (conversacion.contexto || hayHijos) && (
-        <aside className="conversacion__lateral" aria-label="Contexto de la sesión">
+        <aside className="conversacion__lateral" aria-label={t("Contexto de la sesión")}>
           <MedidorContexto uso={conversacion.contexto} grande />
           <PanelSubagentes sesionId={sesionId} />
         </aside>

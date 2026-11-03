@@ -1,10 +1,24 @@
 /** Esfuerzo de razonamiento: los niveles los declara cada proveedor (y a veces cada modelo); aquí solo se nombran. */
 import type { EsfuerzoModelo, InfoProveedor } from "@aquiles/protocolo";
-
-const NOMBRES: Record<string, string> = { low: "Bajo", medium: "Medio", high: "Alto", xhigh: "Muy alto", max: "Máximo" };
+import { t } from "@aquiles/ui";
 
 /** Los niveles conocidos con su nombre; los demás, tal como vienen. */
-export const nombreEsfuerzo = (nivel: string): string => NOMBRES[nivel] ?? nivel;
+export function nombreEsfuerzo(nivel: string): string {
+  switch (nivel) {
+    case "low":
+      return t("Bajo");
+    case "medium":
+      return t("Medio");
+    case "high":
+      return t("Alto");
+    case "xhigh":
+      return t("Muy alto");
+    case "max":
+      return t("Máximo");
+    default:
+      return nivel;
+  }
+}
 
 /** Niveles de ese modelo (los suyos si el proveedor los da por modelo; si no, los generales). Sin niveles, undefined. */
 export function esfuerzoDe(proveedores: InfoProveedor[], proveedor: string | undefined, modelo: string | undefined): EsfuerzoModelo | undefined {
@@ -17,7 +31,7 @@ export function esfuerzoDe(proveedores: InfoProveedor[], proveedor: string | und
 
 /** «Por defecto» ("") y los niveles; el por defecto lleva el nivel entre paréntesis solo si el proveedor lo dice. */
 export function opcionesEsfuerzo(e: EsfuerzoModelo): { valor: string; texto: string }[] {
-  const porDefecto = e.porDefecto ? `Por defecto (${nombreEsfuerzo(e.porDefecto)})` : "Por defecto";
+  const porDefecto = e.porDefecto ? t("Por defecto ({nivel})", { nivel: nombreEsfuerzo(e.porDefecto) }) : t("Por defecto");
   return [{ valor: "", texto: porDefecto }, ...e.niveles.map((n) => ({ valor: n, texto: nombreEsfuerzo(n) }))];
 }
 
