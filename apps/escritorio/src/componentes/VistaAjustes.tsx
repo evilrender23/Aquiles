@@ -1,4 +1,4 @@
-import type { Ajustes, EntornoTerminal, Params } from "@aquiles/protocolo";
+import { PASOS_POR_TURNO, type Ajustes, type EntornoTerminal, type Params } from "@aquiles/protocolo";
 import { Boton, Campo, Chip, Interruptor, Pestanas, Titular, idPestana, type Pestana } from "@aquiles/ui";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
@@ -193,6 +193,14 @@ function General({ form, cambiar }: PropsPestana) {
           <OpcionesPermisos valor={form.modoAprobacion} alCambiar={(modoAprobacion) => cambiar({ modoAprobacion }, { modoAprobacion })} />
         </Ajuste>
       </Grupo>
+      <Grupo titulo="Turnos">
+        <Ajuste
+          titulo="Pasos máximos por turno"
+          descripcion="Cuántas veces puede responder el modelo (y usar herramientas) en un turno antes de parar. Vale para todas las sesiones desde el turno siguiente."
+        >
+          <CampoPasos valor={form.maxPasos ?? PASOS_POR_TURNO.porDefecto} alCambiar={(maxPasos) => cambiar({ maxPasos }, { maxPasos }, ESCRIBIENDO_MS)} />
+        </Ajuste>
+      </Grupo>
       {tauri && (
         <Grupo titulo={esMac ? "Mac" : "Windows"}>
           <Ajuste titulo={esMac ? "Abrir al iniciar sesión" : "Arrancar con Windows"} descripcion={`Se queda en ${esMac ? "la barra de menús" : "la bandeja"} al iniciar sesión, para que las tareas programadas y los canales sigan.`}>
@@ -204,6 +212,30 @@ function General({ form, cambiar }: PropsPestana) {
         </Grupo>
       )}
     </>
+  );
+}
+
+/** Pasos por turno: se edita como texto para poder vaciar el campo mientras se escribe; solo se guarda un entero válido. */
+function CampoPasos({ valor, alCambiar }: { valor: number; alCambiar: (n: number) => void }) {
+  const { min, max } = PASOS_POR_TURNO;
+  const [texto, setTexto] = useState(String(valor));
+  const n = Number(texto);
+  const valido = texto.trim() !== "" && Number.isInteger(n) && n >= min && n <= max;
+  return (
+    <Campo
+      etiqueta="Pasos"
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      value={texto}
+      error={valido ? undefined : `De ${min} a ${max}`}
+      onChange={(e) => {
+        setTexto(e.target.value);
+        const m = Number(e.target.value);
+        if (e.target.value.trim() !== "" && Number.isInteger(m) && m >= min && m <= max) alCambiar(m);
+      }}
+    />
   );
 }
 

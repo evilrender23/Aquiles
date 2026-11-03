@@ -4,7 +4,7 @@
  * Entre pasos: mensajes de steer del usuario y compactación del contexto.
  */
 import { relative } from "node:path";
-import type { Diff, Evento, ModoAprobacion, MotivoFin, Uso } from "@aquiles/protocolo";
+import { PASOS_POR_TURNO, type Diff, type Evento, type ModoAprobacion, type MotivoFin, type Uso } from "@aquiles/protocolo";
 import { clavePermiso, decidir } from "./aprobaciones";
 import { compactarSiHaceFalta } from "./contexto";
 import { calcularDiff } from "./diff";
@@ -145,7 +145,7 @@ export async function ejecutarTurno(o: OpcionesTurno): Promise<ResultadoTurno> {
     }
   };
 
-  for (let i = 0; i < (o.maxIteraciones ?? 25); i++) {
+  for (let i = 0; i < (o.maxIteraciones ?? PASOS_POR_TURNO.porDefecto); i++) {
     if (o.senal.aborted) return fin("parado");
     while (o.entorno.steer.length) {
       anadir({ rol: "usuario", texto: `[Mensaje del usuario mientras trabajabas]\n${o.entorno.steer.shift()}` });

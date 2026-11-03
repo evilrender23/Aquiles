@@ -10,7 +10,10 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 12;
+export const VERSION_PROTOCOLO = 13;
+
+/** Pasos por turno: cuántas veces puede responder el modelo (y llamar herramientas) antes de que el turno pare. */
+export const PASOS_POR_TURNO = { porDefecto: 25, min: 1, max: 1000 } as const;
 
 /** Línea que el núcleo imprime en stdout cuando ya escucha: `AQUILES_READY port=N`. */
 export const LINEA_LISTO = "AQUILES_READY";
@@ -62,6 +65,7 @@ export const metodos = {
     esfuerzo: z.string().optional(),
     modoAprobacion: z.enum(MODOS_APROBACION).optional(),
     carpeta: z.string().min(1).optional(),
+    maxPasos: z.number().int().min(PASOS_POR_TURNO.min).max(PASOS_POR_TURNO.max).optional(),
     aprendizaje: z
       .object({
         activo: z.boolean().optional(),
@@ -286,6 +290,8 @@ export interface Ajustes {
   modoAprobacion: ModoAprobacion;
   /** Carpeta de trabajo de las sesiones nuevas. */
   carpeta: string;
+  /** Pasos (respuestas del modelo) que puede dar un turno antes de parar con motivo «limite». Vale para todas las sesiones. */
+  maxPasos: number;
   aprendizaje: AjustesAprendizaje;
   herramientas: AjustesHerramientas;
 }

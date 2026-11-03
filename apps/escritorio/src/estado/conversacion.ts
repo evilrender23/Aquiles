@@ -157,7 +157,7 @@ export function aplicarEvento(c: Conversacion, e: EventoSesion, ahora: number): 
       const elementos = cerrarTexto(c.elementos).map((x) => (x.tipo === "herramienta" && x.estado === "en-curso" ? { ...x, estado: "fallo" as const } : x));
       const fin: Conversacion = { ...c, elementos, trabajando: false, pensandoDesde: undefined, pensamientoVivo: undefined };
       if (e.motivo === "error") return anadirAviso(fin, "error", e.error ?? "Error desconocido");
-      if (e.motivo === "limite") return anadirAviso(fin, "aviso", "Se alcanzó el límite de pasos del turno");
+      if (e.motivo === "limite") return anadirAviso(fin, "aviso", "Se alcanzó el límite de pasos del turno (se cambia en Ajustes → General)");
       if (e.motivo === "parado") return anadirAviso(fin, "aviso", "Detenido");
       return fin;
     }

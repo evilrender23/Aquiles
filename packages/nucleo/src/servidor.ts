@@ -14,6 +14,7 @@ import {
   MAX_BYTES_ADJUNTO,
   metodos,
   RUTA_RPC,
+  PASOS_POR_TURNO,
   VERSION_PROTOCOLO,
   type ErrorRpc,
   type InfoSesion,
@@ -176,6 +177,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     ...(o.modelo ? { modelo: o.modelo } : {}),
     modoAprobacion: "preguntar-ejecutar",
     carpeta: o.cwdPorDefecto,
+    maxPasos: PASOS_POR_TURNO.porDefecto,
     aprendizaje: AJUSTES_APRENDIZAJE,
     herramientas: AJUSTES_HERRAMIENTAS,
   });
@@ -364,6 +366,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       herramientas: x.herramientas ?? herramientasDe(s),
       emitir: emitirTurno,
       senal: control.signal,
+      maxIteraciones: a.maxPasos,
       entorno: s,
       alAnadir: (m) => {
         sesiones.anotar(s, m);

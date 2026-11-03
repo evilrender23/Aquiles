@@ -153,7 +153,7 @@ test("ajustes, ajustar, renombrar, borrar y sesion.actualizada", async () => {
   const ws = await conectar();
   const c = rpc(ws);
   expect((await c.llamar("ajustes.leer", {})).result).toEqual({
-    proveedor: "simulado", modoAprobacion: "preguntar-ejecutar", carpeta: cwd,
+    proveedor: "simulado", modoAprobacion: "preguntar-ejecutar", carpeta: cwd, maxPasos: 25,
     aprendizaje: { activo: true, cadaHerramientas: 10, cadaMensajes: 10, aplicarSinPreguntar: false },
     herramientas: { navegador: false, terminal: { entorno: "local", imagen: "oven/bun:debian" }, guardian: { activo: false } },
   });
@@ -177,6 +177,23 @@ test("ajustes, ajustar, renombrar, borrar y sesion.actualizada", async () => {
   ws.close();
   // proveedores.listar pregunta de verdad a los CLI instalados (agy, claude, codex) y a Ollama: la primera vez tarda segundos.
 }, 30_000);
+
+test("pasos máximos por turno: se guardan, valen desde el turno siguiente y fuera de rango se rechazan", async () => {
+  const ws = await conectar();
+  const c = rpc(ws);
+  for (const malo of [0, 1001, 2.5]) expect((await c.llamar("ajustes.guardar", { maxPasos: malo })).error.code).toBe(-32602);
+  expect((await c.llamar("ajustes.guardar", { maxPasos: 1 })).result.maxPasos).toBe(1);
+  const { result: s } = await c.llamar("sesion.crear", {});
+  // El guion llama a leer y después contesta: con un solo paso no llega a contestar.
+  await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "lee hola.txt" });
+  expect(await c.esperarFin()).toMatchObject({ motivo: "limite" });
+  c.eventos.length = 0;
+  expect((await c.llamar("ajustes.guardar", { maxPasos: 25 })).result.maxPasos).toBe(25);
+  await c.llamar("prompt.enviar", { sesionId: s.sesionId, texto: "lee hola.txt" });
+  expect(await c.esperarFin()).toMatchObject({ motivo: "fin" });
+  await c.llamar("sesion.borrar", { sesionId: s.sesionId });
+  ws.close();
+});
 
 test("errores JSON-RPC", async () => {
   const ws = await conectar();
