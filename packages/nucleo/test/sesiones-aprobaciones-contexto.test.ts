@@ -89,9 +89,23 @@ describe("contexto", () => {
   test("podar respeta los 6 resultados más recientes", () => {
     const mensajes = Array.from({ length: 10 }, (_, i) => res(i));
     const podados = podar(mensajes);
-    expect(podados.slice(0, 4).every((m) => m.rol === "herramienta" && m.resultado.startsWith("[resultado antiguo podado"))).toBe(true);
+    expect(podados.slice(0, 4).every((m) => m.rol === "herramienta" && m.resultado.startsWith("[leer: 201 líneas, podado"))).toBe(true);
     expect(podados.slice(4)).toEqual(mensajes.slice(4));
     expect(estimarTokens("", podados)).toBeLessThan(estimarTokens("", mensajes));
+  });
+
+  test("podar dice qué era cada resultado (con sus argumentos) y de la terminal guarda la última línea", () => {
+    const m: Mensaje[] = [
+      { rol: "asistente", texto: "", llamadas: [{ id: "a", nombre: "leer", argumentos: { ruta: "src/a.ts" } }, { id: "b", nombre: "terminal", argumentos: { comando: "bun test" } }] },
+      { rol: "herramienta", id: "a", nombre: "leer", resultado: "x\n".repeat(400), error: false },
+      { rol: "herramienta", id: "b", nombre: "terminal", resultado: `${"salida\n".repeat(300)}[código de salida 1]\n`, error: false },
+      ...Array.from({ length: 6 }, (_, i) => res(100 + i)),
+    ];
+    const [, leido, terminal] = podar(m);
+    expect(leido).toMatchObject({ resultado: "[leer src/a.ts: 401 líneas, podado para ahorrar contexto; vuelve a pedirlo si lo necesitas]" });
+    expect((terminal as { resultado: string }).resultado).toBe(
+      "[terminal bun test: 302 líneas, podado para ahorrar contexto; vuelve a pedirlo si lo necesitas]\n[código de salida 1]",
+    );
   });
 
   test("el corte nunca separa una llamada de su resultado", () => {

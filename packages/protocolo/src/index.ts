@@ -847,7 +847,8 @@ export type Evento =
   | { tipo: "notificacion"; titulo: string; texto: string; sesionId?: string }
   | { tipo: "tareas"; sesionId: string; tareas: TareaVisible[] }
   | { tipo: "contexto.uso"; sesionId: string; tokens: number; ventana?: number }
-  | { tipo: "contexto.compactado"; sesionId: string; metodo: "poda" | "resumen"; antes: number; despues: number }
+  /** Con `resumen`, el que sustituye a la parte antigua (la app lo enseña). */
+  | { tipo: "contexto.compactado"; sesionId: string; metodo: "poda" | "resumen"; antes: number; despues: number; resumen?: string }
   | { tipo: "turno.reintento"; sesionId: string; intento: number; esperaMs: number; motivo: string }
   | { tipo: "turno.fin"; sesionId: string; motivo: MotivoFin; texto: string; uso?: Uso; error?: string };
 

@@ -14,11 +14,21 @@ const CONSERVAR_RESULTADOS = 6;
 /** Mensajes recientes que se conservan tal cual al resumir. */
 const CONSERVAR_MENSAJES = 12;
 
+/**
+ * Con secciones fijas, no en prosa libre: así un resumen que se vuelve a resumir (compactar varias veces) pierde
+ * menos, y lo que importa para seguir (ficheros, pendientes) no se diluye.
+ */
 const INSTRUCCIONES_RESUMEN = [
   "Resume la conversación anterior para que otro asistente pueda continuar el trabajo sin ella.",
-  "Incluye: qué pidió el usuario y sus preferencias; decisiones tomadas; ficheros leídos o cambiados y en qué estado quedan;",
-  "comandos ejecutados y resultados importantes; errores encontrados y cómo se resolvieron; qué falta por hacer.",
-  "Sé concreto (rutas, nombres, valores). No inventes nada. Escribe solo el resumen.",
+  "Usa exactamente estas secciones, en este orden, con viñetas cortas y concretas (rutas, nombres, valores):",
+  "## Objetivo y preferencias — qué pidió el usuario y cómo lo quiere.",
+  "## Ficheros — cada fichero leído o cambiado: ruta — en qué estado queda.",
+  "## Decisiones — lo decidido y por qué.",
+  "## Hecho — comandos y resultados importantes.",
+  "## Errores resueltos — qué falló y cómo se arregló, para no repetirlo.",
+  "## Pendiente — lo que falta por hacer, en orden.",
+  "Si en la conversación ya hay un resumen anterior, intégralo en estas secciones sin perder nada de él.",
+  "Deja vacía (con «—») la sección que no tenga nada. No inventes nada. Escribe solo el resumen.",
 ].join("\n");
 
 /** Lo que cuesta una imagen, más o menos, en caracteres equivalentes (~1.600 tokens). */
@@ -35,13 +45,35 @@ export function estimarTokens(sistema: string, mensajes: readonly Mensaje[]): nu
   return Math.ceil(c / 3.5);
 }
 
+/** Qué fue esa llamada, en pocas palabras, para que el aviso de la poda diga qué volver a pedir. */
+function queFue(nombre: string, args: unknown): string | undefined {
+  const a = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+  const corto = (v: unknown) => (typeof v === "string" ? (v.length > 120 ? `${v.slice(0, 120)}…` : v) : undefined);
+  const clave = { leer: "ruta", escribir: "ruta", editar: "ruta", terminal: "comando", buscar_texto: "patron", buscar_ficheros: "patron", leer_web: "url", buscar_web: "consulta" }[nombre];
+  return clave ? corto(a[clave]) : undefined;
+}
+
+/**
+ * Sustituye los resultados grandes y antiguos (no los 6 últimos) por un aviso que dice qué eran y cómo recuperarlos:
+ * «[leer src/a.ts: 400 líneas, podado; vuelve a pedirlo si lo necesitas]». De la terminal se guarda la última línea
+ * (el código de salida).
+ */
 export function podar(mensajes: readonly Mensaje[]): Mensaje[] {
   const indices = mensajes.flatMap((m, i) => (m.rol === "herramienta" ? [i] : []));
   const podables = new Set(indices.slice(0, Math.max(0, indices.length - CONSERVAR_RESULTADOS)));
+  const argumentos = new Map<string, unknown>();
+  for (const m of mensajes) if (m.rol === "asistente") for (const l of m.llamadas) argumentos.set(l.id, l.argumentos);
   return mensajes.map((m, i) => {
     if (!podables.has(i) || m.rol !== "herramienta" || m.resultado.length < 600) return m;
-    const lineas = m.resultado.split("\n").length;
-    return { ...m, resultado: `[resultado antiguo podado: ${lineas} líneas; vuelve a ejecutar ${m.nombre} si lo necesitas]` };
+    const lineas = m.resultado.split("\n");
+    const que = queFue(m.nombre, argumentos.get(m.id));
+    const ultima = m.nombre === "terminal" ? lineas.filter((l) => l.trim()).at(-1) : undefined;
+    return {
+      ...m,
+      resultado:
+        `[${m.nombre}${que ? ` ${que}` : ""}: ${lineas.length} líneas, podado para ahorrar contexto; vuelve a pedirlo si lo necesitas]` +
+        (ultima ? `\n${ultima.slice(0, 200)}` : ""),
+    };
   });
 }
 
@@ -83,6 +115,8 @@ export interface Compactacion {
   metodo: "poda" | "resumen";
   antes: number;
   despues: number;
+  /** El resumen nuevo, si se resumió: la app lo enseña. */
+  resumen?: string;
 }
 
 export async function compactarSiHaceFalta(o: {
@@ -105,5 +139,6 @@ export async function compactarSiHaceFalta(o: {
   if (!o.forzar && trasPoda < limite * 0.8) return { mensajes: podados, metodo: "poda", antes, despues: trasPoda };
 
   const resumidos = await resumir(o.proveedor, o.sistema, podados, o.senal, o.sesionId);
-  return { mensajes: resumidos, metodo: "resumen", antes, despues: estimarTokens(o.sistema, resumidos) };
+  const resumen = resumidos[0]?.rol === "resumen" ? resumidos[0].texto : undefined;
+  return { mensajes: resumidos, metodo: "resumen", antes, despues: estimarTokens(o.sistema, resumidos), ...(resumen ? { resumen } : {}) };
 }

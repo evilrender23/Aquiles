@@ -99,7 +99,7 @@ export async function ejecutarTurno(o: OpcionesTurno): Promise<ResultadoTurno> {
     o.mensajes.splice(0, o.mensajes.length, ...c.mensajes);
     o.alCompactar?.(o.mensajes);
     tokensReales = undefined;
-    emitir({ tipo: "contexto.compactado", sesionId: o.sesionId, metodo: c.metodo, antes: c.antes, despues: c.despues });
+    emitir({ tipo: "contexto.compactado", sesionId: o.sesionId, metodo: c.metodo, antes: c.antes, despues: c.despues, ...(c.resumen ? { resumen: c.resumen } : {}) });
   };
 
   /** Razonamiento de la llamada en curso: se emite según llega y se guarda con la respuesta. */

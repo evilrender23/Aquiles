@@ -147,8 +147,11 @@ export function aplicarEvento(c: Conversacion, e: EventoSesion, ahora: number): 
     }
     case "contexto.uso":
       return { ...c, contexto: { tokens: e.tokens, ...(e.ventana ? { ventana: e.ventana } : {}) } };
-    case "contexto.compactado":
-      return anadirAviso(c, "aviso", `Contexto compactado (${e.metodo}): ${tokens(e.antes)} → ${tokens(e.despues)} tokens`);
+    case "contexto.compactado": {
+      const avisado = anadirAviso(c, "aviso", `Contexto compactado (${e.metodo}): ${tokens(e.antes)} → ${tokens(e.despues)} tokens`);
+      // El resumen se ve ya (desplegable), no solo al volver a abrir la sesión.
+      return e.resumen ? { ...avisado, elementos: [...avisado.elementos, { tipo: "resumen", id: nuevoId(), texto: e.resumen }] } : avisado;
+    }
     case "aprendizaje.revision":
       return avisoAprendizaje(c, e);
     case "turno.reintento":
