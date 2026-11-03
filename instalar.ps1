@@ -59,6 +59,10 @@ $log = Join-Path $registro 'actualizacion.log'
 $logCompilacion = Join-Path $registro 'compilacion.log'
 # La app lo deja si sale sin aplicar la actualización (Salir en la bandeja): se cambia de versión, pero no se abre.
 $noRelanzar = Join-Path $registro 'no-relanzar'
+$cerrojoRuta = Join-Path $registro 'instalar.lock'
+# Quién tiene el cerrojo y en qué fase va («<pid> <fase>»): compilando y esperando (a que se cierre
+# Aquiles) se pueden interrumpir; cambiando (moviendo las carpetas), no.
+$duenoRuta = Join-Path $registro 'instalar.dueno'
 $toolchain = 'stable-x86_64-pc-windows-msvc'
 $TOTAL = 7
 $utf8 = New-Object System.Text.UTF8Encoding $false
@@ -265,13 +269,50 @@ function Crear-Acceso([switch]$Sustituir) {
     $lnk.Save()
 }
 
+function Fase([string]$fase) {
+    [IO.File]::WriteAllText($duenoRuta, "$PID $fase", $utf8)
+}
+
+function Abrir-Cerrojo {
+    try { [IO.File]::Open($cerrojoRuta, 'OpenOrCreate', 'ReadWrite', 'None') } catch { $null }
+}
+
+# Las otras instalaciones vivas: las que lanzó la app (-Actualizar) y la que diga instalar.dueno.
+function Otras-Instalaciones([string]$pidDueno) {
+    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'pwsh.exe'" -ErrorAction SilentlyContinue |
+        Where-Object {
+            $linea = "$($_.CommandLine)"
+            $_.ProcessId -ne $PID -and $linea -match 'instalar\.ps1' -and ($linea -match '-Actualizar' -or "$($_.ProcessId)" -eq $pidDueno)
+        }
+}
+
+# Si otra instalación tiene el cerrojo, se la sustituye: suele ser la que lanzó una app que ya se cerró,
+# esperando a que se cierre también la que se abrió después (esperaría para siempre). Esta compila lo
+# último de la rama y hace lo mismo que ella.
+function Tomar-Cerrojo {
+    $script:cerrojo = Abrir-Cerrojo
+    if ($script:cerrojo) { return }
+    # taskkill escribe en stderr: con 'Stop', PowerShell 5.1 lo tomaría por un error.
+    $ErrorActionPreference = 'Continue'
+    $pidDueno, $faseDueno = "$(Get-Content $duenoRuta -Raw -ErrorAction SilentlyContinue)".Trim() -split ' ', 2
+    if ($faseDueno -eq 'cambiando') {
+        throw 'Otra instalación está cambiando Aquiles de versión; vuelve a intentarlo en un momento.'
+    }
+    $otras = @(Otras-Instalaciones $pidDueno)
+    if (-not $otras) { throw 'Ya hay otra instalación de Aquiles en marcha.' }
+    # /T: también git, bun o cargo si los había. Al morir, Windows suelta su cerrojo.
+    foreach ($otra in $otras) { & taskkill.exe /PID $otra.ProcessId /T /F 2>&1 | Out-Null }
+    for ($intento = 0; $intento -lt 40 -and -not $script:cerrojo; $intento++) {
+        Start-Sleep -Milliseconds 500
+        $script:cerrojo = Abrir-Cerrojo
+    }
+    if (-not $script:cerrojo) { throw 'Ya hay otra instalación de Aquiles en marcha.' }
+}
+
 function Principal {
     New-Item -ItemType Directory -Force $registro | Out-Null
-    try {
-        $script:cerrojo = [IO.File]::Open((Join-Path $registro 'instalar.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
-    } catch {
-        throw 'Ya hay otra instalación de Aquiles en marcha.'
-    }
+    Tomar-Cerrojo
+    Fase 'compilando'
     [IO.File]::WriteAllText($log, '', $utf8)
     [IO.File]::WriteAllText($logCompilacion, '', $utf8)
     Remove-Item $noRelanzar -ErrorAction SilentlyContinue
@@ -313,14 +354,18 @@ function Principal {
 
     if (Test-Path $app) {
         Paso 7 'Esperando a que se cierre Aquiles para cambiar de versión'
+        Fase 'esperando'
         Esperar-Cierre
+        Fase 'cambiando'
         Cambiar-Carpetas
         Crear-Acceso
     } else {
         Paso 7 'Instalando en el menú Inicio'
+        Fase 'cambiando'
         Move-Item $nuevo $app
         Crear-Acceso -Sustituir
     }
+    Fase 'hecho'
     Anotar "APLICADO $commit"
     # Instalada desde una copia de desarrollo: esa copia tiene que cerrarse antes, porque solo puede
     # haber un Aquiles abierto (en una actualización ya se esperó a que se cerrara).
@@ -347,7 +392,10 @@ try {
     try { Anotar "ERROR $texto" } catch { }
     if ($interactivo) { Write-Host "ERROR: $texto" -ForegroundColor Red }
 } finally {
-    if ($script:cerrojo) { $script:cerrojo.Dispose() }
+    if ($script:cerrojo) {
+        Remove-Item $duenoRuta -ErrorAction SilentlyContinue
+        $script:cerrojo.Dispose()
+    }
     try { [Console]::OutputEncoding = $codificacion } catch { }
 }
 # Con -File, el código de salida; con `irm | iex`, no se cierra la consola de quien lo ejecuta.

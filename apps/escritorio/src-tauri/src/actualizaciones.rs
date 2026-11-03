@@ -275,13 +275,13 @@ fn instalador(destino: &Path) -> Result<PathBuf, String> {
     Ok(temporal)
 }
 
-/// En Mac, el `instalar.sh` de lo último de la rama (que trajo el `git fetch` de `buscar`), copiado a
-/// `registro/`. Así un arreglo del instalador vale desde la actualización que lo trae, no desde la
-/// siguiente; y bash no ejecuta un fichero que el propio instalador cambia con `git reset`.
-#[cfg(not(windows))]
+/// El instalador de lo último de la rama (que trajo el `git fetch` de `buscar`), copiado a `registro`.
+/// Así un arreglo del instalador vale desde la actualización que lo trae, no desde la siguiente; y en
+/// Mac bash no ejecuta un fichero que el propio instalador cambia con `git reset`.
 fn instalador_de_la_rama(destino: &Path, rama: &str) -> Option<PathBuf> {
     let texto = git(&destino.join("codigo"), &["show", &format!("origin/{rama}:{NOMBRE_INSTALADOR}")]).ok()?;
-    if !texto.starts_with("#!") {
+    // Los dos empiezan con un comentario (`#!/bin/bash` y `# Instala o actualiza…`).
+    if !texto.starts_with('#') {
         return None;
     }
     let carpeta = destino.join("registro");
@@ -317,9 +317,13 @@ fn instalar(app: &AppHandle) -> Result<(), String> {
     let mut orden = {
         use std::os::windows::process::CommandExt;
         let mut orden = orden_oculta("powershell.exe");
+        let script = match instalador_de_la_rama(&destino, &rama) {
+            Some(script) => script,
+            None => instalador(&destino)?,
+        };
         orden
             .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-            .arg(instalador(&destino)?)
+            .arg(script)
             .args(["-Actualizar", "-Destino"])
             .arg(&destino)
             .args(["-Rama", &rama, "-EsperarPid", &pid, "-Relanzar"]);
@@ -605,7 +609,6 @@ mod pruebas {
     }
 
     /// Se ejecuta el instalador de lo último de la rama, no el del clon, que puede ser de un commit anterior.
-    #[cfg(not(windows))]
     #[test]
     fn instalador_de_lo_ultimo_de_la_rama() {
         let base = std::env::temp_dir().join(format!("aquiles-inst-{}", crate::nucleo::generar_token()));
