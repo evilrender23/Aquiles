@@ -198,11 +198,9 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
               </>
             }
             derecha={
-              <>
-                <span className="conversacion__contexto-compacto">
-                  <MedidorContexto uso={conversacion.contexto} />
-                </span>
-              </>
+              <span className="conversacion__contexto-compacto">
+                <MedidorContexto uso={conversacion.contexto} />
+              </span>
             }
           />
         </div>

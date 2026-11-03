@@ -3,11 +3,13 @@
  * Exige el token en `?token=` y, si el cliente es un navegador (envía Origin),
  * que el origen sea el de la app. También pide cosas a la interfaz (aprobaciones,
  * preguntas) y espera su respuesta.
+ * Aquí se crean las piezas del núcleo y el contexto que comparten; los manejadores de cada área están en
+ * servidor/rutas-*.ts.
  */
 import { timingSafeEqual } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   codigosError,
   MAX_ADJUNTOS,
@@ -15,7 +17,6 @@ import {
   metodos,
   RUTA_RPC,
   PASOS_POR_TURNO,
-  VERSION_PROTOCOLO,
   type ErrorRpc,
   type InfoSesion,
   type Evento,
@@ -24,45 +25,42 @@ import {
   type PeticionesCliente,
   type PeticionRpc,
   type RespuestaRpc,
-  type Resultados,
 } from "@aquiles/protocolo";
 import type { ServerWebSocket } from "bun";
-import { type AdjuntoEntrante, borrarAdjuntos, carpetaAdjuntos, ErrorAdjunto, guardarAdjuntos, leerAdjunto } from "./adjuntos";
+import { type AdjuntoEntrante, borrarAdjuntos, carpetaAdjuntos, ErrorAdjunto, guardarAdjuntos } from "./adjuntos";
 import { AJUSTES_HERRAMIENTAS, AlmacenAjustes } from "./ajustes";
-import { FicheroYaExiste, guardarArtefacto, VistasArtefactos } from "./artefactos";
+import { VistasArtefactos } from "./artefactos";
 import { AJUSTES_APRENDIZAJE, Aprendizaje } from "./aprendizaje";
 import { ejecutarTurno, type PeticionAprobacion, type RespuestaAprobacion, type ResultadoTurno } from "./bucle";
-import { ErrorCanal } from "./canales/canal";
 import { Comandos } from "./comandos";
 import { abrirConocimiento } from "./conocimiento";
 import { Programador } from "./cron";
-import { ErrorCron, interpretar, proximas } from "./cron-expresiones";
-import { calcularEstadisticas } from "./estadisticas";
 import { consultarGuardian } from "./guardian";
 import { ErrorHerramienta, type Herramienta, type Pregunta } from "./herramientas/herramienta";
 import { cerrarEstadoSesion } from "./herramientas/index";
 import { cerrarNavegador, herramientaNavegador } from "./herramientas/navegador";
-import { buscarFicheros, conMenciones } from "./menciones";
-import { buscarModelos, Descargas, directorioModelos, ficherosRepo, modelosLocales as modelosDescargados } from "./locales/huggingface";
-import { instalarLlamaCpp, rutaLlamaServer } from "./locales/llamacpp";
+import { Descargas } from "./locales/huggingface";
 import { ClienteMcp } from "./mcp";
-import { ErrorMemoria } from "./memoria";
 import type { Motor, PeticionTurno } from "./motor";
 import { Objetivos } from "./objetivos";
 import { Pasarela } from "./pasarela";
-import { crearCopia, crearPerfil, listarCopias, listarPerfiles, prepararRestauracion } from "./perfiles";
-import { ErrorPlugin, Plugins } from "./plugins";
-import {
-  crearProveedor, establecerClave, esfuerzoValido, listarProveedores, servidorLlamaCpp, VARIABLES_CLAVE,
-} from "./proveedores/index";
-import { AlmacenSesiones, historial, info, type OpcionesSesion, type Sesion, titulo } from "./sesiones";
-import { ErrorSkill } from "./skills";
+import { Plugins } from "./plugins";
+import { crearProveedor, servidorLlamaCpp } from "./proveedores/index";
+import { AlmacenSesiones, info, type OpcionesSesion, type Sesion, titulo } from "./sesiones";
 import { herramientaDelegar, type LanzarSubagente } from "./subagentes";
 import { Voz } from "./voz";
 import { herramientaGenerarImagen } from "./herramientas/imagen";
 import { serviciosDisponibles } from "./imagenes";
 import { AVISO_DESDE_MS, fraseDeFin } from "./aviso-fin";
 import type { AdjuntoGuardado, Mensaje, Proveedor } from "./tipos";
+import type { ContextoServidor, Manejadores, OpcionesEjecucion } from "./servidor/contexto";
+import { FalloRpc } from "./servidor/errores";
+import { rutasAjustesModelos } from "./servidor/rutas-ajustes-modelos";
+import { rutasAutomatizaciones } from "./servidor/rutas-automatizaciones";
+import { rutasContenido } from "./servidor/rutas-contenido";
+import { rutasExtensiones } from "./servidor/rutas-extensiones";
+import { rutasSesiones } from "./servidor/rutas-sesiones";
+import { rutasSistema } from "./servidor/rutas-sistema";
 
 const HERRAMIENTAS_LECTURA = ["leer", "buscar_texto", "buscar_ficheros"];
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -108,21 +106,6 @@ export interface Servidor {
   detener(): Promise<void>;
 }
 
-/** Cómo se lanza un turno: quién responde a permisos y preguntas, y quién más escucha sus eventos. */
-interface OpcionesEjecucion {
-  aprobar: (p: PeticionAprobacion, senal: AbortSignal) => Promise<RespuestaAprobacion>;
-  preguntar: (p: Pregunta, senal: AbortSignal) => Promise<string>;
-  alEvento?: (e: Evento) => void;
-  /** Herramientas de esta ejecución; por defecto, las de la sesión. */
-  herramientas?: readonly Herramienta<any>[];
-}
-
-class FalloRpc extends Error {
-  constructor(readonly codigo: number, mensaje: string, readonly datos?: unknown) {
-    super(mensaje);
-  }
-}
-
 export function iniciarServidor(o: OpcionesServidor): Servidor {
   const clientes = new Set<ServerWebSocket<unknown>>();
   const origenes = o.origenesPermitidos ?? ORIGENES_APP;
@@ -146,16 +129,6 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
   });
   const { memoria, skills, indice, registro } = conocimiento;
   const sesiones = new AlmacenSesiones(o.perfil ? join(o.perfil, "sesiones") : null, o.proveedor, conocimiento.ganchos);
-  /** Los errores de memoria y skills son de datos del cliente (límite, nombre, formato). */
-  const comoParams = <T>(f: () => T): T => {
-    try {
-      return f();
-    } catch (e) {
-      if (e instanceof ErrorMemoria) throw new FalloRpc(codigosError.paramsInvalidos, e.message, e.exceso === undefined ? undefined : { exceso: e.exceso });
-      if (e instanceof ErrorSkill) throw new FalloRpc(codigosError.paramsInvalidos, e.message);
-      throw e;
-    }
-  };
 
   /**
    * Pide algo a la interfaz; vale la primera respuesta de un cliente que la atienda. Un cliente que no la atiende
@@ -243,8 +216,6 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       if (d.estado !== "descargando") emitir({ tipo: "modelos.actualizados" });
     },
   });
-  const fallo = (e: unknown, codigo: number = codigosError.paramsInvalidos) =>
-    new FalloRpc(codigo, e instanceof Error ? e.message : String(e));
 
   const obtener = (sesionId: string): Sesion => {
     const s = sesiones.obtener(sesionId);
@@ -500,373 +471,27 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     return [navegador];
   });
   const voz = new Voz({ ajustes: () => ajustes.leer().voz });
-  const comoParamsAsync = async <T>(f: () => Promise<T> | T): Promise<T> => {
-    try {
-      return await f();
-    } catch (e) {
-      if (e instanceof ErrorPlugin || e instanceof ErrorCron || e instanceof ErrorCanal) {
-        throw new FalloRpc(codigosError.paramsInvalidos, e.message);
-      }
-      throw e;
-    }
+
+  const contexto: ContextoServidor = {
+    o, log, emitir,
+    ajustes, sesiones, memoria, skills, indice, registro, aprendizaje, objetivos, comandos,
+    pasarela, programador, plugins, mcp, voz, vistas, descargas,
+    proveedores, claveProveedor,
+    soltarNavegador: () => {
+      if (!navegador) return;
+      navegador = undefined;
+      void cerrarNavegador();
+    },
+    obtener, vista, avisar, crearSesion, guardarEn, ejecutarConAdjuntos, aprobarEnApp, preguntarEnApp, curar,
   };
-
-  const manejadores: { [M in NombreMetodo]: (params: any) => Resultados[M] | Promise<Resultados[M]> } = {
-    "nucleo.info": () => {
-      const a = ajustes.leer();
-      return { version: o.version, protocolo: VERSION_PROTOCOLO, proveedor: a.proveedor, ...(a.modelo ? { modelo: a.modelo } : {}) };
-    },
-    "proveedores.listar": async () => ({ proveedores: await listarProveedores(o.incluirSimulado) }),
-    "ajustes.leer": () => ajustes.leer(),
-    "ajustes.guardar": async (cambios) => {
-      const antes = ajustes.leer();
-      if (cambios.esfuerzo !== undefined || cambios.proveedor !== undefined || cambios.modelo !== undefined) {
-        const proveedor = cambios.proveedor ?? antes.proveedor;
-        const modelo = cambios.modelo ?? (cambios.proveedor && cambios.proveedor !== antes.proveedor ? "" : antes.modelo);
-        cambios.esfuerzo = (await esfuerzoValido(proveedor, modelo || undefined, cambios.esfuerzo ?? antes.esfuerzo)) ?? "";
-      }
-      const r = ajustes.guardar(cambios);
-      if (!r.herramientas.navegador && navegador) {
-        navegador = undefined;
-        void cerrarNavegador();
-      }
-      return r;
-    },
-    "ajustes.clave": ({ proveedor, clave }) => {
-      try {
-        establecerClave(proveedor, clave);
-      } catch (e) {
-        throw new FalloRpc(codigosError.paramsInvalidos, e instanceof Error ? e.message : String(e));
-      }
-      if (proveedor in VARIABLES_CLAVE) {
-        for (const [k, p] of proveedores) {
-          if (!k.startsWith(`${proveedor}|`)) continue;
-          void p.cerrar?.();
-          proveedores.delete(k);
-        }
-      }
-      // Un secreto de canal: el canal vuelve a arrancar con él.
-      const canal = ({ telegram: "telegram", discord: "discord", slack: "slack", "slack-app": "slack", correo: "correo" } as const)[
-        proveedor as "telegram"
-      ];
-      if (canal) void pasarela.reiniciar(canal).catch((e) => log(`canal ${canal}: ${e instanceof Error ? e.message : e}`));
-      return { ok: true };
-    },
-    "sesion.crear": async ({ cwd, modoAprobacion, proveedor, modelo, esfuerzo }) => {
-      // Una carpeta que no existe solo fallaría en el primer turno: mejor decirlo al crear la sesión.
-      if (cwd !== undefined && (!isAbsolute(cwd) || !existsSync(cwd) || !statSync(cwd).isDirectory()))
-        throw new FalloRpc(codigosError.paramsInvalidos, `No existe la carpeta ${cwd}`);
-      const a = ajustes.leer();
-      const nivel = esfuerzo ? await esfuerzoValido(proveedor ?? a.proveedor, modelo ?? (proveedor ? undefined : a.modelo), esfuerzo) : undefined;
-      return vista(crearSesion(cwd, { modoAprobacion, proveedor, modelo, ...(nivel ? { esfuerzo: nivel } : {}) }));
-    },
-    "sesion.listar": () => ({ sesiones: sesiones.listar() }),
-    "sesion.reanudar": ({ sesionId }) => {
-      const s = obtener(sesionId);
-      return { ...vista(s), historial: historial(s) };
-    },
-    "sesion.ajustar": async ({ sesionId, proveedor, modelo, esfuerzo, modoAprobacion }) => {
-      const s = obtener(sesionId);
-      const nuevoModelo = modelo ?? (proveedor && proveedor !== s.proveedor ? "" : undefined);
-      const destinoProveedor = proveedor ?? s.proveedor;
-      const destinoModelo = nuevoModelo === undefined ? s.modelo : nuevoModelo || undefined;
-      // Con otro modelo, el nivel elegido se vuelve a comprobar: el nuevo puede no admitirlo.
-      const pedido = esfuerzo ?? (proveedor !== undefined || modelo !== undefined ? s.esfuerzo : undefined);
-      const nivel = pedido === undefined ? undefined : ((await esfuerzoValido(destinoProveedor, destinoModelo, pedido)) ?? "");
-      const antes = claveProveedor(s.proveedor, s.modelo, s.esfuerzo);
-      sesiones.ajustar(s, { proveedor, modelo: nuevoModelo, ...(nivel === undefined ? {} : { esfuerzo: nivel }), modoAprobacion });
-      // El proveedor anterior puede tener un proceso de esta sesión (claude, agy): se cierra.
-      if (antes !== claveProveedor(s.proveedor, s.modelo, s.esfuerzo) && !s.turno) await proveedores.get(antes)?.cerrar?.(s.id);
-      avisar(s);
-      return vista(s);
-    },
-    "sesion.renombrar": ({ sesionId, titulo }) => {
-      const s = obtener(sesionId);
-      sesiones.ajustar(s, { titulo: titulo.trim() });
-      indice.registrarSesion(info(s));
-      avisar(s);
-      return vista(s);
-    },
-    "sesion.borrar": async ({ sesionId }) => {
-      const s = sesiones.obtener(sesionId);
-      if (s) {
-        s.turno?.abort();
-        await cerrarEstadoSesion(s.estado);
-        for (const p of proveedores.values()) await p.cerrar?.(s.id);
-      }
-      if (!sesiones.borrar(sesionId)) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
-      if (/^[\w-]+$/.test(sesionId)) await rm(carpetaAdjuntos(o.perfil, sesionId), { recursive: true, force: true });
-      indice.borrarSesion(sesionId);
-      objetivos.fijar({ id: sesionId }, null);
-      return { borrada: true };
-    },
-    "prompt.enviar": async ({ sesionId, texto, adjuntos }) => {
-      const s = obtener(sesionId);
-      if (s.turno) throw new FalloRpc(codigosError.sesionOcupada, "La sesión ya está trabajando; usa prompt.steer");
-      // Cada `@ruta` que es un fichero de la carpeta de la sesión va como adjunto.
-      const todos = await conMenciones(texto, s.cwd, adjuntos ?? []);
-      const guardados = todos.length ? await guardarEn(s, todos) : undefined;
-      // `/nombre …`: un comando de Aquiles o de una skill (comandos.ts); si no es ninguno, va como texto.
-      if (!comandos.ejecutar(s, texto, guardados)) {
-        void ejecutarConAdjuntos(s, texto, { aprobar: aprobarEnApp(s), preguntar: preguntarEnApp(s) }, guardados);
-      }
-      return { aceptado: true };
-    },
-    "adjuntos.leer": async ({ sesionId, id }) => {
-      const s = obtener(sesionId);
-      const adjunto = await leerAdjunto(carpetaAdjuntos(o.perfil, s.id), id);
-      if (!adjunto) throw new FalloRpc(codigosError.paramsInvalidos, `No hay ningún adjunto ${id} en esta sesión`);
-      return adjunto;
-    },
-    "prompt.steer": ({ sesionId, texto }) => {
-      const s = sesiones.obtener(sesionId);
-      if (!s?.turno) throw new FalloRpc(codigosError.sinTurno, "No hay ningún turno en marcha; usa prompt.enviar");
-      s.steer.push(texto);
-      return { encolado: true };
-    },
-    "prompt.parar": ({ sesionId }) => {
-      const s = sesiones.obtener(sesionId);
-      if (!s?.turno) return { parado: false };
-      s.turno.abort();
-      return { parado: true };
-    },
-    "memoria.leer": ({ cwd }) => ({
-      usuario: memoria.leer("usuario"),
-      agente: memoria.leer("agente"),
-      ...(cwd ? { proyecto: { ...memoria.leer("proyecto", cwd), cwd } } : {}),
-      alma: memoria.alma(),
-    }),
-    "memoria.guardar": ({ destino, cwd, entradas }) => {
-      const antes = comoParams(() => memoria.leer(destino, cwd)).entradas;
-      const bloque = comoParams(() => memoria.guardar(destino, entradas, cwd));
-      emitir({ tipo: "memoria.actualizada", destino, ...(destino === "proyecto" && cwd ? { cwd } : {}) });
-      const anadidas = bloque.entradas.filter((e) => !antes.includes(e)).length;
-      const quitadas = antes.filter((e) => !bloque.entradas.includes(e)).length;
-      if (anadidas || quitadas) {
-        registro.anotar({ origen: { tipo: "manual" }, tipo: "memoria", resumen: `Memoria de ${destino} editada en la app (+${anadidas} −${quitadas})` });
-        emitir({ tipo: "aprendizaje.actualizado" });
-      }
-      return bloque;
-    },
-    "memoria.alma": ({ texto }) => {
-      const guardado = memoria.guardarAlma(texto);
-      emitir({ tipo: "memoria.actualizada", destino: "alma" });
-      return { texto: guardado };
-    },
-    "skills.listar": ({ cwd, archivadas }) => ({ skills: skills.listar(cwd, { archivadas }) }),
-    "skills.leer": ({ nombre, cwd }) => {
-      const skill = skills.leer(nombre, cwd, { archivadas: true });
-      if (!skill) throw new FalloRpc(codigosError.paramsInvalidos, `No existe la skill ${nombre}`);
-      return skill;
-    },
-    "skills.ajustar": ({ nombre, activa, cwd }) => {
-      const skill = comoParams(() => skills.ajustar(nombre, activa, cwd));
-      emitir({ tipo: "skills.actualizadas" });
-      return skill;
-    },
-    "skills.fijar": ({ nombre, fijada }) => conCambioDeSkills(() => skills.fijar(nombre, fijada)),
-    "skills.archivar": ({ nombre }) => conCambioDeSkills(() => skills.archivar(nombre)),
-    "skills.restaurar": ({ nombre }) => conCambioDeSkills(() => skills.restaurar(nombre)),
-    "skills.versiones": ({ nombre }) => ({ versiones: comoParams(() => skills.versiones(nombre)) }),
-    "skills.restaurarVersion": ({ nombre, version }) => conCambioDeSkills(() => skills.restaurarVersion(nombre, version)),
-    "skills.curar": () => ({ cambios: curar() }),
-    "artefactos.vista": ({ tipo, contenido }) => ({ ruta: vistas.publicar(tipo, contenido) }),
-    "artefactos.guardar": async ({ sesionId, nombre, contenido, sobrescribir }) => {
-      const s = obtener(sesionId);
-      try {
-        return { ruta: await guardarArtefacto(s.cwd, nombre, contenido, sobrescribir) };
-      } catch (e) {
-        throw fallo(e, e instanceof FicheroYaExiste ? codigosError.yaExiste : codigosError.paramsInvalidos);
-      }
-    },
-    "modelos.buscar": async ({ consulta }) => {
-      try {
-        return { resultados: await buscarModelos(consulta, { token: process.env.HF_TOKEN || undefined }) };
-      } catch (e) {
-        throw fallo(e, codigosError.interno);
-      }
-    },
-    "modelos.repo": async ({ repo }) => {
-      try {
-        return await ficherosRepo(repo, { token: process.env.HF_TOKEN || undefined });
-      } catch (e) {
-        throw fallo(e);
-      }
-    },
-    "modelos.descargar": async ({ repo, fichero, proyector }) => {
-      let info: Awaited<ReturnType<typeof ficherosRepo>>;
-      try {
-        info = await ficherosRepo(repo, { token: process.env.HF_TOKEN || undefined });
-      } catch (e) {
-        throw fallo(e);
-      }
-      const f = info.ficheros.find((x) => x.nombre === fichero);
-      if (!f) throw new FalloRpc(codigosError.paramsInvalidos, `${repo} no tiene ${fichero}`);
-      const pr = proyector ? info.proyectores.find((x) => x.nombre === proyector) : undefined;
-      if (proyector && !pr) throw new FalloRpc(codigosError.paramsInvalidos, `${repo} no tiene ${proyector}`);
-      return { id: descargas.iniciar(repo, f, pr) };
-    },
-    "modelos.cancelar": ({ id }) => ({ cancelada: descargas.cancelar(id) }),
-    "modelos.borrar": async ({ id }) => {
-      // En Windows un fichero abierto no se puede borrar: si llama.cpp lo tiene cargado, se para antes.
-      if (servidorLlamaCpp().modeloCargado === id) await servidorLlamaCpp().parar();
-      try {
-        await descargas.borrar(id);
-      } catch (e) {
-        throw fallo(e);
-      }
-      emitir({ tipo: "modelos.actualizados" });
-      return { borrado: true as const };
-    },
-    "modelos.listar": async () => {
-      const ruta = rutaLlamaServer();
-      const cargado = servidorLlamaCpp().modeloCargado;
-      return {
-        carpeta: directorioModelos(),
-        locales: (await modelosDescargados()).map((m) => ({ id: m.id, repo: m.repo, nombre: m.nombre, bytes: m.bytes, imagenes: Boolean(m.proyector) })),
-        descargas: descargas.listar(),
-        motor: { ...(ruta ? { ruta } : {}), ...(cargado ? { cargado } : {}) },
-      };
-    },
-    "modelos.instalarMotor": async () => {
-      try {
-        await instalarLlamaCpp((t) => log(`winget: ${t.trim()}`));
-      } catch (e) {
-        throw fallo(e, codigosError.interno);
-      }
-      const ruta = rutaLlamaServer();
-      if (!ruta) throw new FalloRpc(codigosError.interno, "winget terminó pero no aparece llama-server");
-      emitir({ tipo: "modelos.actualizados" });
-      return { ruta };
-    },
-    "buscar.sesiones": ({ consulta, limite }) => ({ resultados: indice.buscar(consulta, limite) }),
-    "comandos.listar": ({ sesionId }) => ({ comandos: comandos.listar(sesionId ? obtener(sesionId) : undefined) }),
-    // Documentos para el visor y «Guardar como Word» (documentos.ts, importado al primer uso).
-    "documentos.leer": async ({ ruta }) => {
-      const { leerDocumento } = await import("./documentos");
-      try {
-        return await leerDocumento(ruta);
-      } catch (e) {
-        throw fallo(e);
-      }
-    },
-    "documentos.exportar": async ({ sesionId, nombre, markdown, sobrescribir }) => {
-      const s = obtener(sesionId);
-      const { exportarDocumento } = await import("./documentos");
-      try {
-        return { ruta: await exportarDocumento(s.cwd, nombre, markdown, sobrescribir) };
-      } catch (e) {
-        throw fallo(e, e instanceof FicheroYaExiste ? codigosError.yaExiste : codigosError.paramsInvalidos);
-      }
-    },
-    "ficheros.buscar": async ({ cwd, consulta, limite }) => {
-      if (!isAbsolute(cwd) || !existsSync(cwd)) throw new FalloRpc(codigosError.paramsInvalidos, `No existe la carpeta ${cwd}`);
-      return { ficheros: await buscarFicheros(cwd, consulta, limite) };
-    },
-    "aprendizaje.listar": ({ todas }) => ({ propuestas: registro.propuestas(todas) }),
-    "aprendizaje.decidir": ({ id, decision }) => {
-      if (!registro.propuesta(id)) throw new FalloRpc(codigosError.paramsInvalidos, `No existe la propuesta ${id}`);
-      return aprendizaje.decidir(id, decision);
-    },
-    "aprendizaje.revisar": ({ sesionId }) => {
-      const s = obtener(sesionId);
-      if (aprendizaje.revisando(s.id)) return { iniciada: false };
-      void aprendizaje.revisar(s, { completa: true });
-      return { iniciada: true };
-    },
-    "aprendizaje.historial": ({ limite }) => ({ entradas: registro.historial(limite) }),
-    "mcp.listar": () => ({ servidores: mcp.listar() }),
-    "mcp.guardar": (p) =>
-      mcp.guardar(p).catch((e) => {
-        throw new FalloRpc(codigosError.paramsInvalidos, e instanceof Error ? e.message : String(e));
-      }),
-    "mcp.borrar": async ({ nombre }) => {
-      await mcp.borrar(nombre);
-      return { borrado: true as const };
-    },
-    "mcp.reconectar": ({ nombre }) => mcp.reconectar(nombre),
-    "voz.estado": () => voz.estado(),
-    "voz.dictar": async ({ segundos }) => ({ texto: await voz.dictar(segundos) }),
-    "voz.leer": async ({ texto }) => {
-      await voz.leer(texto);
-      return { ok: true as const };
-    },
-    "voz.parar": () => {
-      voz.parar();
-      return { ok: true as const };
-    },
-    "cron.listar": () => ({ tareas: programador.listar() }),
-    "cron.crear": (p) => comoParamsAsync(() => programador.crear(p)),
-    "cron.editar": (p) => comoParamsAsync(() => programador.editar(p)),
-    "cron.borrar": ({ id }) => comoParamsAsync(() => {
-      programador.borrar(id);
-      return { borrada: true as const };
-    }),
-    "cron.ejecutar": ({ id }) => comoParamsAsync(() => ({ ejecucionId: programador.ejecutar(id) })),
-    "cron.ejecuciones": ({ id, limite }) => ({ ejecuciones: programador.ejecuciones(id, limite) }),
-    "cron.interpretar": ({ cuando }) => comoParamsAsync(() => {
-      const e = interpretar(cuando);
-      return { descripcion: e.descripcion, repite: e.repite, proximas: proximas(e, new Date()).map((d) => d.toISOString()) };
-    }),
-    "canales.listar": () => ({ canales: pasarela.listar() }),
-    "canales.configurar": ({ canal, opciones }) => comoParamsAsync(() => pasarela.configurar(canal, opciones)),
-    "canales.emparejar": ({ canal }) => comoParamsAsync(() => pasarela.emparejar(canal)),
-    "canales.desemparejar": ({ canal, chatId }) => comoParamsAsync(() => pasarela.desemparejar(canal, chatId)),
-    "canales.probar": ({ canal, destino }) =>
-      comoParamsAsync(async () => {
-        await pasarela.probar(canal, destino);
-        return { ok: true as const };
-      }),
-    "sesion.objetivo": ({ sesionId, objetivo, maxIntentos }) => {
-      const s = obtener(sesionId);
-      objetivos.fijar(s, objetivo, maxIntentos);
-      avisar(s);
-      return vista(s);
-    },
-    "plugins.listar": () => ({ plugins: plugins.listar() }),
-    "plugins.activar": ({ nombre, activo }) => comoParamsAsync(() => plugins.activar(nombre, activo)),
-    "estadisticas.leer": ({ dias }) =>
-      calcularEstadisticas({
-        dirSesiones: o.perfil ? join(o.perfil, "sesiones") : null,
-        historial: registro.historial(10_000),
-        registroSkills: Object.fromEntries(skills.listar(undefined, { archivadas: true }).map((x) => [x.nombre, { usos: x.usos }])),
-        dias,
-      }),
-    "perfiles.listar": () => ({ actual: necesitaPerfil().nombre, perfiles: listarPerfiles(necesitaPerfil().datos) }),
-    "perfiles.crear": ({ nombre }) => {
-      try {
-        return crearPerfil(nombre, necesitaPerfil().datos);
-      } catch (e) {
-        throw new FalloRpc(codigosError.paramsInvalidos, e instanceof Error ? e.message : String(e));
-      }
-    },
-    "copias.listar": () => ({ copias: listarCopias(necesitaPerfil().datos) }),
-    "copias.crear": () => crearCopia(necesitaPerfil().nombre, necesitaPerfil().datos),
-    "copias.restaurar": async ({ nombre }) => {
-      const { datos } = necesitaPerfil();
-      if (!o.reiniciar) throw new FalloRpc(codigosError.metodoNoExiste, "Este núcleo no se puede reiniciar solo");
-      try {
-        await prepararRestauracion(nombre, datos);
-      } catch (e) {
-        throw new FalloRpc(codigosError.paramsInvalidos, e instanceof Error ? e.message : String(e));
-      }
-      emitir({ tipo: "nucleo.reinicio", motivo: `restaurar ${nombre}` });
-      // Deja salir la respuesta y el evento antes de cerrar.
-      setTimeout(() => o.reiniciar?.(`restaurar ${nombre}`), 300);
-      return { reiniciando: true };
-    },
+  const manejadores: Manejadores = {
+    ...rutasSistema(contexto),
+    ...rutasAjustesModelos(contexto),
+    ...rutasSesiones(contexto),
+    ...rutasContenido(contexto),
+    ...rutasExtensiones(contexto),
+    ...rutasAutomatizaciones(contexto),
   };
-
-  function necesitaPerfil(): { nombre: string; datos: string } {
-    if (!o.nombrePerfil || !o.datos) throw new FalloRpc(codigosError.metodoNoExiste, "Este núcleo no tiene perfil en disco");
-    return { nombre: o.nombrePerfil, datos: o.datos };
-  }
-
-  function conCambioDeSkills<T>(f: () => T): T {
-    const r = comoParams(f);
-    emitir({ tipo: "skills.actualizadas" });
-    return r;
-  }
 
   const atender = async (bruto: string): Promise<RespuestaRpc | undefined> => {
     let peticion: PeticionRpc & { result?: unknown; error?: ErrorRpc };
