@@ -166,7 +166,7 @@ export function PanelDocumento({
     <MarcoPanel
       titulo={nombre}
       ayuda={ruta}
-      icono="documento"
+      icono={clase === "imagen" ? "imagen" : "documento"}
       menu={menu}
       alCerrar={alCerrar}
       cabecera={

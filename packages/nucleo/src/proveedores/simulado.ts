@@ -38,6 +38,7 @@ const FICHERO = /[\w./\\-]+\.\w{1,6}/;
  *   "ejecuta CMD"  → terminal (pide permiso)
  *   "pregunta"     → preguntar con opciones
  *   "tareas"       → lista de tareas
+ *   "imagen X"     → generar_imagen (si hay algún servicio de imágenes)
  *   "lee X"        → leer
  *   con adjuntos   → cómo le llegan (la nota de texto con la ruta; este modelo no ve imágenes)
  *   otra cosa      → una respuesta en markdown
@@ -72,6 +73,8 @@ export function guionDemo(): PasoSimulado[] {
       }
       const comando = texto.match(/ejecuta\s+(.+)/i)?.[1];
       if (comando) return { texto: "", llamadas: [{ id, nombre: "terminal", argumentos: { comando: comando.replace(/^`|`$/g, "") } }] };
+      const imagen = texto.match(/^imagen\s+(.+)/i)?.[1];
+      if (imagen) return { texto: "", llamadas: [{ id, nombre: "generar_imagen", argumentos: { descripcion: imagen, ruta: "imagenes/demo.png" } }] };
       if (/pregunta/i.test(texto)) {
         return { texto: "", llamadas: [{ id, nombre: "preguntar", argumentos: { pregunta: "¿Qué formato prefieres?", opciones: ["Markdown", "Texto plano", "JSON"] } }] };
       }

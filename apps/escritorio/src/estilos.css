@@ -533,6 +533,32 @@ body {
 .herramienta__chevron--abierto {
   transform: rotate(180deg);
 }
+/* La imagen de generar_imagen, dentro del chat. */
+.herramienta__imagen {
+  display: block;
+  margin: 4px 12px 12px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--cut);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.herramienta__imagen:disabled {
+  cursor: default;
+}
+.herramienta__imagen img {
+  display: block;
+  max-width: min(100%, 420px);
+  max-height: 320px;
+  object-fit: contain;
+}
+.herramienta__imagen-espera {
+  display: block;
+  width: 240px;
+  height: 160px;
+  background: var(--surface-raised);
+}
 .herramienta__salida {
   max-height: 360px;
   margin: 0 12px 12px;

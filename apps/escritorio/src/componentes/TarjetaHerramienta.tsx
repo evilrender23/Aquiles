@@ -1,5 +1,6 @@
 import { BloqueCodigo, Boton, Icono, LatticeLoader, clases, copiarTexto, type ElementosMenu, type NombreIcono, useMenuContextual } from "@aquiles/ui";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAcciones } from "../estado/almacen";
 import { claseDocumento, rutaAbsoluta as absoluta } from "../estado/artefactos";
 import { duracion } from "../estado/formato";
 import { mostrarFichero, puedeMostrarRutas } from "../plataforma/aplicacion";
@@ -31,8 +32,51 @@ const CON_RUTA = new Set(["leer", "escribir", "editar", "escribir_documento", "g
  */
 function documentoDe(h: Herramienta, cwd: string): string | undefined {
   if (!CON_RUTA.has(h.nombre) || h.estado === "en-curso" || (h.estado === "fallo" && h.nombre !== "leer")) return undefined;
+  if (h.nombre === "generar_imagen") return imagenGenerada(h, cwd);
   const ruta = h.resumen.trim().replace(/:\d+(-\d+)?$/, "");
   return ruta && claseDocumento(ruta) ? absoluta(cwd, ruta) : undefined;
+}
+
+/**
+ * Dónde quedó la imagen de generar_imagen: la que dice su resultado («Imagen guardada en …»), que puede tener otra
+ * extensión o un -2 respecto a la pedida.
+ */
+export function imagenGenerada(h: Pick<Herramienta, "nombre" | "estado" | "salida">, cwd: string): string | undefined {
+  if (h.nombre !== "generar_imagen" || h.estado !== "ok") return undefined;
+  const ruta = /^Imagen guardada en (.+?) \(\d+ KB/.exec(h.salida ?? "")?.[1];
+  return ruta ? absoluta(cwd, ruta) : undefined;
+}
+
+/** Imágenes ya leídas para la vista previa: al volver a pintar el hilo no se piden otra vez. */
+const miniaturas = new Map<string, string>();
+
+/** La imagen dentro del chat, bajo su tarjeta; al pulsarla se abre en el visor. */
+function VistaPreviaImagen({ ruta, alAbrir }: { ruta: string; alAbrir?: () => void }) {
+  const { llamar } = useAcciones();
+  const [src, setSrc] = useState(miniaturas.get(ruta));
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    if (miniaturas.has(ruta)) return;
+    let vivo = true;
+    llamar("documentos.leer", { ruta }).then(
+      (d) => {
+        if (d.formato !== "imagen") return;
+        miniaturas.set(ruta, d.contenido);
+        if (vivo) setSrc(d.contenido);
+      },
+      () => vivo && setError(true),
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [llamar, ruta]);
+  if (error) return null;
+  const nombre = ruta.split(/[\\/]/).pop() ?? ruta;
+  return (
+    <button type="button" className="herramienta__imagen" onClick={alAbrir} disabled={!alAbrir} title={alAbrir ? `Abrir ${nombre}` : nombre}>
+      {src ? <img src={src} alt={nombre} /> : <span className="herramienta__imagen-espera" aria-hidden="true" />}
+    </button>
+  );
 }
 
 /** «Copiar ruta» o «Mostrar fichero»: una opción con una ruta, un submenú con varias. */
@@ -53,6 +97,7 @@ export function TarjetaHerramienta({ h, cwd }: { h: Herramienta; cwd: string }) 
   const desplegable = diffs.length > 0 || !!h.salida;
   const visor = useArtefactosHilo();
   const documento = visor ? documentoDe(h, cwd) : undefined;
+  const imagen = imagenGenerada(h, cwd);
   const ver = documento && visor ? () => visor.abrirDocumento(documento) : undefined;
 
   const menu = useMenuContextual(() => {
@@ -131,6 +176,7 @@ export function TarjetaHerramienta({ h, cwd }: { h: Herramienta; cwd: string }) 
           ))}
         </div>
       )}
+      {imagen && <VistaPreviaImagen ruta={imagen} alAbrir={ver} />}
       {abierto && !diffs.length && h.salida && <BloqueCodigo className="herramienta__salida" codigo={h.salida} />}
     </div>
   );
