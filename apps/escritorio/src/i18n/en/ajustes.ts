@@ -83,7 +83,6 @@ export const ajustes: Record<string, string> = {
   "En este equipo, en un contenedor Docker o en otra máquina por SSH.": "On this computer, in a Docker container or on another machine over SSH.",
   "Este equipo": "This computer",
   Imagen: "Image",
-  Destino: "Host",
   "usuario@host": "user@host",
   "Navegador y permisos": "Browser and permissions",
   Navegador: "Browser",
@@ -143,7 +142,7 @@ export const ajustes: Record<string, string> = {
   "Versión {version}": "Version {version}",
   "Versión desconocida": "Unknown version",
   "Instalar con actualizaciones": "Install with updates",
-  Buscar: "Check",
+  "Buscar actualizaciones": "Check for updates",
   "Al día": "Up to date",
   Actualizar: "Update",
   "Compilación de la actualización": "Update build progress",
@@ -175,7 +174,6 @@ export const ajustes: Record<string, string> = {
   "Reiniciando el núcleo": "Restarting the core",
   "Reiniciando el núcleo · {motivo}": "Restarting the core · {motivo}",
   "Conectando…": "Connecting…",
-  "Sin conexión con el núcleo": "No connection to the core",
   Reconectar: "Reconnect",
 
   // MCP

@@ -320,7 +320,7 @@ export function Actualizaciones() {
         ) : (
           <>
             <Boton variante="secundario" tamano="pequeno" disabled={buscando || compilando} onClick={() => void buscar()}>
-              {t("Buscar")}
+              {t("Buscar actualizaciones")}
             </Boton>
             {info && !info.hayNueva && !buscando && <span className="ajustes__estado">{t("Al día")}</span>}
           </>
