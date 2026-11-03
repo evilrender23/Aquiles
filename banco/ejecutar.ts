@@ -5,6 +5,7 @@
  *   bun banco/ejecutar.ts [--proveedor agy] [--modelo X] [--tareas 01,05] [--paralelo 2]
  *                         [--max-iteraciones 40] [--tiempo-max 900] [--detalle] [--conservar]
  *   bun banco/ejecutar.ts --validar [--tareas ...]
+ *   bun banco/ejecutar.ts --comparar A.json B.json
  *
  * Cada tarea: copia `inicial/` a una carpeta temporal, ejecuta el agente con el enunciado
  * (`tarea.md`) y pasa `comprobar.ts` sobre el resultado. `--validar` no usa el agente: comprueba
@@ -14,6 +15,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSyn
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { comparar, esSospechosa, porTarea, resumir, type ResultadoTarea } from "./analisis";
 import { copiarProyecto } from "./comun";
 
 const DIR_BANCO = import.meta.dir;
@@ -34,7 +36,9 @@ const AYUDA = `Uso: bun banco/ejecutar.ts [opciones]
   --tiempo-max <s>         límite por tarea en segundos (por defecto 900)
   --detalle                muestra las herramientas que va usando el agente
   --conservar              no borra las carpetas de trabajo de las tareas aprobadas
+  --repeticiones <n>       ejecuta cada tarea n veces y da la media y la dispersión (por defecto 1)
   --validar                sin agente: comprueba que cada tarea falla en inicial/ y pasa con solucion/
+  --comparar A.json B.json sin agente: qué tareas mejoran o empeoran de A a B, con tokens y tiempo
   -h, --ayuda              esta ayuda`;
 
 function leerOpciones() {
@@ -42,6 +46,7 @@ function leerOpciones() {
     return parseArgs({
       args: Bun.argv.slice(2),
       strict: true,
+      allowPositionals: true,
       options: {
         proveedor: { type: "string", default: "agy" },
         modelo: { type: "string" },
@@ -52,16 +57,18 @@ function leerOpciones() {
         detalle: { type: "boolean", default: false },
         conservar: { type: "boolean", default: false },
         validar: { type: "boolean", default: false },
+        repeticiones: { type: "string", default: "1" },
+        comparar: { type: "boolean", default: false },
         ayuda: { type: "boolean", short: "h", default: false },
       },
-    }).values;
+    });
   } catch (e) {
     console.error(`${e instanceof Error ? e.message : e}\n\n${AYUDA}`);
     process.exit(2);
   }
 }
 
-const opciones = leerOpciones();
+const { values: opciones, positionals: ficheros } = leerOpciones();
 if (opciones.ayuda) {
   console.log(AYUDA);
   process.exit(0);
@@ -79,6 +86,7 @@ function entero(nombre: string, valor: string, minimo: number): number {
 const PARALELO = entero("paralelo", opciones.paralelo, 1);
 const MAX_ITERACIONES = entero("max-iteraciones", opciones["max-iteraciones"], 1);
 const TIEMPO_MAX_S = entero("tiempo-max", opciones["tiempo-max"], 1);
+const REPETICIONES = entero("repeticiones", opciones.repeticiones, 1);
 
 // ------------------------------------------------------------------ tareas
 
@@ -312,9 +320,16 @@ interface ResultadoBanco {
   tokens: Tokens;
   llamadas: number;
   error: string | null;
+  /** Pila del error si el fallo fue del propio banco (no del agente): para poder arreglarlo. */
+  traza: string | null;
   carpeta: string | null;
   registro: string | null;
+  repeticion: number;
+  /** Terminó en «fin» sin usar ninguna herramienta. */
+  sospechosa: boolean;
 }
+
+const traza = (e: unknown) => (e instanceof Error ? (e.stack ?? e.message) : String(e));
 
 async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
   // Se importa aquí para que --validar funcione aunque el núcleo esté a medio cambiar.
@@ -349,9 +364,10 @@ async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
   const t0 = ahora();
   let modeloUsado: string | null = opciones.modelo ?? null;
 
-  const correr = async (t: Tarea): Promise<ResultadoBanco> => {
-    const carpeta = join(raiz, t.id);
-    const registro = join(raiz, `${t.id}.log`);
+  const correr = async (t: Tarea, repeticion: number): Promise<ResultadoBanco> => {
+    const nombre = REPETICIONES > 1 ? `${t.id}-r${repeticion}` : t.id;
+    const carpeta = join(raiz, nombre);
+    const registro = join(raiz, `${nombre}.log`);
     const r: ResultadoBanco = {
       id: t.id,
       ok: false,
@@ -362,8 +378,11 @@ async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
       tokens: { entrada: 0, salida: 0, razonamiento: 0, total: 0 },
       llamadas: 0,
       error: null,
+      traza: null,
       carpeta: null,
       registro,
+      repeticion,
+      sospechosa: false,
     };
     const log = (linea: string) => {
       try {
@@ -380,7 +399,7 @@ async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
       porTiempo = true;
       control.abort();
     }, TIEMPO_MAX_S * 1000);
-    console.log(`→ ${t.id}`);
+    console.log(`→ ${nombre}`);
     try {
       const enunciado = readFileSync(join(t.dir, "tarea.md"), "utf8").trim();
       copiarProyecto(join(t.dir, "inicial"), carpeta);
@@ -435,48 +454,43 @@ async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
       }
     } catch (e) {
       r.error = mensaje(e);
+      r.traza = traza(e);
       r.motivo ||= "error al ejecutar la tarea";
-      log(`[error del banco] ${e instanceof Error ? (e.stack ?? e.message) : e}`);
+      log(`[error del banco] ${r.traza}`);
     } finally {
       clearTimeout(limite);
       parada.signal.removeEventListener("abort", alParar);
       // En Windows la carpeta puede seguir bloqueada un momento tras cerrar el shell de la tarea:
       // borrar no debe pisar nunca el resultado; si no se puede, se deja y se apunta.
-      if (r.ok && !opciones.conservar && !(await borrarConReintentos(carpeta))) r.carpeta = carpeta;
+      if (r.ok && !opciones.conservar && !(await borrarConReintentos(carpeta).catch(() => false))) r.carpeta = carpeta;
       else if (!r.ok && existsSync(carpeta)) r.carpeta = carpeta;
     }
+    r.sospechosa = esSospechosa(r);
     console.log(
-      `${r.ok ? "✓" : "✗"} ${t.id}  ${r.segundos} s · ${r.tokens.total} tokens · ${r.llamadas} llamadas · ${r.fin ?? "-"}` +
-        `${r.ok ? "" : ` · ${corto(r.error ?? r.motivo, 80)}`}`,
+      `${r.ok ? "✓" : "✗"} ${nombre}  ${r.segundos} s · ${r.tokens.total} tokens · ${r.llamadas} llamadas · ${r.fin ?? "-"}` +
+        `${r.ok ? "" : ` · ${corto(r.error ?? r.motivo, 80)}`}${r.sospechosa ? " · SOSPECHOSA (sin herramientas)" : ""}`,
     );
     return r;
   };
 
-  const salida = await enParalelo(tareas, PARALELO, parada.signal, async (t) => {
+  /** Un resultado vacío: para lo que no llegó a ejecutarse o falló fuera del agente. */
+  const vacio = (t: Tarea, repeticion: number, motivo: string, e?: unknown): ResultadoBanco => ({
+    id: t.id, ok: false, motivo, fin: null, segundos: 0, segundosComprobar: 0, tokens: { entrada: 0, salida: 0, razonamiento: 0, total: 0 },
+    llamadas: 0, error: e === undefined ? null : mensaje(e), traza: e === undefined ? null : traza(e), carpeta: null, registro: null, repeticion, sospechosa: false,
+  });
+
+  // Repetición a repetición, para que una ejecución interrumpida deje repeticiones enteras.
+  const trabajos = Array.from({ length: REPETICIONES }, (_, i) => tareas.map((t) => ({ t, repeticion: i + 1 }))).flat();
+  const salida = await enParalelo(trabajos, PARALELO, parada.signal, async ({ t, repeticion }) => {
     try {
-      return await correr(t);
+      return await correr(t, repeticion);
     } catch (e) {
-      // Nunca debería llegar aquí, pero un fallo inesperado no tumba al resto.
-      return { id: t.id, ok: false, motivo: "error del banco", fin: null, segundos: 0, segundosComprobar: 0, tokens: { entrada: 0, salida: 0, razonamiento: 0, total: 0 }, llamadas: 0, error: mensaje(e), carpeta: null, registro: null };
+      // Nunca debería llegar aquí, pero un fallo inesperado no tumba al resto (y queda su traza).
+      return vacio(t, repeticion, "error del banco", e);
     }
   });
 
-  const resultados: ResultadoBanco[] = tareas.map(
-    (t, i) =>
-      salida[i] ?? {
-        id: t.id,
-        ok: false,
-        motivo: "no ejecutada (interrumpido)",
-        fin: null,
-        segundos: 0,
-        segundosComprobar: 0,
-        tokens: { entrada: 0, salida: 0, razonamiento: 0, total: 0 },
-        llamadas: 0,
-        error: null,
-        carpeta: null,
-        registro: null,
-      },
-  );
+  const resultados: ResultadoBanco[] = trabajos.map(({ t, repeticion }, i) => salida[i] ?? vacio(t, repeticion, "no ejecutada (interrumpido)"));
   const segundosTotal = segundosDesde(t0);
   const aprobadas = resultados.filter((r) => r.ok).length;
   const suma = (f: (r: ResultadoBanco) => number) => resultados.reduce((s, r) => s + f(r), 0);
@@ -495,6 +509,7 @@ async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
     segundosAgente: Math.round(suma((r) => r.segundos) * 10) / 10,
     segundosTotal,
     interrumpido: parada.signal.aborted,
+    ...resumir(resultados),
   };
 
   mkdirSync(DIR_RESULTADOS, { recursive: true });
@@ -512,6 +527,7 @@ async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
         maxIteraciones: MAX_ITERACIONES,
         paralelo: PARALELO,
         tiempoMaxSegundos: TIEMPO_MAX_S,
+        repeticiones: REPETICIONES,
         resumen,
         tareas: resultados,
       },
@@ -526,6 +542,24 @@ async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
       resultados.map((r) => [r.id, r.ok ? "sí" : "no", r.fin ?? "-", String(r.segundos), String(r.tokens.total), String(r.llamadas), r.ok ? "" : corto(r.error ? `${r.error} · ${r.motivo}` : r.motivo)]),
     )}`,
   );
+  if (REPETICIONES > 1) {
+    console.log(
+      `\nPor tarea (${REPETICIONES} repeticiones):\n${tabla(
+        ["tarea", "aprobadas", "tokens (media)", "seg (media ± desv.)", "sospechosas"],
+        porTarea(resultados).map((t) => [t.id, `${t.aprobadas}/${t.repeticiones}`, String(t.tokensMedia), `${t.segundosMedia} ± ${t.segundosDesv}`, String(t.sospechosas)]),
+      )}`,
+    );
+    console.log(`\nAprobadas por repetición: ${resumen.aprobadasMedia} ± ${resumen.aprobadasDesv} de ${tareas.length}`);
+  }
+  if (resumen.tokensPorAprobada !== null) console.log(`Coste: ${resumen.tokensPorAprobada} tokens por tarea aprobada`);
+  if (resumen.probablementeRota) {
+    console.log(
+      `\nAVISO: ${resumen.sospechosas} de ${resultados.length} terminaron sin usar ninguna herramienta. ` +
+        "Lo más probable es que el modelo no pudiera usarlas: esta ejecución no mide el motor.",
+    );
+  } else if (resumen.sospechosas) {
+    console.log(`\n${resumen.sospechosas} sospechosa(s): terminaron sin usar ninguna herramienta.`);
+  }
   console.log(
     `\nPuntuación: ${resumen.puntuacion} (${resumen.porcentaje} %) · ${resumen.tokens.total} tokens ` +
       `(entrada ${resumen.tokens.entrada}, salida ${resumen.tokens.salida}, razonamiento ${resumen.tokens.razonamiento}) · ` +
@@ -536,7 +570,55 @@ async function ejecutarBanco(tareas: Tarea[]): Promise<number> {
   return parada.signal.aborted ? 130 : 0;
 }
 
+// ------------------------------------------------------------------ comparar
+
+function compararFicheros(a: string, b: string): number {
+  const leer = (f: string): ResultadoTarea[] => {
+    try {
+      return JSON.parse(readFileSync(f, "utf8")).tareas as ResultadoTarea[];
+    } catch (e) {
+      console.error(`No se puede leer ${f}: ${mensaje(e)}`);
+      process.exit(2);
+    }
+  };
+  const ra = leer(a);
+  const rb = leer(b);
+  const filas = comparar(ra, rb);
+  const pct = (x?: number) => (x === undefined ? "-" : `${Math.round(x * 100)} %`);
+  const delta = (x?: number, y?: number) => (x === undefined || y === undefined ? "-" : `${y - x >= 0 ? "+" : ""}${Math.round((y - x) * 10) / 10}`);
+  const marca = { mejora: "↑ mejora", empeora: "↓ empeora", igual: "", nueva: "nueva", quitada: "quitada" };
+  console.log(`A: ${a}\nB: ${b}\n`);
+  console.log(
+    tabla(
+      ["tarea", "A", "B", "", "Δ tokens", "Δ seg"],
+      filas.map((f) => [f.id, pct(f.a), pct(f.b), marca[f.cambio], delta(f.tokensA, f.tokensB), delta(f.segundosA, f.segundosB)]),
+    ),
+  );
+  const sa = resumir(ra);
+  const sb = resumir(rb);
+  console.log(
+    `\nAprobadas: ${sa.aprobadasMedia} → ${sb.aprobadasMedia} · mejoran ${filas.filter((f) => f.cambio === "mejora").length}, ` +
+      `empeoran ${filas.filter((f) => f.cambio === "empeora").length} · tokens por aprobada: ${sa.tokensPorAprobada ?? "-"} → ${sb.tokensPorAprobada ?? "-"}`,
+  );
+  for (const [nombre, s] of [["A", sa], ["B", sb]] as const) {
+    if (s.probablementeRota) console.log(`AVISO: ${nombre} probablemente no es válida (${s.sospechosas} tareas sin herramientas).`);
+  }
+  return 0;
+}
+
 // ------------------------------------------------------------------ principal
+
+if (opciones.comparar) {
+  if (ficheros.length !== 2) {
+    console.error(`--comparar necesita dos ficheros de resultados.\n\n${AYUDA}`);
+    process.exit(2);
+  }
+  process.exit(compararFicheros(ficheros[0]!, ficheros[1]!));
+}
+if (ficheros.length) {
+  console.error(`Argumentos de más: ${ficheros.join(" ")}\n\n${AYUDA}`);
+  process.exit(2);
+}
 
 const tareas = listarTareas(opciones.tareas);
 if (!tareas.length) {

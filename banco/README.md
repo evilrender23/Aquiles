@@ -9,6 +9,8 @@ bun banco/ejecutar.ts --validar                      # sin agente: cada comproba
 bun banco/ejecutar.ts --proveedor simulado --tareas 01   # prueba de la fontanería (la tarea falla, es lo esperado)
 bun banco/ejecutar.ts --proveedor agy                # el banco completo con un modelo real (gasta cuota)
 bun run banco -- --proveedor agy --modelo X --tareas 01,05,17 --paralelo 3
+bun banco/ejecutar.ts --proveedor agy --repeticiones 3   # tres veces cada tarea: media y dispersión por tarea
+bun banco/ejecutar.ts --comparar A.json B.json      # qué tareas mejoran o empeoran de A a B (antes y después de tocar el prompt o el bucle)
 ```
 
 | Opción | Por defecto | Qué hace |
@@ -21,7 +23,11 @@ bun run banco -- --proveedor agy --modelo X --tareas 01,05,17 --paralelo 3
 | `--tiempo-max` | 900 | Segundos por tarea; al agotarse se aborta el agente y se comprueba lo que haya. |
 | `--detalle` | no | Muestra en consola las herramientas que va usando el agente. |
 | `--conservar` | no | No borra las carpetas de trabajo de las tareas aprobadas. |
+| `--repeticiones` | 1 | Ejecuta cada tarea n veces (una repetición entera tras otra) y da, por tarea, aprobadas, tokens y segundos de media con su dispersión. |
 | `--validar` | no | Solo valida las tareas; no usa el agente ni guarda resultados. |
+| `--comparar A B` | no | Compara dos ficheros de resultados tarea a tarea (también los de antes de las repeticiones); no usa el agente. |
+
+Una tarea que termina en `fin` sin haber usado ninguna herramienta sale como **sospechosa**: lo normal es que el modelo no pudiera usarlas. Si son más de la mitad, el banco avisa de que la ejecución probablemente no mide el motor. El resumen da también los tokens por tarea aprobada.
 
 Cada tarea se copia a `%TEMP%\aquiles-banco\<fecha>-<pid>\<tarea>`, el agente trabaja ahí (con `ejecutarTarea` del núcleo y sus herramientas por defecto) y después se ejecuta `comprobar.ts` sobre esa carpeta. Junto a las carpetas queda `<tarea>.log` con el enunciado, el texto del agente, cada llamada a herramienta con su resultado y la salida del comprobador. Las carpetas de las tareas aprobadas se borran; las de las fallidas se quedan para mirarlas.
 
@@ -33,7 +39,7 @@ Ctrl+C para las tareas en curso, guarda los resultados parciales y sale con 130.
 
 Cada ejecución con agente guarda `banco/resultados/<AAAAMMDD-HHMM>-<proveedor>[-<modelo>].json` (se versionan) e imprime una tabla y la puntuación.
 
-- `resumen`: `aprobadas`, `total`, `puntuacion` (`aprobadas/total`), `porcentaje`, `tokens` sumados, `llamadas` sumadas, `segundosAgente` (suma de los tiempos de agente), `segundosTotal` (reloj de pared) e `interrumpido`.
+- `resumen`: `aprobadas`, `total`, `puntuacion` (`aprobadas/total`), `porcentaje`, `tokens` sumados, `llamadas` sumadas, `segundosAgente` (suma de los tiempos de agente), `segundosTotal` (reloj de pared), `interrumpido`, y el análisis: `aprobadasMedia` y `aprobadasDesv` (por repetición), `repeticiones`, `sospechosas`, `probablementeRota` y `tokensPorAprobada`.
 - `tareas[]`, una por tarea:
   - `id`: carpeta de la tarea.
   - `ok`: el comprobador ha pasado.
@@ -43,6 +49,8 @@ Cada ejecución con agente guarda `banco/resultados/<AAAAMMDD-HHMM>-<proveedor>[
   - `tokens`: `entrada`, `salida`, `razonamiento` y `total` (la suma de los tres), según el uso que devuelve el proveedor.
   - `llamadas`: llamadas a herramientas del agente.
   - `error`: error del agente o del proveedor (o `tiempo agotado`), si lo hubo.
+  - `traza`: la pila del error cuando falló el propio banco, para poder arreglarlo.
+  - `repeticion`: de 1 a `--repeticiones`. `sospechosa`: terminó en `fin` sin usar herramientas.
   - `carpeta`: carpeta de trabajo, solo si la tarea no se aprobó (o con `--conservar`).
   - `registro`: el `.log` de la tarea.
 

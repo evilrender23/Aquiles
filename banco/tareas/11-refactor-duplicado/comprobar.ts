@@ -48,12 +48,17 @@ await comprobar(async (dir) => {
 
   const fuentes = ficheros(dir).filter((f) => f.startsWith("src/") && f.endsWith(".ts"));
   const codigo = fuentes.map((f) => leer(dir, f)).join("\n");
-  const cuenta = (re: RegExp) => (codigo.match(re) ?? []).length;
+  // Lo que cuenta es el código: un comentario que cite la cabecera no es duplicación.
+  const sinComentarios = codigo.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  const cuenta = (re: RegExp) => (sinComentarios.match(re) ?? []).length;
   const cabeceras = cuenta(/INFORME DE /g);
   const recortes = cuenta(/\.slice\(0,\s*19\)/g);
   const pies = cuenta(/"movimientos"|'movimientos'/g);
   if (cabeceras > 1 || recortes > 1 || pies > 1) {
-    fallar(`sigue habiendo código duplicado (cabecera ×${cabeceras}, recorte del nombre ×${recortes}, pie ×${pies})`);
+    fallar(
+      `sigue habiendo código duplicado en src/ (cabecera ×${cabeceras}, recorte del nombre ×${recortes}, pie ×${pies}; ` +
+        `ficheros: ${fuentes.join(", ")})`,
+    );
   }
   const antes = lineasDeCodigo(leerInicial("src/informes.ts"));
   const despues = lineasDeCodigo(codigo);
