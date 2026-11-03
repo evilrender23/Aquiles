@@ -29,7 +29,9 @@ const POWERSHELL = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "Wi
 const SILENCIO_FINAL_S = 1.5;
 /** Palabras por minuto de `say` a velocidad normal. */
 const PPM_SAY = 180;
-const SIN_AJUSTES: AjustesVoz = { velocidad: 0 };
+/** Lo que usa la lectura de los ajustes de voz. */
+type AjustesLectura = Pick<AjustesVoz, "voz" | "velocidad">;
+const SIN_AJUSTES: AjustesLectura = { velocidad: 0 };
 
 // Primero es-ES, luego cualquier español y, si no, lo que haya.
 const ELEGIR_RECONOCEDOR = `
@@ -67,7 +69,7 @@ $rec.Dispose()`;
 }
 
 /** El texto y el nombre de la voz van en base64: nunca se interpolan crudos en el script. */
-function scriptLeer(texto: string, a: AjustesVoz): string {
+function scriptLeer(texto: string, a: AjustesLectura): string {
   const b64 = (t: string) => Buffer.from(t, "utf8").toString("base64");
   const rate = Math.max(-10, Math.min(10, Math.round(a.velocidad / 10)));
   return `Add-Type -AssemblyName System.Speech
@@ -166,7 +168,7 @@ export interface OpcionesVoz {
   ejecutar?: Ejecutar;
   lanzar?: Lanzar;
   /** Ajustes de lectura, leídos en cada lectura. */
-  ajustes?: () => AjustesVoz;
+  ajustes?: () => AjustesLectura;
   /** Mac: el programa de dictado. Por defecto, `aquiles-dictado` junto a este ejecutable (o AQUILES_DICTADO). */
   dictado?: string;
 }
@@ -175,7 +177,7 @@ export class Voz {
   private sistema: SistemaVoz;
   private ejecutar: Ejecutar;
   private lanzar: Lanzar;
-  private ajustes: () => AjustesVoz;
+  private ajustes: () => AjustesLectura;
   private dictado: string;
   private deteccion?: Promise<Deteccion>;
   private actual?: AbortController;

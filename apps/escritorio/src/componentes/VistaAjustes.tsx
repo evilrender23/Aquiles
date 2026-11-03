@@ -1,4 +1,4 @@
-import { PASOS_POR_TURNO, type Ajustes, type AjustesVoz, type EntornoTerminal, type Params } from "@aquiles/protocolo";
+import { PASOS_POR_TURNO, type Ajustes, type AjustesVoz, type AvisoAlAcabar, type EntornoTerminal, type Params } from "@aquiles/protocolo";
 import { Boton, Campo, Chip, Desplegable, Interruptor, Opcion, Pestanas, Titular, idPestana, type Pestana } from "@aquiles/ui";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
@@ -248,12 +248,28 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
       setProbando(false);
     }
   };
+  const avisos: { valor: AvisoAlAcabar; texto: string }[] = [
+    { valor: "nada", texto: "Nada" },
+    { valor: "notificacion", texto: "Notificación" },
+    ...(estado?.lectura ? [{ valor: "voz" as const, texto: "Notificación y voz" }] : []),
+  ];
+  const alAcabar = (
+    <Ajuste titulo="Al acabar una tarea" descripcion="Si tarda medio minuto o más, avisa con una frase del modelo: «He acabado de…».">
+      <OpcionesChip
+        leyenda="Al acabar una tarea"
+        opciones={avisos}
+        valor={voz.alAcabar === "voz" && !estado?.lectura ? "notificacion" : (voz.alAcabar ?? "voz")}
+        alCambiar={(v) => alCambiar({ alAcabar: v })}
+      />
+    </Ajuste>
+  );
   if (!estado?.lectura) {
     return (
       <Grupo titulo="Voz" descripcion="Para leer las respuestas en voz alta.">
         <p className="ajustes__nota">
           {esMac || enTauri() ? "No se encontró ninguna voz del sistema." : "La voz es de la app de escritorio (Windows o Mac)."}
         </p>
+        {alAcabar}
       </Grupo>
     );
   }
@@ -308,6 +324,7 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
           {probando ? "Parar" : "Escuchar"}
         </Boton>
       </Ajuste>
+      {alAcabar}
     </Grupo>
   );
 }

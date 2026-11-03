@@ -59,6 +59,7 @@ import { AlmacenSesiones, historial, info, type OpcionesSesion, type Sesion, tit
 import { ErrorSkill } from "./skills";
 import { herramientaDelegar, type LanzarSubagente } from "./subagentes";
 import { Voz } from "./voz";
+import { AVISO_DESDE_MS, fraseDeFin } from "./aviso-fin";
 import type { AdjuntoGuardado, Mensaje, Proveedor } from "./tipos";
 
 const HERRAMIENTAS_LECTURA = ["leer", "buscar_texto", "buscar_ficheros"];
@@ -92,6 +93,8 @@ export interface OpcionesServidor {
   reiniciar?: (motivo: string) => void;
   /** Ofrecer el proveedor simulado en proveedores.listar (desarrollo). */
   incluirSimulado?: boolean;
+  /** Duración mínima de un turno para avisar al acabar (por defecto AVISO_DESDE_MS; los tests la bajan). */
+  avisoFinDesdeMs?: number;
   origenesPermitidos?: readonly string[];
   log?: (mensaje: string) => void;
 }
@@ -178,7 +181,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     modoAprobacion: "preguntar-ejecutar",
     carpeta: o.cwdPorDefecto,
     maxPasos: PASOS_POR_TURNO.porDefecto,
-    voz: { velocidad: 0 },
+    voz: { velocidad: 0, alAcabar: "voz" },
     aprendizaje: AJUSTES_APRENDIZAJE,
     herramientas: AJUSTES_HERRAMIENTAS,
   });
@@ -336,6 +339,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     if (aprende) aprendizaje.alMensajeUsuario(s);
     const control = new AbortController();
     s.turno = control;
+    const inicioTurno = Date.now();
     sesiones.anotarInicioTurno(s);
     const a = ajustes.leer();
     if (!s.estado.has("terminal.entorno")) s.estado.set("terminal.entorno", a.herramientas.terminal);
@@ -400,8 +404,22 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       .then((r) => {
         // Con la sesión ya libre: si tiene objetivo, el juez decide si se relanza.
         void objetivos.alTerminarTurno(s, r).catch((e) => log(`objetivo de ${s.id}: ${e instanceof Error ? e.message : e}`));
+        // Una tarea larga de la app que acaba (sin objetivo pendiente, que podría relanzarla): «He acabado …».
+        if (r.motivo === "fin" && !s.origen && objetivos.de(s.id)?.estado !== "activo" && Date.now() - inicioTurno >= (o.avisoFinDesdeMs ?? AVISO_DESDE_MS)) {
+          void avisarFin(s).catch((e) => log(`aviso de fin de ${s.id}: ${e instanceof Error ? e.message : e}`));
+        }
         return r;
       });
+  };
+
+  /** La frase la escribe el modelo de la sesión; va como notificación y, si así se quiere, en voz alta. */
+  const avisarFin = async (s: Sesion) => {
+    const modo = ajustes.leer().voz.alAcabar;
+    if (modo === "nada") return;
+    const frase = await fraseDeFin({ proveedor: proveedorDe(s), mensajes: s.mensajes, cwd: s.cwd });
+    emitir({ tipo: "notificacion", titulo: s.titulo ?? "Aquiles", texto: frase, sesionId: s.id });
+    // Sin pisar un dictado o una lectura en marcha.
+    if (modo === "voz" && !(await voz.estado()).ocupada) await voz.leer(frase);
   };
 
   /** ejecutarEn con adjuntos recién guardados: si el turno no llega a empezar (sesión ocupada mientras se guardaban…), se borran. */

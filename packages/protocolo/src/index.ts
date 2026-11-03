@@ -10,10 +10,14 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 15;
+export const VERSION_PROTOCOLO = 16;
 
 /** Pasos por turno: cuántas veces puede responder el modelo (y llamar herramientas) antes de que el turno pare. */
 export const PASOS_POR_TURNO = { porDefecto: 25, min: 1, max: 1000 } as const;
+
+/** Qué hacer al acabar una tarea larga de la app: nada, una notificación o una notificación que además se dice en voz alta. */
+export const AVISOS_AL_ACABAR = ["nada", "notificacion", "voz"] as const;
+export type AvisoAlAcabar = (typeof AVISOS_AL_ACABAR)[number];
 
 /** Velocidad de lectura, en % sobre la normal de la voz. */
 export const VELOCIDAD_VOZ = { min: -50, max: 100 } as const;
@@ -74,6 +78,7 @@ export const metodos = {
         /** Nombre de una voz del sistema (las de voz.estado); "" = la española que haya. */
         voz: z.string().max(200).optional(),
         velocidad: z.number().int().min(VELOCIDAD_VOZ.min).max(VELOCIDAD_VOZ.max).optional(),
+        alAcabar: z.enum(AVISOS_AL_ACABAR).optional(),
       })
       .optional(),
     aprendizaje: z
@@ -313,6 +318,8 @@ export interface AjustesVoz {
   voz?: string;
   /** % sobre la velocidad normal de la voz. */
   velocidad: number;
+  /** Al acabar una tarea larga (≥ 30 s) de la app: «He acabado …», escrito por el modelo. */
+  alAcabar: AvisoAlAcabar;
 }
 
 export interface AjustesHerramientas {
