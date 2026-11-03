@@ -1,4 +1,4 @@
-import { PASOS_POR_TURNO, VOCES_EDGE, type Ajustes, type AjustesVoz, type EntornoTerminal, type MotorVoz, type Params } from "@aquiles/protocolo";
+import { PASOS_POR_TURNO, type Ajustes, type AjustesVoz, type EntornoTerminal, type Params } from "@aquiles/protocolo";
 import { Boton, Campo, Chip, Desplegable, Interruptor, Opcion, Pestanas, Titular, idPestana, type Pestana } from "@aquiles/ui";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
@@ -201,7 +201,12 @@ function General({ form, cambiar }: PropsPestana) {
           <CampoPasos valor={form.maxPasos ?? PASOS_POR_TURNO.porDefecto} alCambiar={(maxPasos) => cambiar({ maxPasos }, { maxPasos }, ESCRIBIENDO_MS)} />
         </Ajuste>
       </Grupo>
-      {form.voz && <AjustesDeVoz voz={form.voz} alCambiar={(c) => cambiar({ voz: { ...form.voz, ...c } }, { voz: c })} />}
+      {form.voz && (
+        <AjustesDeVoz
+          voz={form.voz}
+          alCambiar={(c) => cambiar({ voz: { ...form.voz, ...c, ...(c.voz === "" ? { voz: undefined } : {}) } }, { voz: c })}
+        />
+      )}
       {tauri && (
         <Grupo titulo={esMac ? "Mac" : "Windows"}>
           <Ajuste titulo={esMac ? "Abrir al iniciar sesión" : "Arrancar con Windows"} descripcion={`Se queda en ${esMac ? "la barra de menús" : "la bandeja"} al iniciar sesión, para que las tareas programadas y los canales sigan.`}>
@@ -223,18 +228,15 @@ const VELOCIDADES: { valor: string; texto: string }[] = [
   { valor: "50", texto: "Muy rápida" },
 ];
 
-/** Lectura en voz alta: con Edge (en línea, la de por defecto) o con las voces de Windows; la voz, la velocidad y una prueba. */
+/** Lectura en voz alta con las voces del sistema (Windows: System.Speech; Mac: say): cuál, a qué velocidad y una prueba. */
 function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Partial<AjustesVoz>) => void }) {
   const { voz: estado } = useEstado();
   const { llamar } = useAcciones();
   const [probando, setProbando] = useState(false);
   const [error, setError] = useState<string>();
-  const motores: { valor: MotorVoz; texto: string }[] = [
-    { valor: "edge", texto: "Voces de Edge (en línea)" },
-    // En Mac no hay voces del sistema que usar (System.Speech es de Windows).
-    ...(esMac ? [] : [{ valor: "sistema" as const, texto: "Voces de Windows" }]),
-  ];
-  const elegida = VOCES_EDGE.find((v) => v.id === voz.vozEdge)?.nombre ?? voz.vozEdge;
+  const voces = estado?.voces ?? [];
+  const AUTOMATICA = "Automática (la de español)";
+  const elegida = voz.voz && voces.some((v) => v.nombre === voz.voz) ? voz.voz : AUTOMATICA;
   const probar = async () => {
     setProbando(true);
     setError(undefined);
@@ -246,45 +248,63 @@ function AjustesDeVoz({ voz, alCambiar }: { voz: AjustesVoz; alCambiar: (c: Part
       setProbando(false);
     }
   };
+  if (!estado?.lectura) {
+    return (
+      <Grupo titulo="Voz" descripcion="Para leer las respuestas en voz alta.">
+        <p className="ajustes__nota">
+          {esMac || enTauri() ? "No se encontró ninguna voz del sistema." : "La voz es de la app de escritorio (Windows o Mac)."}
+        </p>
+      </Grupo>
+    );
+  }
   return (
-    <Grupo titulo="Voz" descripcion="Para leer las respuestas en voz alta (el altavoz de cada respuesta).">
-      <Ajuste titulo="Leer con" descripcion="Las de Edge suenan más naturales y necesitan conexión; sin ella, en Windows se usan las del sistema.">
-        <OpcionesChip leyenda="Leer con" opciones={motores} valor={voz.motor} alCambiar={(motor) => alCambiar({ motor })} />
+    <Grupo
+      titulo="Voz"
+      descripcion={
+        esMac
+          ? "Para leer las respuestas en voz alta. Hay voces más naturales para descargar en Ajustes del Sistema › Accesibilidad › Contenido leído."
+          : "Para leer las respuestas en voz alta, con las voces de Windows (se añaden en Configuración › Hora e idioma › Voz)."
+      }
+    >
+      <Ajuste titulo="Voz">
+        <Desplegable
+          etiqueta="Voz"
+          lado="abajo"
+          disparador={({ alternar, abierto: _a, ...aria }) => (
+            <Boton variante="chip" iconoFinal="chevron-abajo" onClick={alternar} {...aria}>
+              {elegida}
+            </Boton>
+          )}
+        >
+          {(cerrar) => [
+            <Opcion
+              key=""
+              texto={AUTOMATICA}
+              marcada={elegida === AUTOMATICA}
+              alElegir={() => {
+                alCambiar({ voz: "" });
+                cerrar();
+              }}
+            />,
+            ...voces.map((v) => (
+              <Opcion
+                key={v.nombre}
+                texto={`${v.nombre} · ${v.idioma}`}
+                marcada={v.nombre === elegida}
+                alElegir={() => {
+                  alCambiar({ voz: v.nombre });
+                  cerrar();
+                }}
+              />
+            )),
+          ]}
+        </Desplegable>
       </Ajuste>
-      {voz.motor === "edge" && (
-        <>
-          <Ajuste titulo="Voz">
-            <Desplegable
-              etiqueta="Voz de Edge"
-              lado="abajo"
-              disparador={({ alternar, abierto: _a, ...aria }) => (
-                <Boton variante="chip" iconoFinal="chevron-abajo" onClick={alternar} {...aria}>
-                  {elegida}
-                </Boton>
-              )}
-            >
-              {(cerrar) =>
-                VOCES_EDGE.map((v) => (
-                  <Opcion
-                    key={v.id}
-                    texto={v.nombre}
-                    marcada={v.id === voz.vozEdge}
-                    alElegir={() => {
-                      alCambiar({ vozEdge: v.id });
-                      cerrar();
-                    }}
-                  />
-                ))
-              }
-            </Desplegable>
-          </Ajuste>
-          <Ajuste titulo="Velocidad">
-            <OpcionesChip leyenda="Velocidad" opciones={VELOCIDADES} valor={String(voz.velocidad)} alCambiar={(v) => alCambiar({ velocidad: Number(v) })} />
-          </Ajuste>
-        </>
-      )}
+      <Ajuste titulo="Velocidad">
+        <OpcionesChip leyenda="Velocidad" opciones={VELOCIDADES} valor={String(voz.velocidad)} alCambiar={(v) => alCambiar({ velocidad: Number(v) })} />
+      </Ajuste>
       <Ajuste titulo="Probar" descripcion={error}>
-        <Boton variante="chip" icono={probando ? "detener" : "altavoz"} disabled={!estado?.lectura} onClick={() => (probando ? void llamar("voz.parar", {}).catch(() => {}) : void probar())}>
+        <Boton variante="chip" icono={probando ? "detener" : "altavoz"} onClick={() => (probando ? void llamar("voz.parar", {}).catch(() => {}) : void probar())}>
           {probando ? "Parar" : "Escuchar"}
         </Boton>
       </Ajuste>

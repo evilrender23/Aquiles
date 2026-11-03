@@ -48,6 +48,7 @@ export function VistaInicio() {
           filas={3}
           deshabilitado={!listo}
           dictar={voz?.dictado ? async () => (await llamar("voz.dictar", {})).texto : undefined}
+          pararDictado={() => void llamar("voz.parar", {}).catch(() => {})}
           alEnviar={async (texto, adjuntos) => {
             setError(undefined);
             try {

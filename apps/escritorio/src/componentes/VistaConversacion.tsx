@@ -165,6 +165,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
           </div>
           <Compositor
             dictar={estado.voz?.dictado ? async () => (await llamar("voz.dictar", {})).texto : undefined}
+            pararDictado={() => void llamar("voz.parar", {}).catch(() => {})}
             insercion={estado.pedidos.caja}
             etiqueta="Mensaje para Aquiles"
             placeholder="Escribe una instrucción"

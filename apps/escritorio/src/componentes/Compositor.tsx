@@ -20,8 +20,10 @@ export interface PropsCompositor {
   alDetener?: () => void;
   izquierda?: ReactNode;
   derecha?: ReactNode;
-  /** Dictado (voz.dictar): devuelve lo reconocido, que se añade a la caja. Sin él, no hay micrófono. */
+  /** Dictado (voz.dictar): una frase reconocida, que se añade a la caja. Sin él, no hay micrófono. */
   dictar?: () => Promise<string>;
+  /** Corta la frase que se está dictando (voz.parar): así se sale del modo dictado. */
+  pararDictado?: () => void;
   /** Texto que llega de fuera (citar un mensaje, insertar un bloque de código): se añade al final. */
   insercion?: { texto: string; n: number };
   /** Ficheros de la carpeta de trabajo para mencionarlos con `@`. Sin ella, `@` es un carácter más. */
@@ -46,6 +48,7 @@ export function Compositor({
   izquierda,
   derecha,
   dictar,
+  pararDictado,
   insercion,
   adjuntosPermitidos = true,
   buscarFicheros,
@@ -84,21 +87,58 @@ export function Compositor({
     async () => {
       const c = caja.current;
       if (!c) return [];
-      return [...(await elementosCampoTexto(c)), dictar && { tipo: "separador" as const }, dictar && { texto: "Dictar", icono: "microfono" as const, deshabilitado: escuchando || deshabilitado, alElegir: () => void escuchar() }];
+      return [
+        ...(await elementosCampoTexto(c)),
+        dictar && { tipo: "separador" as const },
+        dictar && { texto: escuchando ? "Dejar de dictar" : "Dictar", icono: "microfono" as const, deshabilitado, alElegir: () => void escuchar() },
+      ];
     },
     { campos: true },
   );
 
+  /**
+   * Modo dictado: escucha frase tras frase y las va añadiendo a la caja hasta que se vuelve a pulsar el micrófono,
+   * se envía o pasan dos esperas seguidas (~30 s) sin oír nada.
+   */
+  const dictando = useRef(false);
+  const dejarDeDictar = () => {
+    if (!dictando.current) return;
+    dictando.current = false;
+    pararDictado?.();
+  };
+  // Al salir de la vista (otra sesión, Ajustes) el micrófono no se queda escuchando.
+  const pararAlSalir = useRef(pararDictado);
+  pararAlSalir.current = pararDictado;
+  useEffect(
+    () => () => {
+      if (!dictando.current) return;
+      dictando.current = false;
+      pararAlSalir.current?.();
+    },
+    [],
+  );
   const escuchar = async () => {
-    if (!dictar || escuchando) return;
+    if (!dictar) return;
+    if (dictando.current) return dejarDeDictar();
+    dictando.current = true;
     setEscuchando(true);
     setErrorVoz(undefined);
     try {
-      const oido = (await dictar()).trim();
-      if (oido) setTexto((t) => (t.trim() ? `${t.replace(/\s+$/, "")} ${oido}` : oido));
+      let enSilencio = 0;
+      while (dictando.current && enSilencio < 2) {
+        const oido = (await dictar()).trim();
+        if (!dictando.current) break;
+        if (!oido) {
+          enSilencio++;
+          continue;
+        }
+        enSilencio = 0;
+        setTexto((t) => (t.trim() ? `${t.replace(/\s+$/, "")} ${oido}` : oido));
+      }
     } catch (e) {
       setErrorVoz(e instanceof Error ? e.message : String(e));
     } finally {
+      dictando.current = false;
       setEscuchando(false);
     }
   };
@@ -106,6 +146,7 @@ export function Compositor({
   const hayAlgo = !!limpio || adj.adjuntos.length > 0;
   /** Sin `conAdjuntos` (un comando elegido de la lista que no lleva argumentos), los adjuntos se quedan en la caja. */
   const enviarTexto = (original: string, conAdjuntos: boolean) => {
+    dejarDeDictar();
     const envio = original.trim();
     const adjuntos = conAdjuntos ? adj.adjuntos : [];
     if ((!envio && !adjuntos.length) || deshabilitado) return;
@@ -172,7 +213,7 @@ export function Compositor({
           <BotonAdjuntar alRutas={adj.anadirRutas} alFicheros={(f) => void adj.anadirFicheros(f)} deshabilitado={deshabilitado} />
           {dictar && (
             <BotonIcono
-              etiqueta={escuchando ? "Escuchando" : "Dictar"}
+              etiqueta={escuchando ? "Dictando: pulsa para parar" : "Dictar"}
               icono="microfono"
               className={clases("compositor__microfono", escuchando && "compositor__microfono--escuchando")}
               aria-pressed={escuchando}

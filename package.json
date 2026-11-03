@@ -14,7 +14,7 @@
     "escritorio": "bun run compilar:nucleo && cd apps/escritorio && bun run tauri dev",
     "compilar:nucleo:mac": "bun build packages/nucleo/src/main.ts --compile --outfile apps/escritorio/src-tauri/binaries/aquiles-nucleo-aarch64-apple-darwin",
     "escritorio:mac": "bun run compilar:nucleo:mac && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri dev",
-    "app:mac": "bun run compilar:nucleo:mac && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri build",
+    "app:mac": "bun run compilar:nucleo:mac && cd apps/escritorio && RUSTUP_TOOLCHAIN=stable bun run tauri build && bash src-tauri/macos/compilar-dictado.sh src-tauri/target/release/bundle/macos/Aquiles.app && codesign --force --deep --sign - src-tauri/target/release/bundle/macos/Aquiles.app",
     "banco": "bun banco/ejecutar.ts"
   },
   "devDependencies": {

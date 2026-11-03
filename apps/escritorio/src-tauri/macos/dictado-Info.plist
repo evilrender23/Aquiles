@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>dev.aquiles.dictado</string>
+	<key>CFBundleName</key>
+	<string>aquiles-dictado</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Aquiles usa el micrófono para el dictado por voz.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Aquiles convierte en texto lo que dictas.</string>
+</dict>
+</plist>

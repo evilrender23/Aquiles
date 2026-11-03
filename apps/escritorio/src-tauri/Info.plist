@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Se suma al Info.plist de Aquiles.app (solo Mac): los permisos del dictado por voz (aquiles-dictado). -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Aquiles usa el micrófono para el dictado por voz.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Aquiles convierte en texto lo que dictas.</string>
+</dict>
+</plist>

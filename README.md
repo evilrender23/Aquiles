@@ -30,7 +30,7 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
   - bandeja del sistema y arranque con Windows;
   - atajo global con entrada rápida;
   - perfiles, copias de seguridad y restauración;
-  - voz: dictado con el reconocedor de Windows y lectura en voz alta con las voces neuronales de Edge (en línea, sin clave) o con las de Windows;
+  - voz con lo que trae cada sistema: dictado continuo (el micrófono de la caja escucha frase tras frase) y lectura en voz alta; en Windows con System.Speech, en Mac con el reconocedor de voz de macOS y `say`;
   - estadísticas;
   - modo remoto (la app conectada a un núcleo en otra máquina);
   - integración con editores por ACP (`aquiles-nucleo --acp`).
@@ -86,8 +86,9 @@ Se actualiza sola igual que en Windows. Opciones: `--repo`, `--rama`, `--destino
 
 Para compilarla sin instalar: `bun run app:mac` deja `Aquiles.app` y un `.dmg` en `apps/escritorio/src-tauri/target/release/bundle/`. Va firmada solo en local (ad hoc), así que en otro Mac hay que abrirla la primera vez con clic derecho → Abrir.
 
+El dictado de Mac es un pequeño programa en Swift (`apps/escritorio/src-tauri/macos/dictado.swift`) que el instalador compila dentro de la app. La primera vez que dictas, macOS pide permiso para el micrófono y el reconocimiento de voz.
+
 En Mac no hay todavía:
-- dictado por voz (usa System.Speech de Windows); la lectura en voz alta sí funciona, con las voces de Edge;
 - instalación automática de llama.cpp y Docker (si ya están en el PATH, se usan).
 
 El núcleo recibe el PATH de tu shell (`~/.zshrc` y compañía), así que encuentra `claude`, `codex`, `agy` y lo de Homebrew aunque abras la app desde el Dock. El control del navegador usa Microsoft Edge si está en Aplicaciones. Los datos van en `~/.config/Aquiles`.

@@ -325,6 +325,10 @@ principal() {
         || fallar "La compilación de la app falló (detalles en $LOG_COMPILACION)"
     compilado="$escritorio/src-tauri/target/release/bundle/macos/Aquiles.app"
     [ -x "$compilado/Contents/MacOS/aquiles" ] || fallar "La compilación no dejó $compilado"
+    # El dictado por voz (Swift, con el reconocedor de macOS). Si no compila, Aquiles funciona igual, sin dictado.
+    if ! ejecutar "$escritorio" bash src-tauri/macos/compilar-dictado.sh "$compilado"; then
+        anotar "AVISO sin dictado por voz: no compiló aquiles-dictado (detalles en $LOG_COMPILACION)"
+    fi
 
     paso 6 'Preparando la versión nueva'
     rm -rf "$NUEVO"

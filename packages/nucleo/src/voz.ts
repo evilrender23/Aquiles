@@ -1,33 +1,35 @@
 /**
- * Voz: dictado con el reconocedor de Windows (System.Speech) y lectura en voz alta con las voces neuronales de Edge
- * (en línea; ver edge-tts.ts) o con las del sistema. Lo de System.Speech es un PowerShell aparte por operación que
- * devuelve una línea JSON. El audio de Edge suena en este equipo: en Windows con el MediaPlayer de WPF (PowerShell),
- * en Mac con afplay. parar() corta lo que esté en marcha.
+ * Voz con lo que trae cada sistema, sin conexión ni claves.
+ * - Windows: System.Speech para dictar (el reconocedor del idioma) y para leer (sus voces). Cada operación es un
+ *   PowerShell aparte que devuelve una línea JSON.
+ * - Mac: `say` para leer y, para dictar, `aquiles-dictado` (apps/escritorio/src-tauri/macos/dictado.swift, con el
+ *   reconocedor de voz de macOS), que va junto a este ejecutable dentro de Aquiles.app y también contesta en JSON.
+ * Una sola operación a la vez (leer mientras se dicta acabaría en el micrófono); parar() corta la que esté en marcha.
  */
 import { existsSync } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import type { AjustesVoz, EstadoVoz } from "@aquiles/protocolo";
-import { duracionMs, sintetizarTrozo, trocear, type OpcionesEdge } from "./edge-tts";
+import { dirname, join } from "node:path";
+import { VELOCIDAD_VOZ, type AjustesVoz, type EstadoVoz, type VozSistema } from "@aquiles/protocolo";
 import { WINDOWS } from "./herramientas/ficheros";
 import { matarArbol } from "./herramientas/shell";
 
+/** Un script de PowerShell → su salida. */
 type Ejecutar = (script: string, senal: AbortSignal) => Promise<string>;
-type Sintetizar = (texto: string, o: OpcionesEdge) => Promise<Uint8Array>;
-type Reproducir = (mp3: Uint8Array, senal: AbortSignal) => Promise<void>;
-
-const MAC = process.platform === "darwin";
-/** Sin ajustes (tests, CLI): las voces del sistema, como antes de Edge. */
-const SOLO_SISTEMA: AjustesVoz = { motor: "sistema", vozEdge: "es-ES-ElviraNeural", velocidad: 0 };
+/** Un programa con sus argumentos → su salida (Mac). */
+type Lanzar = (orden: string[], senal: AbortSignal) => Promise<string>;
+export type SistemaVoz = "windows" | "mac" | "ninguno";
 
 interface Deteccion {
   reconocedores: string[];
-  voces: { nombre: string; idioma: string }[];
+  voces: VozSistema[];
 }
 
 const POWERSHELL = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 const SILENCIO_FINAL_S = 1.5;
+/** Palabras por minuto de `say` a velocidad normal. */
+const PPM_SAY = 180;
+const SIN_AJUSTES: AjustesVoz = { velocidad: 0 };
 
 // Primero es-ES, luego cualquier español y, si no, lo que haya.
 const ELEGIR_RECONOCEDOR = `
@@ -64,17 +66,21 @@ ConvertTo-Json -Compress @{ texto = $(if ($res) { $res.Text } else { '' }); idio
 $rec.Dispose()`;
 }
 
-/** El texto va en base64: nunca se interpola crudo en el script. */
-function scriptLeer(texto: string): string {
-  const b64 = Buffer.from(texto, "utf8").toString("base64");
+/** El texto y el nombre de la voz van en base64: nunca se interpolan crudos en el script. */
+function scriptLeer(texto: string, a: AjustesVoz): string {
+  const b64 = (t: string) => Buffer.from(t, "utf8").toString("base64");
+  const rate = Math.max(-10, Math.min(10, Math.round(a.velocidad / 10)));
   return `Add-Type -AssemblyName System.Speech
-$texto = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}'))
+$texto = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64(texto)}'))
+$elegida = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64(a.voz ?? "")}'))
 try {
   $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
   $voces = @($s.GetInstalledVoices() | Where-Object { $_.Enabled })
-  $v = $voces | Where-Object { $_.VoiceInfo.Culture.Name -eq 'es-ES' } | Select-Object -First 1
+  $v = $voces | Where-Object { $_.VoiceInfo.Name -eq $elegida } | Select-Object -First 1
+  if (-not $v) { $v = $voces | Where-Object { $_.VoiceInfo.Culture.Name -eq 'es-ES' } | Select-Object -First 1 }
   if (-not $v) { $v = $voces | Where-Object { $_.VoiceInfo.Culture.TwoLetterISOLanguageName -eq 'es' } | Select-Object -First 1 }
   if ($v) { $s.SelectVoice($v.VoiceInfo.Name) }
+  $s.Rate = ${rate}
   $s.SetOutputToDefaultAudioDevice()
   $s.Speak($texto)
   $s.Dispose()
@@ -82,20 +88,27 @@ try {
 } catch { ConvertTo-Json -Compress @{ error = 'lectura'; detalle = "$($_.Exception.Message)" } }`;
 }
 
-/** Reproduce un MP3 con el MediaPlayer de WPF y espera lo que dura (más un margen para abrirlo). La ruta va en base64. */
-function scriptReproducir(ruta: string, ms: number): string {
-  const b64 = Buffer.from(ruta, "utf8").toString("base64");
-  return `Add-Type -AssemblyName PresentationCore
-$ruta = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}'))
-try {
-  $p = New-Object System.Windows.Media.MediaPlayer
-  $p.Open([Uri]$ruta)
-  $p.Play()
-  Start-Sleep -Milliseconds ${Math.max(0, Math.round(ms)) + 400}
-  $p.Stop()
-  $p.Close()
-  ConvertTo-Json -Compress @{ ok = $true }
-} catch { ConvertTo-Json -Compress @{ error = 'reproducir'; detalle = "$($_.Exception.Message)" } }`;
+/** Las líneas de `say -v '?'`: «Mónica              es_ES    # Hola, me llamo Mónica.» */
+export function vocesDeSay(salida: string): VozSistema[] {
+  const voces: VozSistema[] = [];
+  for (const linea of salida.split(/\r?\n/)) {
+    const m = linea.match(/^(.*\S)\s+([a-z]{2,3})_([A-Za-z0-9]+)\s+#/);
+    if (m) voces.push({ nombre: m[1]!, idioma: `${m[2]}-${m[3]}` });
+  }
+  return voces;
+}
+
+/** Las de español primero (es-ES delante), luego las demás por nombre. */
+export function ordenarVoces(voces: VozSistema[]): VozSistema[] {
+  const rango = (v: VozSistema) => (v.idioma === "es-ES" ? 0 : v.idioma.startsWith("es") ? 1 : 2);
+  return [...voces].sort((a, b) => rango(a) - rango(b) || a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/** La voz con la que leer: la elegida si existe; si no, la primera española; si no hay, la del sistema. */
+export function vozParaLeer(voces: VozSistema[], elegida?: string): string | undefined {
+  if (elegida && voces.some((v) => v.nombre === elegida)) return elegida;
+  const espanola = ordenarVoces(voces)[0];
+  return espanola?.idioma.startsWith("es") ? espanola.nombre : undefined;
 }
 
 /** Quita las marcas de Markdown que la voz leería en alto («almohadilla», «asterisco»). */
@@ -109,84 +122,95 @@ export function textoParaLeer(texto: string): string {
     .trim();
 }
 
-const ERRORES: Record<string, string> = {
-  "sin-reconocedor":
-    "No hay ningún reconocedor de voz de Windows instalado: añade el reconocimiento de voz del idioma en Configuración › Hora e idioma › Idioma y región.",
-  "sin-microfono": "No hay micrófono: conecta uno o elígelo como dispositivo de entrada predeterminado en Windows.",
+const ERRORES_COMUNES: Record<string, string> = {
   reconocedor: "Error del reconocedor de voz",
   lectura: "No se pudo leer en voz alta",
-  reproducir: "No se pudo reproducir el audio",
 };
 
-/** La última línea de la salida, que el script escribe en JSON; un `error` se convierte en excepción. */
-function respuesta(salida: string): Record<string, unknown> {
+const ERRORES: Record<Exclude<SistemaVoz, "ninguno">, Record<string, string>> = {
+  windows: {
+    ...ERRORES_COMUNES,
+    "sin-reconocedor":
+      "No hay ningún reconocedor de voz de Windows instalado: añade el reconocimiento de voz del idioma en Configuración › Hora e idioma › Idioma y región.",
+    "sin-microfono": "No hay micrófono: conecta uno o elígelo como dispositivo de entrada predeterminado en Windows.",
+  },
+  mac: {
+    ...ERRORES_COMUNES,
+    "sin-reconocedor": "El reconocimiento de voz de macOS no está disponible: activa el dictado en Ajustes del Sistema › Teclado › Dictado.",
+    "sin-microfono": "No hay micrófono: conecta uno o elígelo en Ajustes del Sistema › Sonido › Entrada.",
+    "sin-permiso-microfono": "Aquiles no tiene permiso para usar el micrófono: actívalo en Ajustes del Sistema › Privacidad y seguridad › Micrófono.",
+    "sin-permiso-voz":
+      "Aquiles no tiene permiso para el reconocimiento de voz: actívalo en Ajustes del Sistema › Privacidad y seguridad › Reconocimiento de voz.",
+  },
+};
+
+/** La última línea de la salida, en JSON; un `error` se convierte en excepción con el texto de ese sistema. */
+function respuesta(salida: string, sistema: Exclude<SistemaVoz, "ninguno">): Record<string, unknown> {
   const linea = salida.trim().split(/\r?\n/).pop() ?? "";
   let datos: Record<string, unknown>;
   try {
     datos = JSON.parse(linea);
   } catch {
-    throw new Error(`PowerShell no devolvió lo esperado: ${salida.trim().slice(0, 300) || "(nada)"}`);
+    throw new Error(`La voz del sistema no devolvió lo esperado: ${salida.trim().slice(0, 300) || "(nada)"}`);
   }
   if (typeof datos.error === "string") {
-    const texto = ERRORES[datos.error] ?? datos.error;
+    const texto = ERRORES[sistema][datos.error] ?? datos.error;
     throw new Error(datos.detalle ? `${texto}: ${datos.detalle}` : texto);
   }
   return datos;
 }
 
 export interface OpcionesVoz {
+  /** Por defecto, el de este equipo. */
+  sistema?: SistemaVoz;
   ejecutar?: Ejecutar;
-  /** Los ajustes de lectura, leídos en cada lectura. Sin ellos, las voces del sistema. */
+  lanzar?: Lanzar;
+  /** Ajustes de lectura, leídos en cada lectura. */
   ajustes?: () => AjustesVoz;
-  sintetizar?: Sintetizar;
-  reproducir?: Reproducir;
-  /** Hay con qué reproducir el MP3 de Edge (Windows o Mac). */
-  conReproductor?: boolean;
-  /** Si Edge falla antes de sonar, leer con las voces del sistema (Windows). */
-  respaldoSistema?: boolean;
-  log?: (texto: string) => void;
+  /** Mac: el programa de dictado. Por defecto, `aquiles-dictado` junto a este ejecutable (o AQUILES_DICTADO). */
+  dictado?: string;
 }
 
 export class Voz {
+  private sistema: SistemaVoz;
   private ejecutar: Ejecutar;
+  private lanzar: Lanzar;
   private ajustes: () => AjustesVoz;
-  private sintetizar: Sintetizar;
-  private reproducir: Reproducir;
-  private conReproductor: boolean;
-  private respaldoSistema: boolean;
-  private log: (texto: string) => void;
+  private dictado: string;
   private deteccion?: Promise<Deteccion>;
   private actual?: AbortController;
 
   constructor(o: OpcionesVoz = {}) {
+    this.sistema = o.sistema ?? (WINDOWS ? "windows" : process.platform === "darwin" ? "mac" : "ninguno");
     this.ejecutar = o.ejecutar ?? ejecutarPowershell;
-    this.ajustes = o.ajustes ?? (() => SOLO_SISTEMA);
-    this.sintetizar = o.sintetizar ?? sintetizarTrozo;
-    this.reproducir = o.reproducir ?? ((mp3, senal) => reproducirMp3(mp3, senal, this.ejecutar));
-    this.conReproductor = o.conReproductor ?? (WINDOWS || MAC);
-    this.respaldoSistema = o.respaldoSistema ?? WINDOWS;
-    this.log = o.log ?? (() => {});
+    this.lanzar = o.lanzar ?? ejecutarProceso;
+    this.ajustes = o.ajustes ?? (() => SIN_AJUSTES);
+    this.dictado = o.dictado ?? process.env.AQUILES_DICTADO ?? join(dirname(process.execPath), "aquiles-dictado");
   }
 
   async estado(): Promise<EstadoVoz> {
     const d = await this.detectar().catch((): Deteccion => ({ reconocedores: [], voces: [] }));
     const idioma = d.reconocedores.find((r) => r === "es-ES") ?? d.reconocedores.find((r) => r.startsWith("es")) ?? d.reconocedores[0];
-    const { motor } = this.ajustes();
     return {
       dictado: d.reconocedores.length > 0,
       ...(idioma ? { idiomaDictado: idioma } : {}),
-      lectura: motor === "edge" ? this.conReproductor : d.voces.length > 0,
-      motor,
-      voces: d.voces.map((v) => v.nombre),
+      lectura: d.voces.length > 0,
+      voces: ordenarVoces(d.voces),
       ocupada: this.actual !== undefined,
     };
   }
 
-  /** Lo dictado al micrófono por defecto; "" si no se oyó nada o se cortó con parar(). */
+  /** Lo dictado al micrófono por defecto, una frase (hasta ~1,5 s de silencio); "" si no se oyó nada o se cortó con parar(). */
   async dictar(segundos = 15): Promise<string> {
-    const salida = await this.operar(scriptDictar(Math.max(1, Math.round(segundos))));
+    const s = Math.max(1, Math.round(segundos));
+    let salida: string | undefined;
+    if (this.sistema === "windows") salida = await this.operar((senal) => this.ejecutar(scriptDictar(s), senal));
+    else if (this.sistema === "mac") {
+      if (!existsSync(this.dictado)) throw new Error("Esta copia de Aquiles no trae el dictado de macOS (aquiles-dictado): actualízala con el instalador.");
+      salida = await this.operar((senal) => this.lanzar([this.dictado, String(s), "es-ES"], senal));
+    } else throw new Error("El dictado por voz solo está en Windows y Mac.");
     if (salida === undefined) return "";
-    const texto = respuesta(salida).texto;
+    const texto = respuesta(salida, this.sistema).texto;
     return typeof texto === "string" ? texto.trim() : "";
   }
 
@@ -194,39 +218,23 @@ export class Voz {
     const limpio = textoParaLeer(texto);
     if (!limpio) return;
     const a = this.ajustes();
-    if (a.motor === "edge" && this.conReproductor) {
-      let sono = false;
-      try {
-        await this.operarCon((senal) => this.leerConEdge(limpio, a, senal, () => (sono = true)));
-        return;
-      } catch (e) {
-        // Sin conexión (o Edge rechaza la petición) antes de que sonara nada: en Windows, las voces del sistema.
-        const sistema = this.respaldoSistema && !sono && (await this.detectar().catch(() => undefined))?.voces.length;
-        if (!sistema) throw e;
-        this.log(`voz: Edge no pudo leer (${e instanceof Error ? e.message : e}); se usan las voces de Windows`);
-      }
+    if (this.sistema === "windows") {
+      const salida = await this.operar((senal) => this.ejecutar(scriptLeer(limpio, a), senal));
+      if (salida !== undefined) respuesta(salida, "windows");
+      return;
     }
-    const salida = await this.operar(scriptLeer(limpio));
-    if (salida !== undefined) respuesta(salida);
-  }
-
-  /**
-   * Por trozos: mientras suena uno se pide el siguiente, así la lectura empieza pronto aunque el texto sea largo.
-   * `alSonar` avisa de que ya ha sonado algo (a partir de ahí, un fallo no se tapa con otra voz).
-   */
-  private async leerConEdge(texto: string, a: AjustesVoz, senal: AbortSignal, alSonar: () => void): Promise<void> {
-    const trozos = trocear(texto);
-    const pedir = (t: string) => {
-      const p = this.sintetizar(t, { voz: a.vozEdge, velocidad: a.velocidad, senal });
-      p.catch(() => {});
-      return p;
-    };
-    let siguiente = pedir(trozos[0]!);
-    for (let i = 0; i < trozos.length; i++) {
-      const mp3 = await siguiente;
-      if (i + 1 < trozos.length) siguiente = pedir(trozos[i + 1]!);
-      alSonar();
-      await this.reproducir(mp3, senal);
+    if (this.sistema !== "mac") throw new Error("Leer en voz alta solo está en Windows y Mac.");
+    const voz = vozParaLeer((await this.detectar().catch(() => undefined))?.voces ?? [], a.voz);
+    const velocidad = Math.max(VELOCIDAD_VOZ.min, Math.min(VELOCIDAD_VOZ.max, a.velocidad));
+    // El texto por fichero: ni comillas ni guiones al principio se toman por opciones.
+    const fichero = join(tmpdir(), `aquiles-leer-${crypto.randomUUID()}.txt`);
+    await writeFile(fichero, limpio, "utf8");
+    try {
+      await this.operar((senal) =>
+        this.lanzar(["say", ...(voz ? ["-v", voz] : []), "-r", String(Math.round(PPM_SAY * (1 + velocidad / 100))), "-f", fichero], senal),
+      );
+    } finally {
+      await rm(fichero, { force: true }).catch(() => {});
     }
   }
 
@@ -234,12 +242,8 @@ export class Voz {
     this.actual?.abort();
   }
 
-  private operar(script: string): Promise<string | undefined> {
-    return this.operarCon((senal) => this.ejecutar(script, senal));
-  }
-
-  /** Solo una operación a la vez: la nueva corta la anterior (leer mientras se dicta acabaría en el micrófono). */
-  private async operarCon<T>(f: (senal: AbortSignal) => Promise<T>): Promise<T | undefined> {
+  /** Solo una operación a la vez: la nueva corta la anterior. Cortada con parar(), devuelve undefined sin error. */
+  private async operar<T>(f: (senal: AbortSignal) => Promise<T>): Promise<T | undefined> {
     this.parar();
     const c = new AbortController();
     this.actual = c;
@@ -255,39 +259,38 @@ export class Voz {
 
   /** Reconocedores y voces no cambian mientras corre el núcleo: se miran una vez (si falla, se reintenta la próxima). */
   private detectar(): Promise<Deteccion> {
-    this.deteccion ??= this.ejecutar(SCRIPT_ESTADO, AbortSignal.timeout(30_000)).then((salida) => {
-      const d = respuesta(salida);
-      const lista = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v ? [v] : []) as T[];
-      return { reconocedores: lista<string>(d.reconocedores), voces: lista<Deteccion["voces"][number]>(d.voces) };
-    });
+    this.deteccion ??= this.detectarAhora();
     this.deteccion.catch(() => (this.deteccion = undefined));
     return this.deteccion;
   }
+
+  private async detectarAhora(): Promise<Deteccion> {
+    if (this.sistema === "windows") {
+      const d = respuesta(await this.ejecutar(SCRIPT_ESTADO, AbortSignal.timeout(30_000)), "windows");
+      const lista = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v ? [v] : []) as T[];
+      return { reconocedores: lista<string>(d.reconocedores), voces: lista<VozSistema>(d.voces) };
+    }
+    if (this.sistema === "mac") {
+      const voces = vocesDeSay(await this.lanzar(["say", "-v", "?"], AbortSignal.timeout(15_000)));
+      return { reconocedores: existsSync(this.dictado) ? ["es-ES"] : [], voces };
+    }
+    return { reconocedores: [], voces: [] };
+  }
 }
 
-/** Suena en este equipo: en Mac con afplay; en Windows con el MediaPlayer de WPF. Lo corta la señal. */
-export async function reproducirMp3(mp3: Uint8Array, senal: AbortSignal, ejecutar: Ejecutar = ejecutarPowershell): Promise<void> {
+/** Un programa con su salida; la señal lo mata. Con código distinto de 0, error con lo que dijo por stderr. */
+export async function ejecutarProceso(orden: string[], senal: AbortSignal): Promise<string> {
   if (senal.aborted) throw new Error("Cancelado");
-  const ruta = join(tmpdir(), `aquiles-voz-${crypto.randomUUID()}.mp3`);
-  await writeFile(ruta, mp3);
+  const proc = Bun.spawn(orden, { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const matar = () => void matarArbol(proc);
+  senal.addEventListener("abort", matar, { once: true });
   try {
-    if (MAC) {
-      const proc = Bun.spawn(["afplay", ruta], { stdout: "ignore", stderr: "pipe" });
-      const matar = () => proc.kill();
-      senal.addEventListener("abort", matar, { once: true });
-      try {
-        const [errores, codigo] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
-        if (senal.aborted) throw new Error("Cancelado");
-        if (codigo !== 0) throw new Error(`${ERRORES.reproducir}: ${errores.trim().slice(0, 300) || `afplay terminó con código ${codigo}`}`);
-      } finally {
-        senal.removeEventListener("abort", matar);
-      }
-    } else {
-      respuesta(await ejecutar(scriptReproducir(ruta, duracionMs(mp3)), senal));
-    }
+    const [salida, errores, codigo] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+    if (senal.aborted) throw new Error("Cancelado");
+    if (codigo !== 0) throw new Error(`${orden[0]} terminó con código ${codigo}: ${errores.trim().slice(0, 500)}`);
+    return salida;
   } finally {
-    // Recién cortado, Windows puede tener aún el fichero abierto: si no se puede borrar, se queda en la carpeta temporal.
-    await rm(ruta, { force: true }).catch(() => {});
+    senal.removeEventListener("abort", matar);
   }
 }
 

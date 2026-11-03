@@ -1002,6 +1002,10 @@ body {
     padding: 22px 20px;
   }
 }
+.ajustes__nota {
+  font: var(--type-body-s);
+  color: var(--ink-muted);
+}
 .ajustes__rejilla {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
