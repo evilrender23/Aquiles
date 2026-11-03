@@ -19,23 +19,24 @@ export function herramientaGenerarImagen(opciones: Omit<OpcionesImagen, "servici
   return definir({
     nombre: "generar_imagen",
     descripcion:
-      "Genera una imagen a partir de una descripción con un modelo de imagen (Gemini, OpenAI u OpenRouter, el que tenga clave) " +
+      "Genera una imagen a partir de una descripción con un modelo de imagen: Gemini, OpenAI u OpenRouter con clave, o sin clave " +
+      "con agy (Antigravity, Nano Banana) o Codex, el primero disponible. " +
       "y la guarda en 'ruta'. Describe con detalle qué debe verse: sujeto, estilo, composición, colores y el texto exacto si lleva. " +
       "El usuario la ve en el panel. No sirve para editar una imagen que ya existe.",
     nivel: "escritura",
     parametros: z.object({
       descripcion: z.string().min(3).describe("Qué debe verse en la imagen, con detalle"),
       ruta: z.string().min(1).describe("Dónde guardarla, p. ej. imagenes/portada.png (la extensión se ajusta al formato que llegue)"),
-      servicio: z.enum(SERVICIOS_IMAGEN).optional().describe("gemini, openai u openrouter; sin él, el primero con clave"),
+      servicio: z.enum(SERVICIOS_IMAGEN).optional().describe("gemini, openai, openrouter, agy o codex; sin él, el primero disponible"),
       modelo: z.string().optional().describe("Otro modelo de imagen del servicio, si el usuario lo pide"),
     }),
     resumen: ({ ruta }) => ruta,
     rutas: ({ ruta }, cwd) => [rutaAbsoluta(ruta, cwd)],
     async ejecutar({ descripcion, ruta, servicio, modelo }, ctx) {
-      if (!servicio && serviciosDisponibles(opciones.entorno).length === 0) {
+      if (!servicio && serviciosDisponibles(opciones.entorno, opciones.clis).length === 0) {
         throw new ErrorHerramienta(
-          "No hay ningún servicio de imágenes con clave. Dile al usuario que ponga una de Gemini (Google AI Studio), OpenAI u OpenRouter " +
-            "en Ajustes → Modelos → Claves de API.",
+          "No hay ningún servicio de imágenes. Dile al usuario que inicie sesión en agy (Antigravity) o Codex, o que ponga una clave " +
+            "de Gemini (Google AI Studio), OpenAI u OpenRouter en Ajustes → Modelos → Claves de API.",
         );
       }
       ctx.progreso("Generando la imagen…\n");

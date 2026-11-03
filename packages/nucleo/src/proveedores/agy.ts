@@ -28,7 +28,7 @@ const PREFACIO = [
   "cualquier intento se deniega y no hace nada. Para actuar usa SIEMPRE las herramientas de Aquiles con el formato",
   '<herramienta nombre="…">{…}</herramienta> que se explica abajo. Equivalencias: run_command → terminal;',
   "view_file → leer; write_to_file → escribir; replace_file_content y multi_replace_file_content → editar;",
-  "grep_search → buscar_texto; list_dir y find_by_name → buscar_ficheros; generate_image → generar_imagen (si la tienes).",
+  "grep_search → buscar_texto; list_dir y find_by_name → buscar_ficheros; generate_image → generar_imagen.",
 ].join("\n");
 
 interface Nativa {
@@ -88,6 +88,13 @@ export function traducirNativa(n: Nativa, id: string): LlamadaHerramienta[] | un
       return texto(p.DirectoryPath) ? una("buscar_ficheros", { patron: "*", ruta: p.DirectoryPath }) : undefined;
     case "find_by_name":
       return texto(p.Pattern) ? una("buscar_ficheros", { patron: p.Pattern, ruta: texto(p.SearchDirectory) }) : undefined;
+    case "generate_image": {
+      // Pasa por generar_imagen (y sus permisos), que la vuelve a pedir a agy sola, con Nano Banana.
+      const descripcion = texto(p.Prompt) ?? texto(p.prompt) ?? texto(p.Description);
+      if (!descripcion) return undefined;
+      const nombre = (texto(p.ImageName) ?? texto(p.Name) ?? "imagen").replace(/[^\w-]+/g, "_").slice(0, 60) || "imagen";
+      return una("generar_imagen", { descripcion, ruta: `imagenes/${nombre}.png`, servicio: "agy" });
+    }
     default:
       return undefined;
   }

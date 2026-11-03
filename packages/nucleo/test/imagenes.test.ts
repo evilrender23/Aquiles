@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,10 +20,12 @@ function falso(responder: (url: string, cuerpo: any) => { status?: number; json:
   return { f, pedidas };
 }
 
-test("servicios: el primero con clave, en orden Gemini, OpenAI, OpenRouter", () => {
-  expect(serviciosDisponibles({})).toEqual([]);
-  expect(serviciosDisponibles({ OPENROUTER_API_KEY: "r", OPENAI_API_KEY: "o" })).toEqual(["openai", "openrouter"]);
-  expect(serviciosDisponibles({ GEMINI_API_KEY: "g", OPENAI_API_KEY: "o" })[0]).toBe("gemini");
+test("servicios: los de API con clave (Gemini, OpenAI, OpenRouter) y luego los CLI (agy, Codex)", () => {
+  expect(serviciosDisponibles({}, [])).toEqual([]);
+  expect(serviciosDisponibles({ OPENROUTER_API_KEY: "r", OPENAI_API_KEY: "o" }, [])).toEqual(["openai", "openrouter"]);
+  expect(serviciosDisponibles({ GEMINI_API_KEY: "g", OPENAI_API_KEY: "o" }, ["codex"])).toEqual(["gemini", "openai", "codex"]);
+  // Sin claves, los CLI instalados: agy (Nano Banana) antes que Codex.
+  expect(serviciosDisponibles({}, ["agy", "codex"])).toEqual(["agy", "codex"]);
 });
 
 test("Gemini: generateContent con modalidad imagen; la imagen sale de inlineData", async () => {
@@ -64,7 +66,7 @@ test("OpenRouter: chat/completions con modalities y la imagen como data URL", as
 });
 
 test("sin ninguna clave, un error que dice dónde ponerla", async () => {
-  await expect(generarImagen("x", { entorno: {} })).rejects.toThrow("Ajustes → Modelos → Claves de API");
+  await expect(generarImagen("x", { entorno: {}, clis: [] })).rejects.toThrow("Ajustes → Modelos → Claves de API");
 });
 
 test("generar_imagen: guarda con la extensión del formato, sin pisar lo que hay, y lo dice", async () => {
@@ -80,7 +82,7 @@ test("generar_imagen: guarda con la extensión del formato, sin pisar lo que hay
   expect(await readFile(join(dir, "portada.jpg"), "utf8")).toBe("vieja");
   expect(h.resumen?.({ descripcion: "x", ruta: "img/a.png" })).toBe("img/a.png");
 
-  const sinClave = herramientaGenerarImagen({ entorno: {} });
+  const sinClave = herramientaGenerarImagen({ entorno: {}, clis: [] });
   await expect(sinClave.ejecutar({ descripcion: "una portada", ruta: "p.png" }, ctx)).rejects.toThrow("Claves de API");
 });
 
@@ -95,4 +97,54 @@ test("el visor de documentos abre imágenes como data URL", async () => {
   });
   await writeFile(join(dir, "a.bmp"), "x");
   await expect(leerDocumento(join(dir, "a.bmp"))).rejects.toThrow("una imagen");
+});
+
+describe("con los CLI (agy y codex)", () => {
+  const FALSO = join(import.meta.dir, "imagen-cli-falso.ts");
+  const correr = async (cli: "agy" | "codex", modo: string) => {
+    const dir = await mkdtemp(join(tmpdir(), "aquiles-img-cli-"));
+    process.env.IMAGEN_FALSO_CLI = cli;
+    process.env.IMAGEN_FALSO_MODO = modo;
+    process.env.IMAGEN_FALSO_ARGS = join(dir, "args.json");
+    process.env.IMAGEN_FALSO_DATOS = join(dir, "datos");
+    const r = await generarImagen("un gato naranja", {
+      servicio: cli, comandoCli: [process.execPath, FALSO], carpetasDeDatos: [join(dir, "datos")], entorno: {},
+    });
+    const visto = JSON.parse(await readFile(join(dir, "args.json"), "utf8")) as { args: string[]; cwd: string };
+    const stdin = await readFile(join(dir, "args.stdin"), "utf8");
+    return { r, visto, stdin };
+  };
+
+  test("codex: exec con image_generation activada y lo demás apagado; la imagen en base64 en un evento", async () => {
+    const { r, visto, stdin } = await correr("codex", "b64");
+    expect(r).toMatchObject({ servicio: "codex", mime: "image/png", texto: "Aquí tienes la imagen." });
+    expect(Buffer.from(r.bytes).subarray(0, 4).toString("latin1")).toBe("\x89PNG");
+    expect(visto.args).toContain("exec");
+    expect(visto.args.join(" ")).toContain("--enable image_generation");
+    expect(visto.args.join(" ")).not.toContain("--disable image_generation");
+    expect(visto.args.join(" ")).toContain("--disable shell_tool");
+    expect(stdin).toContain("un gato naranja");
+  });
+
+  test("codex: la imagen como fichero en su carpeta de trabajo (temporal, que luego se borra)", async () => {
+    const { r, visto } = await correr("codex", "cwd");
+    expect(r.mime).toBe("image/png");
+    expect(visto.cwd).toContain("aquiles-imagen-codex-");
+    expect(await Bun.file(join(visto.cwd, "imagen.png")).exists()).toBe(false);
+  });
+
+  test("agy: solo generate_image permitida, para al llegar result; la imagen por ruta o en su carpeta de datos", async () => {
+    const porRuta = await correr("agy", "ruta");
+    expect(porRuta.r).toMatchObject({ servicio: "agy", modelo: "Nano Banana (agy)", texto: "Imagen generada." });
+    const ajustes = porRuta.visto.args[porRuta.visto.args.indexOf("--settings") + 1]!;
+    expect(ajustes).toContain("aquiles-imagen-agy-");
+    expect(JSON.parse(porRuta.stdin).message.content).toContain("generate_image");
+
+    const enDatos = await correr("agy", "datos");
+    expect(enDatos.r.mime).toBe("image/png");
+  });
+
+  test("sin imagen: error claro con el registro de eventos guardado", async () => {
+    await expect(correr("agy", "nada")).rejects.toThrow(/terminó sin que aparezca ninguna imagen.*Sus eventos están en .*aquiles-imagen-agy-\d+\.jsonl/);
+  });
 });

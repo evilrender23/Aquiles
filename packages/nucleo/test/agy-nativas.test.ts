@@ -27,3 +27,10 @@ test("sin equivalente seguro devuelve undefined", () => {
   expect(t("run_command", {})).toBeUndefined();
   expect(t("replace_file_content", { TargetFile: "a.ts" })).toBeUndefined();
 });
+
+test("generate_image de agy se traduce a generar_imagen con agy (Nano Banana)", () => {
+  expect(traducirNativa({ nombre: "generate_image", parametros: { Prompt: "un faro al atardecer", ImageName: "faro atardecer" } }, "n1")).toEqual([
+    { id: "n1", nombre: "generar_imagen", argumentos: { descripcion: "un faro al atardecer", ruta: "imagenes/faro_atardecer.png", servicio: "agy" } },
+  ]);
+  expect(traducirNativa({ nombre: "generate_image", parametros: {} }, "n2")).toBeUndefined();
+});

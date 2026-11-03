@@ -3,19 +3,25 @@
  * - Gemini (Google AI Studio, GEMINI_API_KEY): generateContent con un modelo de imagen («Nano Banana»).
  * - OpenAI (OPENAI_API_KEY): images/generations con gpt-image-1.
  * - OpenRouter (OPENROUTER_API_KEY): chat/completions con modalities imagen, con un modelo de imagen de Gemini.
- * Sin servicio elegido se usa el primero que tenga clave, en ese orden.
+ * - Y sin clave, con los CLI en los que se haya iniciado sesión: agy (Nano Banana) y Codex (imagenes-cli.ts).
+ * Sin servicio elegido se usa el primero disponible, en ese orden.
  */
+import { type CliImagen, clisDeImagen, ErrorImagenCli, generarConCli } from "./imagenes-cli";
 
-export const SERVICIOS_IMAGEN = ["gemini", "openai", "openrouter"] as const;
+export const SERVICIOS_IMAGEN = ["gemini", "openai", "openrouter", "agy", "codex"] as const;
 export type ServicioImagen = (typeof SERVICIOS_IMAGEN)[number];
+type ServicioApi = Exclude<ServicioImagen, CliImagen>;
 
-const VARIABLE: Record<ServicioImagen, string> = { gemini: "GEMINI_API_KEY", openai: "OPENAI_API_KEY", openrouter: "OPENROUTER_API_KEY" };
+const VARIABLE: Record<ServicioApi, string> = { gemini: "GEMINI_API_KEY", openai: "OPENAI_API_KEY", openrouter: "OPENROUTER_API_KEY" };
 const MODELO_POR_DEFECTO: Record<ServicioImagen, string> = {
   gemini: "gemini-2.5-flash-image",
   openai: "gpt-image-1",
   openrouter: "google/gemini-2.5-flash-image",
+  agy: "Nano Banana (agy)",
+  codex: "image_generation (Codex)",
 };
-const NOMBRE: Record<ServicioImagen, string> = { gemini: "Gemini", openai: "OpenAI", openrouter: "OpenRouter" };
+const NOMBRE: Record<ServicioImagen, string> = { gemini: "Gemini", openai: "OpenAI", openrouter: "OpenRouter", agy: "Antigravity", codex: "Codex" };
+const esCli = (s: ServicioImagen): s is CliImagen => s === "agy" || s === "codex";
 const LIMITE_MS = 180_000;
 
 export interface ImagenGenerada {
@@ -32,26 +38,39 @@ export interface OpcionesImagen {
   servicio?: ServicioImagen;
   modelo?: string;
   senal?: AbortSignal;
-  /** Para los tests: otras URLs base y otro fetch. */
-  bases?: Partial<Record<ServicioImagen, string>>;
+  /** Para los tests: otras URLs base y otro fetch, el entorno y los CLI instalados. */
+  bases?: Partial<Record<ServicioApi, string>>;
   fetch?: typeof fetch;
   entorno?: Record<string, string | undefined>;
+  clis?: CliImagen[];
+  comandoCli?: string[];
+  carpetasDeDatos?: string[];
 }
 
-/** Los servicios con clave puesta, en orden de preferencia. */
-export function serviciosDisponibles(entorno: Record<string, string | undefined> = process.env): ServicioImagen[] {
-  return SERVICIOS_IMAGEN.filter((s) => Boolean(entorno[VARIABLE[s]]));
+/** Los servicios disponibles en orden de preferencia: los de API con clave puesta y los CLI instalados. */
+export function serviciosDisponibles(entorno: Record<string, string | undefined> = process.env, clis: CliImagen[] = clisDeImagen()): ServicioImagen[] {
+  return SERVICIOS_IMAGEN.filter((s) => (esCli(s) ? clis.includes(s) : Boolean(entorno[VARIABLE[s]])));
 }
 
 export class ErrorImagen extends Error {}
 
 export async function generarImagen(prompt: string, o: OpcionesImagen = {}): Promise<ImagenGenerada> {
   const entorno = o.entorno ?? process.env;
-  const servicio = o.servicio ?? serviciosDisponibles(entorno)[0];
+  const servicio = o.servicio ?? serviciosDisponibles(entorno, o.clis)[0];
   if (!servicio) {
     throw new ErrorImagen(
-      "No hay ningún servicio de imágenes con clave: pon una de Gemini (Google AI Studio), OpenAI u OpenRouter en Ajustes → Modelos → Claves de API.",
+      "No hay ningún servicio de imágenes: inicia sesión en agy (Antigravity) o en Codex, o pon una clave de Gemini (Google AI Studio), " +
+        "OpenAI u OpenRouter en Ajustes → Modelos → Claves de API.",
     );
+  }
+  if (esCli(servicio)) {
+    try {
+      const r = await generarConCli(servicio, prompt, { senal: o.senal, comando: o.comandoCli, carpetasDeDatos: o.carpetasDeDatos });
+      return { ...r, servicio, modelo: MODELO_POR_DEFECTO[servicio] };
+    } catch (e) {
+      if (e instanceof ErrorImagenCli) throw new ErrorImagen(e.message);
+      throw e;
+    }
   }
   const clave = entorno[VARIABLE[servicio]];
   if (!clave) throw new ErrorImagen(`Falta la clave de ${NOMBRE[servicio]} (Ajustes → Modelos → Claves de API).`);

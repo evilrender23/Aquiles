@@ -10,6 +10,7 @@ Es un proyecto personal: lo hago para mi propio uso y no hay soporte. El código
 
 - **Conversación con herramientas:** leer, buscar, editar y crear ficheros; terminal persistente (local, en un contenedor Docker o por SSH); búsqueda y lectura de webs; control de Edge (desactivado por defecto); servidores MCP.
 - **Adjuntos:** imágenes y documentos (PDF, Word, Excel, PowerPoint, texto y código). Se sacan su texto y las imágenes las ven los modelos que las admiten. Los ficheros de la carpeta de trabajo también se pueden mencionar con `@` en el mensaje.
+- **Imágenes:** `generar_imagen` las crea con agy (Antigravity, Nano Banana) o Codex con tu sesión, o con una clave de Gemini, OpenAI u OpenRouter; se guardan en la carpeta y se ven en el panel.
 - **Artefactos:** páginas HTML, SVG, documentos y ficheros de código que el modelo escribe aparte. Se ven mientras los escribe y luego se renderizan en una vista aislada.
 - **Permisos:** escribe sin preguntar dentro de la carpeta de trabajo y pregunta antes de ejecutar comandos. También se puede elegir «preguntar siempre» o «libre en el proyecto». Hay un guardián opcional: un modelo que aprueba lo claramente seguro.
 - **Memoria y skills:** memoria corta del usuario, del agente y de cada proyecto, más una personalidad editable; skills en formato `SKILL.md`; búsqueda de texto en todas las conversaciones.
