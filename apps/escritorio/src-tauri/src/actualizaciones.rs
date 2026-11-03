@@ -275,6 +275,24 @@ fn instalador(destino: &Path) -> Result<PathBuf, String> {
     Ok(temporal)
 }
 
+/// En Mac, el `instalar.sh` de lo último de la rama (que trajo el `git fetch` de `buscar`), copiado a
+/// `registro/`. Así un arreglo del instalador vale desde la actualización que lo trae, no desde la
+/// siguiente; y bash no ejecuta un fichero que el propio instalador cambia con `git reset`.
+#[cfg(not(windows))]
+fn instalador_de_la_rama(destino: &Path, rama: &str) -> Option<PathBuf> {
+    let texto = git(&destino.join("codigo"), &["show", &format!("origin/{rama}:{NOMBRE_INSTALADOR}")]).ok()?;
+    if !texto.starts_with("#!") {
+        return None;
+    }
+    let carpeta = destino.join("registro");
+    fs::create_dir_all(&carpeta).ok()?;
+    // Con rename: si un instalador anterior sigue leyendo el de antes, no se le cambia debajo.
+    let (ruta, nuevo) = (carpeta.join(NOMBRE_INSTALADOR), carpeta.join(format!("{NOMBRE_INSTALADOR}.nuevo")));
+    fs::write(&nuevo, texto).ok()?;
+    fs::rename(&nuevo, &ruta).ok()?;
+    Some(ruta)
+}
+
 fn registro(destino: &Path) -> PathBuf {
     destino.join("registro").join("actualizacion.log")
 }
@@ -313,8 +331,12 @@ fn instalar(app: &AppHandle) -> Result<(), String> {
     let mut orden = {
         use std::os::unix::process::CommandExt;
         let mut orden = orden_oculta("/bin/bash");
+        let script = match instalador_de_la_rama(&destino, &rama) {
+            Some(script) => script,
+            None => instalador(&destino)?,
+        };
         orden
-            .arg(instalador(&destino)?)
+            .arg(script)
             .args(["--actualizar", "--destino"])
             .arg(&destino)
             .args(["--rama", &rama, "--esperar-pid", &pid, "--relanzar"]);
@@ -579,6 +601,33 @@ mod pruebas {
         assert!(info.desarrollo && !info.hay_nueva && info.actual.is_none());
 
         assert!(comparar(&base.join("no-existe"), None).is_err());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// Se ejecuta el instalador de lo último de la rama, no el del clon, que puede ser de un commit anterior.
+    #[cfg(not(windows))]
+    #[test]
+    fn instalador_de_lo_ultimo_de_la_rama() {
+        let base = std::env::temp_dir().join(format!("aquiles-inst-{}", crate::nucleo::generar_token()));
+        let (remoto, destino) = (base.join("remoto"), base.join("destino"));
+        fs::create_dir_all(&remoto).unwrap();
+        fs::create_dir_all(&destino).unwrap();
+        let en = |carpeta: &Path, argumentos: &[&str]| git(carpeta, argumentos).unwrap();
+        let version = |texto: &str| {
+            fs::write(remoto.join(NOMBRE_INSTALADOR), texto).unwrap();
+            en(&remoto, &["add", "-A"]);
+            en(&remoto, &["-c", "user.name=Prueba", "-c", "user.email=prueba@localhost", "commit", "-qm", texto]);
+        };
+        en(&remoto, &["init", "-q", "-b", "main"]);
+        version("#!/bin/bash\n# viejo\n");
+        en(&destino, &["clone", "-q", remoto.to_str().unwrap(), "codigo"]);
+        version("#!/bin/bash\n# nuevo\n");
+        en(&destino.join("codigo"), &["fetch", "-q", "origin", "main"]);
+
+        let ruta = instalador_de_la_rama(&destino, "main").unwrap();
+        assert_eq!(ruta, destino.join("registro").join(NOMBRE_INSTALADOR));
+        assert_eq!(fs::read_to_string(&ruta).unwrap(), "#!/bin/bash\n# nuevo\n");
+        assert!(instalador_de_la_rama(&destino, "no-existe").is_none());
         let _ = fs::remove_dir_all(&base);
     }
 

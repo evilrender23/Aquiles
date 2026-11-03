@@ -249,17 +249,50 @@ limpiar() {
     rm -rf "$CERROJO"
 }
 
+# En qué está el que tiene el cerrojo: compilando y esperando (a que se cierre Aquiles) se pueden
+# interrumpir; cambiando (moviendo la app de sitio), no.
+fase() {
+    printf '%s\n' "$1" > "$CERROJO/fase"
+}
+
+# Que el pid del cerrojo sea de verdad un instalador y no otro proceso que heredó el número.
+es_instalador() {
+    ps -p "$1" -o command= 2>/dev/null | grep -q 'instalar\.sh'
+}
+
+# Un cerrojo con el pid dentro. Si lo tiene una instalación que sigue viva, se la sustituye: suele ser
+# la que lanzó una app que ya se cerró, esperando a que se cierre también la que se abrió después
+# (esperaría para siempre). Esta compila lo último de la rama y hace lo mismo que ella.
+tomar_cerrojo() {
+    local dueno i
+    mkdir "$CERROJO" 2>/dev/null && return 0
+    dueno=$(cat "$CERROJO/pid" 2>/dev/null)
+    if [ -n "$dueno" ] && [ "$dueno" != "$$" ] && kill -0 "$dueno" 2>/dev/null && ! es_instalador "$dueno"; then
+        # Otro proceso con el mismo pid: el cerrojo es de una instalación que ya no está. Salvo un bash
+        # sin nombre de script (`curl … | bash`), que sí puede ser un instalador.
+        if ps -p "$dueno" -o command= 2>/dev/null | grep -q bash; then fallar 'Ya hay otra instalación de Aquiles en marcha.'; fi
+    elif [ -n "$dueno" ] && [ "$dueno" != "$$" ] && kill -0 "$dueno" 2>/dev/null; then
+        if [ "$(cat "$CERROJO/fase" 2>/dev/null)" = cambiando ]; then
+            fallar 'Otra instalación está cambiando Aquiles de versión; vuelve a intentarlo en un momento.'
+        fi
+        # Con su grupo de procesos (la app la lanza en uno propio): también git, bun o cargo si los había.
+        kill -TERM -- "-$dueno" 2>/dev/null || kill -TERM "$dueno" 2>/dev/null
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+            kill -0 "$dueno" 2>/dev/null || break
+            sleep 1
+        done
+        kill -KILL -- "-$dueno" 2>/dev/null || kill -KILL "$dueno" 2>/dev/null
+    fi
+    # El anterior ya no está: su cerrojo sobra (su trap pudo borrarlo o no).
+    rm -rf "$CERROJO"
+    mkdir "$CERROJO" 2>/dev/null || fallar 'Ya hay otra instalación de Aquiles en marcha.'
+}
+
 principal() {
     mkdir -p "$REGISTRO" || { echo "No se puede crear $REGISTRO" >&2; exit 1; }
-    # Un cerrojo con el pid dentro: si el que lo tenía ya no existe, se queda con él.
-    if ! mkdir "$CERROJO" 2>/dev/null; then
-        local dueno
-        dueno=$(cat "$CERROJO/pid" 2>/dev/null)
-        if [ -n "$dueno" ] && kill -0 "$dueno" 2>/dev/null; then
-            fallar 'Ya hay otra instalación de Aquiles en marcha.'
-        fi
-    fi
+    tomar_cerrojo
     echo $$ > "$CERROJO/pid"
+    fase compilando
     trap limpiar EXIT
     : > "$LOG"
     : > "$LOG_COMPILACION"
@@ -306,14 +339,18 @@ principal() {
 
     if [ -d "$APP" ]; then
         paso 7 'Esperando a que se cierre Aquiles para cambiar de versión'
+        fase esperando
         esperar_cierre
+        fase cambiando
         cambiar_app
     else
         paso 7 "Instalando en $(dirname "$APP")"
+        fase cambiando
         mkdir -p "$(dirname "$APP")"
         mv "$NUEVO/Aquiles.app" "$APP" || fallar "No se pudo instalar en $APP."
     fi
     rm -rf "$NUEVO"
+    fase hecho
     anotar "APLICADO $commit"
     # Instalada desde una copia de desarrollo: esa copia tiene que cerrarse antes, porque solo puede
     # haber un Aquiles abierto (en una actualización ya se esperó a que se cerrara).
@@ -325,4 +362,5 @@ principal() {
     if $INTERACTIVO; then printf '\033[32mAquiles %s está en %s.\033[0m\n' "${commit:0:7}" "$APP"; fi
 }
 
-principal
+# En la misma línea: bash lee el script según avanza, y git puede haberlo cambiado mientras tanto.
+principal; exit $?
