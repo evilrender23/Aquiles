@@ -2866,6 +2866,51 @@ button.aviso-flotante__cuerpo:hover .aviso-flotante__titulo {
   font-size: 13px;
   color: var(--ink-muted);
 }
+/* Atajo de la entrada rápida: las teclas actuales y el grabador. */
+.atajo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.atajo__actual,
+.atajo__grabador {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-muted);
+  font: 400 15px/1 var(--font-sans);
+}
+.atajo__grabador {
+  min-width: 220px;
+  padding: 0 16px;
+  border: 1px dashed var(--lime-borde);
+  border-radius: var(--radius-control);
+  background: var(--lime-suave);
+  cursor: default;
+}
+.atajo__grabador:focus-visible {
+  outline: 2px solid var(--lime-borde);
+  outline-offset: 2px;
+}
+.atajo__teclas {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.atajo__teclas kbd {
+  min-width: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--ink-strong);
+  font: 500 14px/1 var(--font-sans);
+  text-align: center;
+}
+
 .aplicacion__crear {
   display: flex;
   align-items: flex-end;

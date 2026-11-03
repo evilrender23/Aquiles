@@ -1,8 +1,9 @@
 /** Piezas de Ajustes: plugins (Herramientas), arranque y atajo (General), actualizaciones, perfiles, copias y núcleo remoto (Aplicación). */
 import type { InfoCopia } from "@aquiles/protocolo";
 import { Boton, Campo, CampoInterruptor, Chip, ConMenuContextual, Interruptor, Medidor, copiarTexto } from "@aquiles/ui";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
+import { capturar } from "../estado/atajo";
 import { useCarga } from "../estado/carga";
 import { fechaCompleta, fechaConHora, fechaRelativa } from "../estado/formato";
 import { useReloj } from "../estado/reloj";
@@ -146,28 +147,30 @@ export function Arranque() {
 }
 
 /** Atajo global de la entrada rápida: el actual, si se registró (y por qué no), y un campo para cambiarlo. */
+/**
+ * Atajo de la entrada rápida: «Cambiar» se pone a escuchar y la combinación que se pulse (Ctrl+Space…) se guarda
+ * sola. Escape cancela. Mientras se graba, lo pulsado se va viendo.
+ */
 export function Atajo() {
   const [estado, setEstado] = useState<EstadoAtajo>();
-  const [texto, setTexto] = useState("");
+  const [grabando, setGrabando] = useState(false);
+  const [parcial, setParcial] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string>();
+  const grabador = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    atajoActual().then(
-      (e) => {
-        setEstado(e);
-        setTexto(e?.atajo ?? "");
-      },
-      (e) => setError(mensaje(e)),
-    );
+    atajoActual().then(setEstado, (e) => setError(mensaje(e)));
   }, []);
 
-  const cambiar = async () => {
+  useEffect(() => {
+    if (grabando) grabador.current?.focus();
+  }, [grabando]);
+
+  const guardar = async (atajo: string) => {
     setGuardando(true);
     try {
-      const e = await cambiarAtajo(texto.trim());
-      setEstado(e);
-      if (e) setTexto(e.atajo);
+      setEstado(await cambiarAtajo(atajo));
       setError(undefined);
     } catch (e) {
       setError(mensaje(e));
@@ -176,23 +179,79 @@ export function Atajo() {
     }
   };
 
+  const parar = () => {
+    setGrabando(false);
+    setParcial("");
+  };
+
+  const alTecla = (e: React.KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    if (e.code === "Escape" && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) return parar();
+    const c = capturar(e, esMac);
+    if (c.tipo === "parcial") return setParcial(c.texto);
+    if (c.tipo === "error") {
+      setError(c.texto);
+      setParcial("");
+      return;
+    }
+    parar();
+    if (c.texto === estado?.atajo && estado.registrado) return setError(undefined);
+    void guardar(c.texto);
+  };
+
   return (
     <div className="ajustes__grupo">
-      <form
-        className="aplicacion__crear"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (texto.trim() && texto.trim() !== estado?.atajo) void cambiar();
-        }}
-      >
-        <Campo etiqueta="Teclas" mono spellCheck={false} value={texto} onChange={(e) => setTexto(e.target.value)} />
-        <Boton type="submit" variante="secundario" disabled={guardando || !texto.trim() || texto.trim() === estado?.atajo}>
-          Cambiar
+      <div className="atajo">
+        {grabando ? (
+          <button
+            ref={grabador}
+            type="button"
+            className="atajo__grabador"
+            aria-label="Pulsa la combinación de teclas para la entrada rápida; Escape cancela"
+            onKeyDown={alTecla}
+            onKeyUp={(e) => {
+              e.preventDefault();
+              const c = capturar(e, esMac);
+              setParcial(c.tipo === "parcial" ? c.texto : "");
+            }}
+            onBlur={parar}
+          >
+            {parcial ? <Teclas texto={`${parcial}+…`} /> : "Pulsa las teclas…"}
+          </button>
+        ) : (
+          <span className="atajo__actual">{estado?.atajo ? <Teclas texto={estado.atajo} /> : "Sin atajo"}</span>
+        )}
+        <Boton
+          variante="secundario"
+          disabled={guardando || !estado}
+          onMouseDown={(e) => grabando && e.preventDefault()}
+          onClick={() => {
+            setError(undefined);
+            if (grabando) parar();
+            else setGrabando(true);
+          }}
+        >
+          {grabando ? "Cancelar" : guardando ? "Guardando…" : "Cambiar"}
         </Boton>
-      </form>
+      </div>
       {estado && !estado.registrado && <TextoError texto={estado.error ? `No registrado: ${estado.error}` : "No registrado"} />}
       <TextoError texto={error} />
     </div>
+  );
+}
+
+/** «Ctrl+Space» como teclas sueltas. */
+function Teclas({ texto }: { texto: string }) {
+  const partes = texto.split("+");
+  return (
+    <span className="atajo__teclas">
+      {partes.map((t, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: las partes de un atajo no se reordenan.
+        <kbd key={i}>{t === "…" ? "…" : t === "Space" ? "Espacio" : t}</kbd>
+      ))}
+    </span>
   );
 }
 
