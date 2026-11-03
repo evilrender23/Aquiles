@@ -780,8 +780,9 @@ body {
 .compositor__texto:focus-visible {
   outline: none;
 }
-/* Dos grupos que bajan de línea: los controles a la izquierda y, si no caben al lado, la derecha
-   (contexto, modelo, esfuerzo y enviar) en la línea siguiente, pegada al borde derecho. */
+/* Dos grupos: los controles a la izquierda y el envío a la derecha, en la misma fila. Los controles ocupan lo que
+   deja el botón y, si no caben, bajan de línea entre ellos; el botón no baja (solo en una caja muy estrecha, donde
+   ni el chip más ancho cabe a su lado). */
 .compositor__barra {
   display: flex;
   flex-wrap: wrap;
@@ -798,11 +799,15 @@ body {
   max-width: 100%;
 }
 .compositor__controles {
-  flex: 1 1 auto;
+  /* Base 0: no reservan su ancho entero (eso empujaba el botón a otra línea); como mínimo, el chip más ancho. */
+  flex: 1 1 0;
+  min-width: min-content;
 }
 .compositor__derecha {
   justify-content: flex-end;
   margin-left: auto;
+  /* Con los chips en varias filas, el botón va con la última. */
+  align-self: flex-end;
 }
 /* Un chip nunca más ancho que la caja: su texto se corta con puntos suspensivos. */
 .compositor__barra .nx-desplegable,

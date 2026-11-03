@@ -179,6 +179,16 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
             alDetener={() => detener(sesionId)}
             izquierda={
               <>
+                <SelectorModelo alineacion="izquierda" proveedor={sesion.proveedor} modelo={sesion.modelo} proveedores={estado.proveedores} deshabilitado={!conectada} alElegir={elegirModelo} />
+                <SelectorEsfuerzo
+                  alineacion="izquierda"
+                  proveedor={sesion.proveedor}
+                  modelo={sesion.modelo}
+                  esfuerzo={sesion.esfuerzo}
+                  proveedores={estado.proveedores}
+                  deshabilitado={!conectada}
+                  alElegir={(esfuerzo) => void ajustarSesion(sesionId, { esfuerzo })}
+                />
                 <SelectorPermisos modo={sesion.modoAprobacion} deshabilitado={!conectada} alElegir={(modoAprobacion) => void ajustarSesion(sesionId, { modoAprobacion })} />
                 {!sesion.objetivo && !editandoObjetivo && (
                   <Boton variante="chip" icono="diana" disabled={!conectada} onClick={() => setEditandoObjetivo(true)}>
@@ -192,15 +202,6 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
                 <span className="conversacion__contexto-compacto">
                   <MedidorContexto uso={conversacion.contexto} />
                 </span>
-                <SelectorModelo proveedor={sesion.proveedor} modelo={sesion.modelo} proveedores={estado.proveedores} deshabilitado={!conectada} alElegir={elegirModelo} />
-                <SelectorEsfuerzo
-                  proveedor={sesion.proveedor}
-                  modelo={sesion.modelo}
-                  esfuerzo={sesion.esfuerzo}
-                  proveedores={estado.proveedores}
-                  deshabilitado={!conectada}
-                  alElegir={(esfuerzo) => void ajustarSesion(sesionId, { esfuerzo })}
-                />
               </>
             }
           />
