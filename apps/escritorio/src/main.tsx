@@ -1,6 +1,8 @@
 import "@aquiles/ui/estilos.css";
 import { ProveedorMenuContextual } from "@aquiles/ui";
 import { StrictMode } from "react";
+// Antes que nada: el idioma en que se pinta la primera vez.
+import "./i18n";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { EntradaRapida } from "./componentes/EntradaRapida";

@@ -1,5 +1,5 @@
 import { PASOS_POR_TURNO, type Ajustes, type AjustesVoz, type AvisoAlAcabar, type EntornoTerminal, type Params } from "@aquiles/protocolo";
-import { Boton, Campo, Chip, Desplegable, Interruptor, Opcion, Pestanas, Titular, idPestana, type Pestana } from "@aquiles/ui";
+import { Boton, Campo, Chip, Desplegable, Interruptor, Opcion, Pestanas, Titular, idPestana, t, type Pestana } from "@aquiles/ui";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { esfuerzoTrasCambio } from "../estado/esfuerzo";
@@ -187,6 +187,17 @@ function General({ form, cambiar }: PropsPestana) {
   const tauri = enTauri();
   return (
     <>
+      <Grupo titulo={t("Idioma")} descripcion={t("El de la interfaz. Las respuestas del modelo siguen el idioma en que le escribas.")}>
+        <OpcionesChip
+          leyenda={t("Idioma")}
+          opciones={[
+            { valor: "es", texto: "Español" },
+            { valor: "en", texto: "English" },
+          ]}
+          valor={form.idioma ?? "es"}
+          alCambiar={(idioma) => cambiar({ idioma }, { idioma })}
+        />
+      </Grupo>
       <Grupo titulo="Sesiones nuevas">
         <Ajuste titulo="Carpeta de trabajo" descripcion="Donde empiezan las sesiones nuevas.">
           <CampoCarpeta etiqueta="Carpeta" carpeta={form.carpeta} alCambiar={(carpeta) => cambiar({ carpeta }, { carpeta }, tauri ? 0 : ESCRIBIENDO_MS)} />

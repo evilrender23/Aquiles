@@ -160,6 +160,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     modoAprobacion: "preguntar-ejecutar",
     carpeta: o.cwdPorDefecto,
     maxPasos: PASOS_POR_TURNO.porDefecto,
+    idioma: "es",
     voz: { velocidad: 0, alAcabar: "voz" },
     aprendizaje: AJUSTES_APRENDIZAJE,
     herramientas: AJUSTES_HERRAMIENTAS,

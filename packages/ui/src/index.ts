@@ -32,3 +32,4 @@ export { BlurText, rehypeBlurText, trocearTokens } from "./efectos/BlurText";
 export { BranchedMenu, type GrupoRamas, type PropsBranchedMenu } from "./efectos/BranchedMenu";
 export { CrystalizedBall, type PropsCrystalizedBall } from "./efectos/CrystalizedBall";
 export { GradientAscii, type FormaGradiente, type PropsGradientAscii } from "./efectos/GradientAscii";
+export { fijarIdioma, IDIOMAS, idiomaActual, registrarTraducciones, t, traducido, type Idioma } from "./i18n";

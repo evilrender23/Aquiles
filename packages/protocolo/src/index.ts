@@ -10,7 +10,7 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 17;
+export const VERSION_PROTOCOLO = 18;
 
 /** Pasos por turno: cuántas veces puede responder el modelo (y llamar herramientas) antes de que el turno pare. */
 export const PASOS_POR_TURNO = { porDefecto: 25, min: 1, max: 1000 } as const;
@@ -73,6 +73,8 @@ export const metodos = {
     modoAprobacion: z.enum(MODOS_APROBACION).optional(),
     carpeta: z.string().min(1).optional(),
     maxPasos: z.number().int().min(PASOS_POR_TURNO.min).max(PASOS_POR_TURNO.max).optional(),
+    /** Idioma de la interfaz; el español es el de por defecto. */
+    idioma: z.enum(["es", "en"]).optional(),
     voz: z
       .object({
         /** Nombre de una voz del sistema (las de voz.estado); "" = la española que haya. */
@@ -313,6 +315,8 @@ export interface Ajustes {
   carpeta: string;
   /** Pasos (respuestas del modelo) que puede dar un turno antes de parar con motivo «limite». Vale para todas las sesiones. */
   maxPasos: number;
+  /** Idioma de la interfaz (es por defecto). */
+  idioma: "es" | "en";
   /** Lectura en voz alta. */
   voz: AjustesVoz;
   aprendizaje: AjustesAprendizaje;

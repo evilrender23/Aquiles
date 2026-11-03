@@ -1,5 +1,5 @@
 import { ProveedorMenuContextual, clases } from "@aquiles/ui";
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { AvisoConexion } from "./componentes/AvisoConexion";
 import { BarraLateral } from "./componentes/BarraLateral";
 import { BarraTitulo } from "./componentes/BarraTitulo";
@@ -12,16 +12,26 @@ import { VistaHabilidades } from "./componentes/VistaHabilidades";
 import { VistaInicio } from "./componentes/VistaInicio";
 import { VistaMemoria } from "./componentes/VistaMemoria";
 import { ProveedorApp, useAcciones, useEstado } from "./estado/almacen";
+import { aplicarIdioma, idiomaGuardado } from "./i18n";
 import { esMac } from "./plataforma/ventana";
 
 export function App() {
   return (
     <ProveedorApp>
-      <Menus>
-        <Marco />
-      </Menus>
+      <ConIdioma>
+        <Menus>
+          <Marco />
+        </Menus>
+      </ConIdioma>
     </ProveedorApp>
   );
+}
+
+/** El idioma de los ajustes; al cambiarlo se vuelve a pintar todo (el estado de la app sigue, en ProveedorApp). */
+function ConIdioma({ children }: { children: ReactNode }) {
+  const idioma = useEstado().ajustes?.idioma ?? idiomaGuardado();
+  aplicarIdioma(idioma);
+  return <Fragment key={idioma}>{children}</Fragment>;
 }
 
 /** Menús contextuales de toda la app; una selección suelta también se puede buscar en las conversaciones. */
