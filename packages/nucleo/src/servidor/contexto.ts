@@ -6,6 +6,7 @@
 import type { CambioCurador, Evento, InfoSesion, NombreMetodo, Resultados } from "@aquiles/protocolo";
 import type { AdjuntoEntrante } from "../adjuntos";
 import type { AlmacenAjustes } from "../ajustes";
+import type { Auditoria } from "../auditoria";
 import type { Aprendizaje } from "../aprendizaje";
 import type { VistasArtefactos } from "../artefactos";
 import type { PeticionAprobacion, RespuestaAprobacion, ResultadoTurno } from "../bucle";
@@ -43,6 +44,7 @@ export interface ContextoServidor {
 
   ajustes: AlmacenAjustes;
   sesiones: AlmacenSesiones;
+  auditoria: Auditoria;
   memoria: Conocimiento["memoria"];
   skills: Conocimiento["skills"];
   indice: Conocimiento["indice"];

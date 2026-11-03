@@ -8,6 +8,7 @@ import { ArtefactosHilo, type ContextoArtefactos, PanelArtefacto, type PestanaAr
 import { useFuenteComandos } from "./Comandos";
 import { Compositor } from "./Compositor";
 import { Hilo } from "./Hilo";
+import { PanelCambios } from "./PanelCambios";
 import { PanelObjetivo } from "./Objetivo";
 import { TarjetaPermiso, TarjetaPregunta } from "./Peticiones";
 import { PanelSubagentes, hijosDe } from "./PanelSubagentes";
@@ -112,6 +113,16 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
     [artefactos, panel, versiones, indice, setPanel, abrirDocumento],
   );
   const conPanel = !!(panel && versiones?.length);
+  // Cambios y registro de la sesión: abrirlo cierra el artefacto o documento abierto, y al revés.
+  const [cambios, setCambios] = useState(false);
+  useEffect(() => {
+    if (conPanel || documento) setCambios(false);
+  }, [conPanel, documento]);
+  const abrirCambios = () => {
+    setPanel(undefined);
+    cerrarDocumento();
+    setCambios(true);
+  };
 
   if (!sesion) return null;
 
@@ -121,7 +132,7 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
   };
 
   return (
-    <div className={clases("conversacion", (conPanel || documento) && "conversacion--artefacto")}>
+    <div className={clases("conversacion", (conPanel || documento || cambios) && "conversacion--artefacto")}>
       <section className="conversacion__principal">
         <div
           ref={desplazable}
@@ -131,11 +142,12 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
             pegado.current = d.scrollHeight - d.scrollTop - d.clientHeight < PEGADO_PX;
           }}
         >
-          {sesion.titulo && (
-            <header className="conversacion__cabecera">
-              <Titular texto={sesion.titulo} tamano="m" />
-            </header>
-          )}
+          <header className={clases("conversacion__cabecera", !sesion.titulo && "conversacion__cabecera--sin-titulo")}>
+            {sesion.titulo && <Titular texto={sesion.titulo} tamano="m" />}
+            <Boton variante="chip" icono="reloj" className="conversacion__cambios" aria-pressed={cambios} onClick={() => (cambios ? setCambios(false) : abrirCambios())}>
+              Cambios
+            </Boton>
+          </header>
           {conversacion.cargando ? null : (
             <ArtefactosHilo.Provider value={ctxArtefactos}>
               <Hilo
@@ -206,7 +218,9 @@ export function VistaConversacion({ sesionId }: { sesionId: string }) {
         </div>
       </section>
 
-      {documento ? (
+      {cambios ? (
+        <PanelCambios sesionId={sesionId} cwd={sesion.cwd} trabajando={trabajando} alCerrar={() => setCambios(false)} />
+      ) : documento ? (
         <PanelDocumento
           key={documento.ruta}
           sesionId={sesionId}

@@ -10,7 +10,7 @@ import { z } from "zod";
 
 export * from "./artefactos";
 
-export const VERSION_PROTOCOLO = 16;
+export const VERSION_PROTOCOLO = 17;
 
 /** Pasos por turno: cuántas veces puede responder el modelo (y llamar herramientas) antes de que el turno pare. */
 export const PASOS_POR_TURNO = { porDefecto: 25, min: 1, max: 1000 } as const;
@@ -237,6 +237,12 @@ export const metodos = {
   "ficheros.buscar": z.object({ cwd: z.string().min(1), consulta: z.string().max(200), limite: z.number().int().min(1).max(100).optional() }),
   /** Un documento para el visor: .md tal cual; .docx convertido a HTML (se ve aislado con artefactos.vista). */
   "documentos.leer": z.object({ ruta: z.string().min(1) }),
+  /** Registro de auditoría de una sesión: cada herramienta ejecutada o denegada. */
+  "auditoria.leer": z.object({ sesionId: idSesion }),
+  /** Los turnos de una sesión que cambiaron ficheros (el más reciente primero). */
+  "cambios.listar": z.object({ sesionId: idSesion }),
+  /** Deja los ficheros de ese turno como estaban antes; no toca los que cambiaron después. */
+  "cambios.deshacer": z.object({ sesionId: idSesion, turno: z.string().min(1) }),
   /** Guarda un texto en markdown como documento de Word en la carpeta de trabajo de la sesión (como artefactos.guardar). */
   "documentos.exportar": z.object({
     sesionId: idSesion,
@@ -455,6 +461,9 @@ export interface Resultados {
   "buscar.sesiones": { resultados: ResultadoBusqueda[] };
   /** Rutas relativas a `cwd`, con `/`. */
   "ficheros.buscar": { ficheros: string[] };
+  "auditoria.leer": { entradas: EntradaAuditoria[] };
+  "cambios.listar": { turnos: CambiosTurno[] };
+  "cambios.deshacer": ResultadoDeshacer;
   /** imagen: `contenido` es un data URL. */
   "documentos.leer": { nombre: string; formato: "markdown" | "html" | "imagen"; contenido: string };
   "documentos.exportar": { ruta: string };
@@ -553,6 +562,37 @@ export interface InfoServidorMcp {
   estado: "conectado" | "desconectado" | "error";
   error?: string;
   herramientas: { nombre: string; descripcion: string }[];
+}
+
+/** Una herramienta en el registro de auditoría. */
+export interface EntradaAuditoria {
+  fecha: string;
+  /** Turno en que se ejecutó (el mismo id que en cambios.listar). */
+  turno: string;
+  herramienta: string;
+  resumen: string;
+  nivel: "lectura" | "escritura" | "ejecucion";
+  /** Quién la dejó pasar: sin preguntar (modo o permiso guardado), el usuario, el guardián, o nadie (denegada). */
+  aprobacion: "automatica" | "usuario" | "siempre" | "guardian" | "denegada";
+  ok: boolean;
+  ms: number;
+  /** Ficheros que iba a tocar (las herramientas de escritura). */
+  rutas: string[];
+}
+
+export interface CambiosTurno {
+  turno: string;
+  fecha: string;
+  /** El mensaje del usuario que empezó el turno (recortado). */
+  pedido: string;
+  deshecho: boolean;
+  ficheros: { ruta: string; accion: "creado" | "modificado" | "borrado"; deshacible: boolean }[];
+}
+
+export interface ResultadoDeshacer {
+  restaurados: string[];
+  /** Los que no se tocaron y por qué. */
+  conflictos: { ruta: string; motivo: string }[];
 }
 
 export interface VozSistema {

@@ -4,7 +4,7 @@
  * Entre pasos: mensajes de steer del usuario y compactación del contexto.
  */
 import { relative } from "node:path";
-import { PASOS_POR_TURNO, type Diff, type Evento, type ModoAprobacion, type MotivoFin, type Uso } from "@aquiles/protocolo";
+import { PASOS_POR_TURNO, type Diff, type EntradaAuditoria, type Evento, type ModoAprobacion, type MotivoFin, type Uso } from "@aquiles/protocolo";
 import { clavePermiso, decidir } from "./aprobaciones";
 import { compactarSiHaceFalta } from "./contexto";
 import { calcularDiff } from "./diff";
@@ -61,6 +61,15 @@ export interface OpcionesTurno {
   /** Guarda una salida larga y devuelve su ruta. */
   guardarSalida?: (id: string, texto: string) => Promise<string>;
   maxIteraciones?: number;
+  /**
+   * Auditoría (auditoria.ts): copia de los ficheros antes de que una herramienta los escriba, su huella después y una
+   * entrada por herramienta. Sus fallos no paran el turno.
+   */
+  auditoria?: {
+    antes(rutas: string[]): void;
+    despues(rutas: string[]): void;
+    registrar(e: Omit<EntradaAuditoria, "fecha" | "turno">, llamadaId: string): void;
+  };
   reintentos?: number;
   esperaBaseMs?: number;
   proveedorReserva?: Proveedor;
@@ -213,14 +222,28 @@ async function ejecutarLlamada(
     return responder(`Argumentos no válidos para ${h.nombre}: ${problemas}`, true);
   }
 
+  const inicio = Date.now();
+  const rutasAuditadas = h.nivel === "escritura" ? (h.rutas?.(args.data, o.cwd) ?? []) : [];
+  const auditar = (aprobacion: EntradaAuditoria["aprobacion"], ok: boolean) => {
+    try {
+      o.auditoria?.registrar({ herramienta: h.nombre, resumen, nivel: h.nivel, aprobacion, ok, ms: Date.now() - inicio, rutas: rutasAuditadas }, llamada.id);
+    } catch {
+      // el registro no para el turno
+    }
+  };
+  let aprobacion: EntradaAuditoria["aprobacion"] = "automatica";
   const decision = decidir(h, args.data, { cwd: o.cwd, modo: o.entorno.modoAprobacion, permitidos: o.entorno.permitidos });
   if (decision.tipo === "preguntar") {
     const r = await o
       .aprobar({ id: llamada.id, herramienta: h.nombre, nivel: h.nivel, resumen, argumentos: args.data, motivo: decision.motivo })
       .catch(() => "denegar" as const);
     if (o.senal.aborted) return responder("Turno parado antes de ejecutar.", true);
-    if (r === "denegar") return responder("El usuario no ha permitido esta acción. No la repitas igual: pregúntale o busca otra forma.", true);
+    if (r === "denegar") {
+      auditar("denegada", false);
+      return responder("El usuario no ha permitido esta acción. No la repitas igual: pregúntale o busca otra forma.", true);
+    }
     if (r === "siempre") o.entorno.permitidos.add(clavePermiso(h, args.data));
+    aprobacion = r === "siempre" ? "siempre" : "usuario";
   }
 
   const ctx: ContextoHerramienta = {
@@ -234,8 +257,18 @@ async function ejecutarLlamada(
     progreso: (t) => o.emitir({ tipo: "herramienta.progreso", sesionId: o.sesionId, id: llamada.id, texto: t }),
   };
   // Foto de los ficheros que va a tocar una herramienta de escritura, para enseñar el diff.
-  const rutas = h.nivel === "escritura" ? (h.rutas?.(args.data, o.cwd) ?? []) : [];
+  const rutas = rutasAuditadas;
   const antes = new Map(await Promise.all(rutas.map(async (r) => [r, await leerTexto(r)] as const)));
+  // Copia para poder deshacer, y al acabar (bien o mal) cómo quedaron y la entrada del registro.
+  const conAuditoria = (paso: "antes" | "despues") => {
+    try {
+      if (rutas.length) o.auditoria?.[paso](rutas);
+    } catch {
+      // sin copia no se podrá deshacer, pero el turno sigue
+    }
+  };
+  conAuditoria("antes");
+  let ok = false;
   try {
     let resultado = await h.ejecutar(args.data, ctx);
     if (resultado.length > MAX_RESULTADO_MODELO && o.guardarSalida) {
@@ -248,11 +281,15 @@ async function ejecutarLlamada(
       const despues = await leerTexto(r);
       if (despues !== undefined && despues !== previo) diffs.push(calcularDiff(relative(o.cwd, r) || r, previo, despues));
     }
+    ok = true;
     return responder(resultado, false, diffs);
   } catch (e) {
     if (e instanceof ErrorHerramienta) return responder(e.message, true);
     if (e instanceof ErrorAbortado || o.senal.aborted) return responder("Turno parado durante la ejecución.", true);
     return responder(`Error interno de ${h.nombre}: ${e instanceof Error ? e.message : String(e)}`, true);
+  } finally {
+    conAuditoria("despues");
+    auditar(aprobacion, ok);
   }
 }
 

@@ -60,6 +60,7 @@ export function rutasSesiones(c: ContextoServidor) {
       if (!sesiones.borrar(sesionId)) throw new FalloRpc(codigosError.sesionNoExiste, `No existe la sesión ${sesionId}`);
       if (/^[\w-]+$/.test(sesionId)) await rm(carpetaAdjuntos(o.perfil, sesionId), { recursive: true, force: true });
       indice.borrarSesion(sesionId);
+      c.auditoria.borrar(sesionId);
       objetivos.fijar({ id: sesionId }, null);
       return { borrada: true };
     },

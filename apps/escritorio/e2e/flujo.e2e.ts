@@ -18,6 +18,7 @@ let web: ReturnType<typeof Bun.serve>;
 let navegador: Browser;
 let pagina: Page;
 let home = "";
+let proyecto = "";
 
 beforeAll(async () => {
   if (!existsSync(join(DIST, "index.html"))) throw new Error("Falta apps/escritorio/dist: ejecuta `bun run e2e`, que compila antes la interfaz.");
@@ -30,7 +31,7 @@ beforeAll(async () => {
     },
   });
   home = mkdtempSync(join(tmpdir(), "aquiles-e2e-"));
-  const proyecto = mkdtempSync(join(tmpdir(), "aquiles-e2e-proyecto-"));
+  proyecto = mkdtempSync(join(tmpdir(), "aquiles-e2e-proyecto-"));
   writeFileSync(join(proyecto, "README.md"), "# Proyecto de prueba\n");
   nucleo = Bun.spawn(
     ["bun", join(RAIZ, "packages/nucleo/src/main.ts"), "--puerto", "0", "--token", TOKEN, "--proveedor", "simulado", "--cwd", proyecto],
@@ -87,4 +88,16 @@ test("ajustes: cambiar los pasos máximos se guarda solo en el perfil", async ()
   await visible(pagina.getByText("Guardado", { exact: true }), 5_000);
   const ajustes = JSON.parse(readFileSync(join(home, "perfiles", "principal", "ajustes.json"), "utf8"));
   expect(ajustes.maxPasos).toBe(30);
+}, 30_000);
+
+test("cambios: lo que escribe un turno se ve en el panel y «Deshacer» lo deja como estaba", async () => {
+  await pagina.getByText("Nueva sesión", { exact: false }).first().click();
+  await enviar("edita README.md");
+  await visible(pagina.getByText(/Hecho: `?escribir`? devolvió/), 15_000);
+  await pagina.getByRole("button", { name: "Cambios" }).click();
+  await visible(pagina.locator(".cambios__ruta", { hasText: "README.md" }));
+  await pagina.getByRole("button", { name: "Deshacer", exact: true }).click();
+  await pagina.getByRole("button", { name: /Deshacer 1 fichero/ }).click();
+  await visible(pagina.getByText("1 restaurado"));
+  expect(readFileSync(join(proyecto, "README.md"), "utf8")).toBe("# Proyecto de prueba\n");
 }, 30_000);

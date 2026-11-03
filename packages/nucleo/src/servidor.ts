@@ -49,6 +49,7 @@ import { crearProveedor, servidorLlamaCpp } from "./proveedores/index";
 import { AlmacenSesiones, info, type OpcionesSesion, type Sesion, titulo } from "./sesiones";
 import { herramientaDelegar, type LanzarSubagente } from "./subagentes";
 import { Voz } from "./voz";
+import { Auditoria } from "./auditoria";
 import { herramientaGenerarImagen } from "./herramientas/imagen";
 import { serviciosDisponibles } from "./imagenes";
 import { AVISO_DESDE_MS, fraseDeFin } from "./aviso-fin";
@@ -57,6 +58,7 @@ import type { ContextoServidor, Manejadores, OpcionesEjecucion } from "./servido
 import { FalloRpc } from "./servidor/errores";
 import { rutasAjustesModelos } from "./servidor/rutas-ajustes-modelos";
 import { rutasAutomatizaciones } from "./servidor/rutas-automatizaciones";
+import { rutasAuditoria } from "./servidor/rutas-auditoria";
 import { rutasContenido } from "./servidor/rutas-contenido";
 import { rutasExtensiones } from "./servidor/rutas-extensiones";
 import { rutasSesiones } from "./servidor/rutas-sesiones";
@@ -129,6 +131,8 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
   });
   const { memoria, skills, indice, registro } = conocimiento;
   const sesiones = new AlmacenSesiones(o.perfil ? join(o.perfil, "sesiones") : null, o.proveedor, conocimiento.ganchos);
+  /** Registro de auditoría y copias para deshacer, por sesión. */
+  const auditoria = new Auditoria(o.perfil ? join(o.perfil, "auditoria") : null);
 
   /**
    * Pide algo a la interfaz; vale la primera respuesta de un cliente que la atienda. Un cliente que no la atiende
@@ -313,6 +317,10 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     const control = new AbortController();
     s.turno = control;
     const inicioTurno = Date.now();
+    const turno = `${inicioTurno}`;
+    auditoria.empezarTurno(s.id, turno, texto);
+    /** Llamadas que dejó pasar el guardián (en el registro, como suyas). */
+    const delGuardian = new Set<string>();
     sesiones.anotarInicioTurno(s);
     const a = ajustes.leer();
     if (!s.estado.has("terminal.entorno")) s.estado.set("terminal.entorno", a.herramientas.terminal);
@@ -329,6 +337,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
         });
         if (d.decision === "permitir") {
           log(`guardián permite ${p.herramienta} en ${s.id}: ${d.motivo}`);
+          delGuardian.add(p.id);
           emitirTurno({ tipo: "herramienta.progreso", sesionId: s.id, id: p.id, texto: `Permitido por el guardián: ${d.motivo}\n` });
           return "permitir";
         }
@@ -343,6 +352,12 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
       proveedor,
       herramientas: x.herramientas ?? herramientasDe(s),
       emitir: emitirTurno,
+      auditoria: {
+        antes: (rutas) => auditoria.antes(s.id, turno, rutas),
+        despues: (rutas) => auditoria.despues(s.id, turno, rutas),
+        registrar: (e, id) =>
+          auditoria.registrar(s.id, { ...e, aprobacion: delGuardian.has(id) ? "guardian" : e.aprobacion, fecha: new Date().toISOString(), turno }),
+      },
       senal: control.signal,
       maxIteraciones: a.maxPasos,
       entorno: s,
@@ -474,7 +489,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
 
   const contexto: ContextoServidor = {
     o, log, emitir,
-    ajustes, sesiones, memoria, skills, indice, registro, aprendizaje, objetivos, comandos,
+    ajustes, sesiones, auditoria, memoria, skills, indice, registro, aprendizaje, objetivos, comandos,
     pasarela, programador, plugins, mcp, voz, vistas, descargas,
     proveedores, claveProveedor,
     soltarNavegador: () => {
@@ -489,6 +504,7 @@ export function iniciarServidor(o: OpcionesServidor): Servidor {
     ...rutasAjustesModelos(contexto),
     ...rutasSesiones(contexto),
     ...rutasContenido(contexto),
+    ...rutasAuditoria(contexto),
     ...rutasExtensiones(contexto),
     ...rutasAutomatizaciones(contexto),
   };

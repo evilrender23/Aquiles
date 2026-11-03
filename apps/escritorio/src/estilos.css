@@ -286,8 +286,134 @@ body {
   padding: 0 48px;
 }
 .conversacion__cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
   max-width: 860px;
   padding: 40px 0 28px;
+}
+.conversacion__cabecera > .nx-titular {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.conversacion__cabecera--sin-titulo {
+  justify-content: flex-end;
+  padding-bottom: 0;
+}
+.conversacion__cambios {
+  flex: none;
+  margin-left: auto;
+}
+
+/* Cambios y registro de la sesión (PanelCambios). */
+.cambios {
+  padding: 16px 20px 32px;
+}
+.cambios__vacio {
+  font: var(--type-body-s);
+  color: var(--ink-muted);
+}
+.cambios__turnos,
+.cambios__ficheros,
+.registro {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cambios__turno {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cambios__turno--deshecho {
+  opacity: 0.55;
+}
+.cambios__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+}
+.cambios__hora,
+.cambios__estado {
+  font: var(--type-label);
+  color: var(--ink-muted);
+}
+.cambios__confirmar {
+  display: inline-flex;
+  gap: 6px;
+}
+.cambios__pedido {
+  margin: 4px 0 8px;
+  font: var(--type-body-s);
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
+}
+.cambios__ficheros li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  font: 400 13px/1.4 var(--font-mono);
+  color: var(--ink);
+}
+.cambios__accion {
+  flex: none;
+  min-width: 82px;
+  font: 500 12px/1.4 var(--font-sans);
+  color: var(--ink-muted);
+}
+.cambios__accion--creado {
+  color: var(--lime-ink);
+}
+.cambios__ruta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cambios__nota,
+.cambios__conflicto {
+  font: var(--type-label);
+  color: var(--ink-muted);
+}
+.cambios__resultado {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 0;
+  font: var(--type-body-s);
+  color: var(--ink-strong);
+}
+.registro__fila {
+  display: grid;
+  grid-template-columns: 44px minmax(70px, auto) 1fr auto auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font: 400 13px/1.4 var(--font-sans);
+  color: var(--ink);
+}
+.registro__fila--fallo .registro__resultado {
+  color: var(--ink-strong);
+}
+.registro__hora,
+.registro__aprobacion,
+.registro__resultado {
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.registro__aprobacion--denegada {
+  color: var(--ink-strong);
+}
+.registro__herramienta {
+  font-family: var(--font-mono);
+}
+.registro__resumen {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
 }
 .conversacion__cabecera .nx-titular {
   display: -webkit-box;
