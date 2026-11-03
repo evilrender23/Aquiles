@@ -61,8 +61,10 @@ describe.skipIf(!bash)("terminal (bash)", () => {
     const ctx = nuevoCtx();
     await terminal.ejecutar({ comando: "cd sub && export X='it'\"'\"'s'" }, ctx);
     expect(await terminal.ejecutar({ comando: 'basename "$PWD"\necho "$X"' }, ctx)).toBe("sub\nit's\n[código de salida 0]");
-    // En macOS la carpeta temporal es un enlace (/var → /private/var): se compara la ruta real.
-    expect(realpathSync(estadoTerminal(ctx.estado).shell!.cwd).toLowerCase()).toBe(realpathSync(join(dir, "sub")).toLowerCase());
+    // Se compara la ruta real: en macOS la carpeta temporal es un enlace (/var → /private/var) y en Windows puede venir
+    // con nombres cortos (RUNNER~1); la versión nativa resuelve las dos cosas.
+    const real = (r: string) => realpathSync.native(r).toLowerCase();
+    expect(real(estadoTerminal(ctx.estado).shell!.cwd)).toBe(real(join(dir, "sub")));
   });
 
   test("errores de sintaxis no rompen el shell", async () => {
