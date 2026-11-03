@@ -1,5 +1,5 @@
 /** Adjuntos: los de la caja antes de enviar (chips, pegar, soltar, clip) y los de los mensajes ya enviados. */
-import { BotonIcono, Icono, clases, copiarTexto, useMenuContextual } from "@aquiles/ui";
+import { BotonIcono, Icono, clases, copiarTexto, t, useMenuContextual } from "@aquiles/ui";
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { useAcciones } from "../estado/almacen";
 import { type AdjuntoPendiente, admitir, desdeFicheros, desdeRutas, esImagen, renombrarPegado, tamanoLegible } from "../estado/adjuntos";
@@ -124,7 +124,7 @@ export function BotonAdjuntar({ alRutas, alFicheros, deshabilitado }: { alRutas:
   return (
     <>
       <BotonIcono
-        etiqueta="Adjuntar"
+        etiqueta={t("Adjuntar")}
         icono="clip"
         disabled={deshabilitado}
         onClick={() => {
@@ -154,13 +154,13 @@ export function BotonAdjuntar({ alRutas, alFicheros, deshabilitado }: { alRutas:
 export function ChipsAdjuntos({ adjuntos, alQuitar, compacto = false }: { adjuntos: AdjuntoPendiente[]; alQuitar: (clave: string) => void; compacto?: boolean }) {
   if (!adjuntos.length) return null;
   return (
-    <ul className={clases("adjuntos", compacto && "adjuntos--compacto")} aria-label="Adjuntos">
+    <ul className={clases("adjuntos", compacto && "adjuntos--compacto")} aria-label={t("Adjuntos")}>
       {adjuntos.map((a) => (
         <li key={a.clave} className="adjunto" title={a.ruta ?? a.nombre}>
           {a.miniatura ? <img className="adjunto__miniatura" src={a.miniatura} alt="" /> : <Icono nombre="fichero" tamano={compacto ? 14 : 16} className="adjunto__icono" />}
           <span className="adjunto__nombre">{a.nombre}</span>
           {a.bytes !== undefined && <span className="adjunto__tamano">{tamanoLegible(a.bytes)}</span>}
-          <BotonIcono variante="pequeno" etiqueta={`Quitar ${a.nombre}`} icono="cerrar" tamanoIcono={13} className="adjunto__quitar" onClick={() => alQuitar(a.clave)} />
+          <BotonIcono variante="pequeno" etiqueta={t("Quitar {nombre}", { nombre: a.nombre })} icono="cerrar" tamanoIcono={13} className="adjunto__quitar" onClick={() => alQuitar(a.clave)} />
         </li>
       ))}
     </ul>
@@ -211,7 +211,7 @@ export function AdjuntosMensaje({ sesionId, adjuntos }: { sesionId: string; adju
   const [ampliada, setAmpliada] = useState<{ url: string; nombre: string }>();
   return (
     <>
-      <ul className="adjuntos adjuntos--mensaje" aria-label="Adjuntos">
+      <ul className="adjuntos adjuntos--mensaje" aria-label={t("Adjuntos")}>
         {adjuntos.map((a, i) => (
           <AdjuntoMensaje key={a.id ?? i} sesionId={sesionId} a={a} alAmpliar={setAmpliada} />
         ))}
@@ -230,10 +230,10 @@ function AdjuntoMensaje({ sesionId, a, alAmpliar }: { sesionId: string; a: Adjun
   const visor = useArtefactosHilo();
   const verDocumento = ruta && visor && claseDocumento(ruta) ? () => visor.abrirDocumento(ruta, a.nombre) : undefined;
   const menu = useMenuContextual(() => [
-    imagen && url && { texto: "Ver", icono: "flecha-diagonal", alElegir: () => alAmpliar({ url, nombre: a.nombre }) },
-    verDocumento && { texto: "Ver", icono: "flecha-diagonal", alElegir: verDocumento },
-    ruta && { texto: "Copiar ruta", icono: "copiar", alElegir: () => copiarTexto(ruta) },
-    mostrar && ruta && { texto: "Mostrar fichero", icono: "carpeta", alElegir: () => mostrarFichero(ruta) },
+    imagen && url && { texto: t("Ver"), icono: "flecha-diagonal", alElegir: () => alAmpliar({ url, nombre: a.nombre }) },
+    verDocumento && { texto: t("Ver"), icono: "flecha-diagonal", alElegir: verDocumento },
+    ruta && { texto: t("Copiar ruta"), icono: "copiar", alElegir: () => copiarTexto(ruta) },
+    mostrar && ruta && { texto: t("Mostrar fichero"), icono: "carpeta", alElegir: () => mostrarFichero(ruta) },
   ]);
   const detalle = [a.bytes !== undefined ? tamanoLegible(a.bytes) : undefined].filter(Boolean).join(" · ");
 
@@ -280,7 +280,7 @@ function Ampliada({ url, nombre, alCerrar }: { url: string; nombre: string; alCe
     // biome-ignore lint/a11y/useKeyWithClickEvents: Escape cierra (escuchado en window) y el botón tiene el foco.
     <div className="ampliada" role="dialog" aria-modal="true" aria-label={nombre} onClick={(e) => e.target === e.currentTarget && alCerrar()}>
       <img src={url} alt={nombre} className="ampliada__imagen" />
-      <BotonIcono ref={cerrar} etiqueta="Cerrar" icono="cerrar" className="ampliada__cerrar" onClick={alCerrar} />
+      <BotonIcono ref={cerrar} etiqueta={t("Cerrar")} icono="cerrar" className="ampliada__cerrar" onClick={alCerrar} />
     </div>
   );
 }

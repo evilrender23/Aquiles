@@ -4,7 +4,7 @@
  * - Registro: cada herramienta que se ejecutó (o se denegó), quién la aprobó, si salió bien y cuánto tardó.
  */
 import type { CambiosTurno, EntradaAuditoria, ResultadoDeshacer } from "@aquiles/protocolo";
-import { BotonIcono, Boton, Pestanas, clases, idPestana, useMenuContextual } from "@aquiles/ui";
+import { BotonIcono, Boton, Pestanas, clases, idPestana, t, useMenuContextual } from "@aquiles/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useAcciones } from "../estado/almacen";
 import { duracion, fechaConHora, hora } from "../estado/formato";
@@ -13,14 +13,26 @@ import { MarcoPanel } from "./Artefactos";
 type Pestana = "cambios" | "registro";
 const PANEL = "panel-cambios";
 
-const APROBACION: Record<EntradaAuditoria["aprobacion"], string> = {
-  automatica: "sin preguntar",
-  usuario: "lo permitiste",
-  siempre: "permitido siempre",
-  guardian: "el guardián",
-  denegada: "denegada",
-};
-const ACCION = { creado: "creado", modificado: "modificado", borrado: "borrado" } as const;
+function nombreAprobacion(a: EntradaAuditoria["aprobacion"]): string {
+  switch (a) {
+    case "automatica":
+      return t("sin preguntar");
+    case "usuario":
+      return t("lo permitiste");
+    case "siempre":
+      return t("permitido siempre");
+    case "guardian":
+      return t("el guardián");
+    case "denegada":
+      return t("denegada");
+  }
+}
+
+function nombreAccion(a: "creado" | "modificado" | "borrado"): string {
+  if (a === "creado") return t("creado");
+  if (a === "modificado") return t("modificado");
+  return t("borrado");
+}
 
 /** Ruta relativa a la carpeta de la sesión si está dentro; si no, entera. */
 function rutaVisible(ruta: string, cwd: string): string {
@@ -65,27 +77,27 @@ export function PanelCambios({ sesionId, cwd, trabajando, alCerrar }: { sesionId
   };
 
   const menu = useMenuContextual(() => [
-    { texto: "Recargar", icono: "recargar", alElegir: () => void cargar() },
+    { texto: t("Recargar"), icono: "recargar", alElegir: () => void cargar() },
     { tipo: "separador" },
-    { texto: "Cerrar", icono: "cerrar", alElegir: alCerrar },
+    { texto: t("Cerrar"), icono: "cerrar", alElegir: alCerrar },
   ]);
 
   return (
-    <MarcoPanel titulo="Cambios de la sesión" icono="reloj" menu={menu} alCerrar={alCerrar}>
+    <MarcoPanel titulo={t("Cambios de la sesión")} icono="reloj" menu={menu} alCerrar={alCerrar}>
       <div className="panel-artefacto__barra">
         <Pestanas
-          etiqueta="Cambios y registro"
+          etiqueta={t("Cambios y registro")}
           className="panel-artefacto__pestanas"
           pestanas={[
-            { id: "cambios", texto: "Cambios" },
-            { id: "registro", texto: "Registro" },
+            { id: "cambios", texto: t("Cambios") },
+            { id: "registro", texto: t("Registro") },
           ]}
           activa={pestana}
           alElegir={setPestana}
           idPanel={PANEL}
         />
         <span className="panel-artefacto__acciones">
-          <BotonIcono etiqueta="Recargar" icono="recargar" onClick={() => void cargar()} />
+          <BotonIcono etiqueta={t("Recargar")} icono="recargar" onClick={() => void cargar()} />
         </span>
       </div>
       <div className="panel-artefacto__cuerpo cambios" role="tabpanel" id={PANEL} aria-labelledby={idPestana(PANEL, pestana)}>
@@ -96,22 +108,22 @@ export function PanelCambios({ sesionId, cwd, trabajando, alCerrar }: { sesionId
         )}
         {pestana === "cambios" ? (
           turnos === undefined ? null : turnos.length === 0 ? (
-            <p className="cambios__vacio">Aún no ha cambiado ningún fichero en esta sesión. Lo que haga la terminal no aparece aquí (ver Registro).</p>
+            <p className="cambios__vacio">{t("Aún no ha cambiado ningún fichero en esta sesión. Lo que haga la terminal no aparece aquí (ver Registro).")}</p>
           ) : (
             <ol className="cambios__turnos">
-              {turnos.map((t) => (
-                <li key={t.turno} className={clases("cambios__turno", t.deshecho && "cambios__turno--deshecho")}>
+              {turnos.map((cambio) => (
+                <li key={cambio.turno} className={clases("cambios__turno", cambio.deshecho && "cambios__turno--deshecho")}>
                   <div className="cambios__cabecera">
-                    <span className="cambios__hora">{fechaConHora(t.fecha)}</span>
-                    {t.deshecho ? (
-                      <span className="cambios__estado">Deshecho</span>
-                    ) : confirmando === t.turno ? (
+                    <span className="cambios__hora">{fechaConHora(cambio.fecha)}</span>
+                    {cambio.deshecho ? (
+                      <span className="cambios__estado">{t("Deshecho")}</span>
+                    ) : confirmando === cambio.turno ? (
                       <span className="cambios__confirmar">
-                        <Boton variante="acento" tamano="pequeno" disabled={trabajando} onClick={() => void deshacer(t.turno)}>
-                          Deshacer {t.ficheros.length === 1 ? "1 fichero" : `${t.ficheros.length} ficheros`}
+                        <Boton variante="acento" tamano="pequeno" disabled={trabajando} onClick={() => void deshacer(cambio.turno)}>
+                          {cambio.ficheros.length === 1 ? t("Deshacer 1 fichero") : t("Deshacer {n} ficheros", { n: cambio.ficheros.length })}
                         </Boton>
                         <Boton variante="fantasma" tamano="pequeno" onClick={() => setConfirmando(undefined)}>
-                          Cancelar
+                          {t("Cancelar")}
                         </Boton>
                       </span>
                     ) : (
@@ -120,26 +132,26 @@ export function PanelCambios({ sesionId, cwd, trabajando, alCerrar }: { sesionId
                         tamano="pequeno"
                         icono="recargar"
                         disabled={trabajando}
-                        title={trabajando ? "Espera a que acabe el turno" : undefined}
-                        onClick={() => setConfirmando(t.turno)}
+                        title={trabajando ? t("Espera a que acabe el turno") : undefined}
+                        onClick={() => setConfirmando(cambio.turno)}
                       >
-                        Deshacer
+                        {t("Deshacer")}
                       </Boton>
                     )}
                   </div>
-                  {t.pedido && <p className="cambios__pedido">{t.pedido}</p>}
+                  {cambio.pedido && <p className="cambios__pedido">{cambio.pedido}</p>}
                   <ul className="cambios__ficheros">
-                    {t.ficheros.map((f) => (
+                    {cambio.ficheros.map((f) => (
                       <li key={f.ruta} title={f.ruta}>
-                        <span className={`cambios__accion cambios__accion--${f.accion}`}>{ACCION[f.accion]}</span>
+                        <span className={`cambios__accion cambios__accion--${f.accion}`}>{nombreAccion(f.accion)}</span>
                         <span className="cambios__ruta">{rutaVisible(f.ruta, cwd)}</span>
-                        {!f.deshacible && <span className="cambios__nota">sin copia (muy grande)</span>}
+                        {!f.deshacible && <span className="cambios__nota">{t("sin copia (muy grande)")}</span>}
                       </li>
                     ))}
                   </ul>
-                  {resultado?.turno === t.turno && (
+                  {resultado?.turno === cambio.turno && (
                     <p className="cambios__resultado" role="status">
-                      {resultado.r.restaurados.length} restaurado{resultado.r.restaurados.length === 1 ? "" : "s"}
+                      {resultado.r.restaurados.length === 1 ? t("1 restaurado") : t("{n} restaurados", { n: resultado.r.restaurados.length })}
                       {resultado.r.conflictos.map((c) => (
                         <span key={c.ruta} className="cambios__conflicto">
                           {rutaVisible(c.ruta, cwd)}: {c.motivo}
@@ -152,7 +164,7 @@ export function PanelCambios({ sesionId, cwd, trabajando, alCerrar }: { sesionId
             </ol>
           )
         ) : registro === undefined ? null : registro.length === 0 ? (
-          <p className="cambios__vacio">Aún no se ha usado ninguna herramienta en esta sesión.</p>
+          <p className="cambios__vacio">{t("Aún no se ha usado ninguna herramienta en esta sesión.")}</p>
         ) : (
           <ol className="registro">
             {registro.map((e, i) => (
@@ -163,8 +175,8 @@ export function PanelCambios({ sesionId, cwd, trabajando, alCerrar }: { sesionId
                 <span className="registro__resumen" title={e.resumen}>
                   {e.resumen}
                 </span>
-                <span className={clases("registro__aprobacion", e.aprobacion === "denegada" && "registro__aprobacion--denegada")}>{APROBACION[e.aprobacion]}</span>
-                <span className="registro__resultado">{e.aprobacion === "denegada" ? "" : e.ok ? duracion(e.ms) : "error"}</span>
+                <span className={clases("registro__aprobacion", e.aprobacion === "denegada" && "registro__aprobacion--denegada")}>{nombreAprobacion(e.aprobacion)}</span>
+                <span className="registro__resultado">{e.aprobacion === "denegada" ? "" : e.ok ? duracion(e.ms) : t("error")}</span>
               </li>
             ))}
           </ol>

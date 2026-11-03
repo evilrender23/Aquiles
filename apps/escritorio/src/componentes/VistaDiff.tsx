@@ -1,11 +1,11 @@
 import type { Diff } from "@aquiles/protocolo";
-import { clases } from "@aquiles/ui";
+import { clases, t } from "@aquiles/ui";
 
 /** Fila de resumen de un fichero cambiado, como la lista de ediciones del lienzo: A/M, ruta, +n, −n. */
 export function FilaDiff({ diff }: { diff: Diff }) {
   return (
     <div className="diff__fila">
-      <span className="diff__tipo" title={diff.nuevo ? "Nuevo" : "Modificado"}>
+      <span className="diff__tipo" title={diff.nuevo ? t("Nuevo") : t("Modificado")}>
         {diff.nuevo ? "A" : "M"}
       </span>
       <span className="diff__ruta" title={diff.ruta}>
@@ -42,7 +42,7 @@ export function BloquesDiff({ diff }: { diff: Diff }) {
                   </span>
                   <span className="diff__signo">
                     <span aria-hidden="true">{l.tipo === "-" ? "−" : l.tipo === "+" ? "+" : ""}</span>
-                    {l.tipo !== " " && <span className="nx-sr">{l.tipo === "+" ? "añadida:" : "quitada:"}</span>}
+                    {l.tipo !== " " && <span className="nx-sr">{l.tipo === "+" ? t("añadida:") : t("quitada:")}</span>}
                   </span>
                   <span className="diff__texto">{l.texto}</span>
                 </div>
@@ -51,7 +51,7 @@ export function BloquesDiff({ diff }: { diff: Diff }) {
           </div>
         );
       })}
-      {diff.truncado && <div className="diff__salto">Recortado</div>}
+      {diff.truncado && <div className="diff__salto">{t("Recortado")}</div>}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 /** Reducción pura de una conversación: historial guardado + eventos del núcleo → elementos que se pintan. */
 import type { Evento, MensajeHistorial } from "@aquiles/protocolo";
+import { t } from "@aquiles/ui";
 import type { AdjuntoVisto, Conversacion, Elemento } from "./tipos";
 import { duracion, tokens } from "./formato";
 
@@ -148,20 +149,24 @@ export function aplicarEvento(c: Conversacion, e: EventoSesion, ahora: number): 
     case "contexto.uso":
       return { ...c, contexto: { tokens: e.tokens, ...(e.ventana ? { ventana: e.ventana } : {}) } };
     case "contexto.compactado": {
-      const avisado = anadirAviso(c, "aviso", `Contexto compactado (${e.metodo}): ${tokens(e.antes)} → ${tokens(e.despues)} tokens`);
+      const avisado = anadirAviso(
+        c,
+        "aviso",
+        t("Contexto compactado ({metodo}): {antes} → {despues} tokens", { metodo: e.metodo, antes: tokens(e.antes), despues: tokens(e.despues) }),
+      );
       // El resumen se ve ya (desplegable), no solo al volver a abrir la sesión.
       return e.resumen ? { ...avisado, elementos: [...avisado.elementos, { tipo: "resumen", id: nuevoId(), texto: e.resumen }] } : avisado;
     }
     case "aprendizaje.revision":
       return avisoAprendizaje(c, e);
     case "turno.reintento":
-      return anadirAviso(cerrar(c), "aviso", `Reintento ${e.intento} en ${duracion(e.esperaMs)}: ${e.motivo}`);
+      return anadirAviso(cerrar(c), "aviso", t("Reintento {intento} en {espera}: {motivo}", { intento: e.intento, espera: duracion(e.esperaMs), motivo: e.motivo }));
     case "turno.fin": {
       const elementos = cerrarTexto(c.elementos).map((x) => (x.tipo === "herramienta" && x.estado === "en-curso" ? { ...x, estado: "fallo" as const } : x));
       const fin: Conversacion = { ...c, elementos, trabajando: false, pensandoDesde: undefined, pensamientoVivo: undefined };
-      if (e.motivo === "error") return anadirAviso(fin, "error", e.error ?? "Error desconocido");
-      if (e.motivo === "limite") return anadirAviso(fin, "aviso", "Se alcanzó el límite de pasos del turno (se cambia en Ajustes → General)");
-      if (e.motivo === "parado") return anadirAviso(fin, "aviso", "Detenido");
+      if (e.motivo === "error") return anadirAviso(fin, "error", e.error ?? t("Error desconocido"));
+      if (e.motivo === "limite") return anadirAviso(fin, "aviso", t("Se alcanzó el límite de pasos del turno (se cambia en Ajustes → General)"));
+      if (e.motivo === "parado") return anadirAviso(fin, "aviso", t("Detenido"));
       return fin;
     }
     default:

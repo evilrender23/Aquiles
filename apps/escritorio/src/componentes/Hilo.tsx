@@ -1,5 +1,5 @@
 import { type TareaVisible, textoSinArtefactos } from "@aquiles/protocolo";
-import { BotonIcono, CrystalizedBall, Etiqueta, Icono, Tarjeta, ThoughtLine, clases, copiarTexto, type ElementosMenu, useMenuContextual } from "@aquiles/ui";
+import { BotonIcono, CrystalizedBall, Etiqueta, Icono, Tarjeta, ThoughtLine, clases, copiarTexto, type ElementosMenu, t, useMenuContextual } from "@aquiles/ui";
 import { useState, type ReactNode } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import { hora } from "../estado/formato";
@@ -122,11 +122,11 @@ const cita = (texto: string) =>
 /** Acciones sobre un trozo seleccionado dentro de un mensaje: valen para la selección, no para todo el mensaje. */
 function menuSeleccion(seleccion: string, a: { insertarEnCaja: (t: string) => void; leer?: (t: string) => void; buscar: (t: string) => void }): ElementosMenu {
   return [
-    { texto: "Copiar", icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
-    { texto: "Citar en la caja", icono: "cita", alElegir: () => a.insertarEnCaja(cita(seleccion)) },
-    a.leer && { texto: "Leer en voz alta", icono: "altavoz", alElegir: () => a.leer?.(seleccion) },
+    { texto: t("Copiar"), icono: "copiar", atajo: "Ctrl+C", alElegir: () => copiarTexto(seleccion) },
+    { texto: t("Citar en la caja"), icono: "cita", alElegir: () => a.insertarEnCaja(cita(seleccion)) },
+    a.leer && { texto: t("Leer en voz alta"), icono: "altavoz", alElegir: () => a.leer?.(seleccion) },
     { tipo: "separador" },
-    { texto: "Buscar en conversaciones", icono: "buscar", alElegir: () => a.buscar(seleccion) },
+    { texto: t("Buscar en conversaciones"), icono: "buscar", alElegir: () => a.buscar(seleccion) },
   ];
 }
 
@@ -138,15 +138,15 @@ function MensajeUsuario({ sesionId, texto, hora: h, adjuntos }: { sesionId: stri
     seleccion.trim()
       ? menuSeleccion(seleccion, { insertarEnCaja, leer, buscar: buscarEnConversaciones })
       : [
-          { texto: "Copiar", icono: "copiar", alElegir: () => copiarTexto(texto) },
-          { texto: "Citar en la caja", icono: "cita", alElegir: () => insertarEnCaja(cita(texto)) },
-          { texto: "Volver a enviar", icono: "enviar", alElegir: () => void enviar(sesionId, texto) },
-          leer && { texto: "Leer en voz alta", icono: "altavoz", alElegir: () => leer(texto) },
+          { texto: t("Copiar"), icono: "copiar", alElegir: () => copiarTexto(texto) },
+          { texto: t("Citar en la caja"), icono: "cita", alElegir: () => insertarEnCaja(cita(texto)) },
+          { texto: t("Volver a enviar"), icono: "enviar", alElegir: () => void enviar(sesionId, texto) },
+          leer && { texto: t("Leer en voz alta"), icono: "altavoz", alElegir: () => leer(texto) },
         ],
   );
   return (
     <article className="mensaje-usuario" {...menu}>
-      <Etiqueta>{h ? `Tú · ${hora(h)}` : "Tú"}</Etiqueta>
+      <Etiqueta>{h ? t("Tú · {hora}", { hora: hora(h) }) : t("Tú")}</Etiqueta>
       {texto.trim() && <div className="mensaje-usuario__texto">{texto}</div>}
       {adjuntos?.length ? <AdjuntosMensaje sesionId={sesionId} adjuntos={adjuntos} /> : null}
     </article>
@@ -167,10 +167,10 @@ function MensajeAsistente({ id, texto, abierto }: { id: string; texto: string; a
     const md = [...(objetivo.closest(".asistente")?.querySelectorAll(".md") ?? [])];
     const visto = md.length ? md.map((x) => x.textContent?.trim() ?? "").join("\n\n") : prosa;
     return [
-      { texto: "Copiar", icono: "copiar", alElegir: () => copiarTexto(visto.trim()) },
-      { texto: "Copiar como Markdown", alElegir: () => copiarTexto(texto) },
-      { texto: "Citar en la caja", icono: "cita", alElegir: () => insertarEnCaja(cita(prosa)) },
-      leer && !abierto && { texto: "Leer en voz alta", icono: "altavoz", alElegir: () => leer(prosa) },
+      { texto: t("Copiar"), icono: "copiar", alElegir: () => copiarTexto(visto.trim()) },
+      { texto: t("Copiar como Markdown"), alElegir: () => copiarTexto(texto) },
+      { texto: t("Citar en la caja"), icono: "cita", alElegir: () => insertarEnCaja(cita(prosa)) },
+      leer && !abierto && { texto: t("Leer en voz alta"), icono: "altavoz", alElegir: () => leer(prosa) },
     ];
   });
   return (
@@ -218,11 +218,11 @@ function BotonLeer({ texto }: { texto: string }) {
   const [leyendo, setLeyendo] = useState(false);
   if (!voz?.lectura) return null;
   const leer = async () => {
-    const t = paraLeer(texto);
-    if (!t) return;
+    const limpio = paraLeer(texto);
+    if (!limpio) return;
     setLeyendo(true);
     try {
-      await llamar("voz.leer", { texto: t });
+      await llamar("voz.leer", { texto: limpio });
     } catch {
       // Si no puede leer (o se paró), el botón vuelve a su estado.
     } finally {
@@ -233,15 +233,13 @@ function BotonLeer({ texto }: { texto: string }) {
     <BotonIcono
       variante="pequeno"
       className="asistente__leer"
-      etiqueta={leyendo ? "Parar la lectura" : "Leer en voz alta"}
+      etiqueta={leyendo ? t("Parar la lectura") : t("Leer en voz alta")}
       icono={leyendo ? "detener" : "altavoz"}
       tamanoIcono={15}
       onClick={() => (leyendo ? void llamar("voz.parar", {}).catch(() => {}) : void leer())}
     />
   );
 }
-
-const plural = (n: number, una: string, varias: string) => `${n} ${n === 1 ? una : varias}`;
 
 /** Revisión de lo aprendido en segundo plano: discreta, como los avisos de compactación o reintento. */
 function AvisoAprendizaje({ e }: { e: Extract<Elemento, { tipo: "aprendizaje" }> }) {
@@ -250,7 +248,7 @@ function AvisoAprendizaje({ e }: { e: Extract<Elemento, { tipo: "aprendizaje" }>
     return (
       <p className="aviso" aria-live="polite">
         <i className="nx-punto nx-pulso" aria-hidden="true" />
-        Revisando lo aprendido
+        {t("Revisando lo aprendido")}
       </p>
     );
   }
@@ -258,7 +256,7 @@ function AvisoAprendizaje({ e }: { e: Extract<Elemento, { tipo: "aprendizaje" }>
     return (
       <p className="aviso" aria-live="polite">
         <i className="aviso__punto" aria-hidden="true" />
-        Revisión de lo aprendido: {e.error ?? "error"}
+        {t("Revisión de lo aprendido:")} {e.error ?? t("error")}
       </p>
     );
   }
@@ -268,17 +266,17 @@ function AvisoAprendizaje({ e }: { e: Extract<Elemento, { tipo: "aprendizaje" }>
     <p className="aviso" aria-live="polite">
       <i className="aviso__punto" aria-hidden="true" />
       <span>
-        Revisión de lo aprendido:{" "}
-        {propuestas === 0 && aplicadas === 0 && "sin cambios"}
+        {t("Revisión de lo aprendido:")}{" "}
+        {propuestas === 0 && aplicadas === 0 && t("sin cambios")}
         {propuestas > 0 && (
           <button type="button" className="aviso__enlace" onClick={() => abrirMemoria("propuestas")}>
-            {plural(propuestas, "propuesta", "propuestas")}
+            {propuestas === 1 ? t("1 propuesta") : t("{n} propuestas", { n: propuestas })}
           </button>
         )}
         {propuestas > 0 && aplicadas > 0 && " · "}
         {aplicadas > 0 && (
           <button type="button" className="aviso__enlace" onClick={() => abrirMemoria("aprendido")}>
-            {plural(aplicadas, "aplicada", "aplicadas")}
+            {aplicadas === 1 ? t("1 aplicada") : t("{n} aplicadas", { n: aplicadas })}
           </button>
         )}
       </span>
@@ -289,22 +287,22 @@ function AvisoAprendizaje({ e }: { e: Extract<Elemento, { tipo: "aprendizaje" }>
 function ListaTareas({ tareas }: { tareas: TareaVisible[] }) {
   return (
     <Tarjeta className="tareas" relleno="18px 20px">
-      <Etiqueta>Tareas</Etiqueta>
+      <Etiqueta>{t("Tareas")}</Etiqueta>
       <ul className="tareas__lista">
-        {tareas.map((t, i) => (
+        {tareas.map((tarea, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: la lista llega entera en cada evento.
-          <li key={i} className={clases("tarea", `tarea--${t.estado}`)}>
+          <li key={i} className={clases("tarea", `tarea--${tarea.estado}`)}>
             <span className="tarea__marca" aria-hidden="true">
-              {t.estado === "hecha" ? (
+              {tarea.estado === "hecha" ? (
                 <Icono nombre="check" tamano={14} grosor={2.5} />
-              ) : t.estado === "en-curso" ? (
+              ) : tarea.estado === "en-curso" ? (
                 <i className="nx-punto nx-pulso" />
               ) : (
                 <Icono nombre="circulo" tamano={14} />
               )}
             </span>
-            <span>{t.texto}</span>
-            <span className="nx-sr">{t.estado === "hecha" ? "(hecha)" : t.estado === "en-curso" ? "(en curso)" : "(pendiente)"}</span>
+            <span>{tarea.texto}</span>
+            <span className="nx-sr">{tarea.estado === "hecha" ? t("(hecha)") : tarea.estado === "en-curso" ? t("(en curso)") : t("(pendiente)")}</span>
           </li>
         ))}
       </ul>
@@ -318,7 +316,7 @@ function Resumen({ texto }: { texto: string }) {
   return (
     <div className="resumen">
       <button type="button" className="resumen__boton" aria-expanded={abierto} onClick={() => setAbierto(!abierto)}>
-        Resumen del contexto
+        {t("Resumen del contexto")}
         <Icono nombre="chevron-abajo" tamano={14} className={clases("herramienta__chevron", abierto && "herramienta__chevron--abierto")} />
       </button>
       {abierto && <p className="resumen__texto">{texto}</p>}

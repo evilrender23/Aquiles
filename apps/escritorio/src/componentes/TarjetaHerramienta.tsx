@@ -1,4 +1,4 @@
-import { BloqueCodigo, Boton, Icono, LatticeLoader, clases, copiarTexto, type ElementosMenu, type NombreIcono, useMenuContextual } from "@aquiles/ui";
+import { BloqueCodigo, Boton, Icono, LatticeLoader, clases, copiarTexto, type ElementosMenu, type NombreIcono, t, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useRef, useState } from "react";
 import { useAcciones } from "../estado/almacen";
 import { claseDocumento, rutaAbsoluta as absoluta } from "../estado/artefactos";
@@ -73,7 +73,7 @@ function VistaPreviaImagen({ ruta, alAbrir }: { ruta: string; alAbrir?: () => vo
   if (error) return null;
   const nombre = ruta.split(/[\\/]/).pop() ?? ruta;
   return (
-    <button type="button" className="herramienta__imagen" onClick={alAbrir} disabled={!alAbrir} title={alAbrir ? `Abrir ${nombre}` : nombre}>
+    <button type="button" className="herramienta__imagen" onClick={alAbrir} disabled={!alAbrir} title={alAbrir ? t("Abrir {nombre}", { nombre }) : nombre}>
       {src ? <img src={src} alt={nombre} /> : <span className="herramienta__imagen-espera" aria-hidden="true" />}
     </button>
   );
@@ -104,15 +104,15 @@ export function TarjetaHerramienta({ h, cwd }: { h: Herramienta; cwd: string }) 
     const deResumen = !diffs.length && CON_RUTA.has(h.nombre) ? h.resumen.trim().split(/\s/)[0] : undefined;
     const rutas = (diffs.length ? diffs.map((d) => d.ruta) : deResumen ? [deResumen] : []).map((r) => ({ ver: r, abs: absoluta(cwd, r) }));
     return [
-      ver && { texto: "Ver", icono: "flecha-diagonal", alElegir: ver },
+      ver && { texto: t("Ver"), icono: "flecha-diagonal", alElegir: ver },
       ver && { tipo: "separador" },
-      h.resumen && { texto: h.nombre === "terminal" ? "Copiar comando" : "Copiar resumen", icono: "copiar", alElegir: () => copiarTexto(h.resumen) },
-      h.salida && { texto: "Copiar salida", icono: "copiar", alElegir: () => copiarTexto(h.salida ?? "") },
-      porRuta("Copiar ruta", "copiar", rutas, copiarTexto),
-      puedeMostrarRutas() && porRuta("Mostrar fichero", "carpeta", rutas, mostrarFichero),
+      h.resumen && { texto: h.nombre === "terminal" ? t("Copiar comando") : t("Copiar resumen"), icono: "copiar", alElegir: () => copiarTexto(h.resumen) },
+      h.salida && { texto: t("Copiar salida"), icono: "copiar", alElegir: () => copiarTexto(h.salida ?? "") },
+      porRuta(t("Copiar ruta"), "copiar", rutas, copiarTexto),
+      puedeMostrarRutas() && porRuta(t("Mostrar fichero"), "carpeta", rutas, mostrarFichero),
       diffs.length > 0 && { tipo: "separador" },
       diffs.length > 0 && {
-        texto: "Ver diff",
+        texto: t("Ver diff"),
         icono: "fichero",
         alElegir: () => {
           setElegido(true);
@@ -133,19 +133,19 @@ export function TarjetaHerramienta({ h, cwd }: { h: Herramienta; cwd: string }) 
         {h.estado === "en-curso" ? (
           <>
             <LatticeLoader activo />
-            <span className="nx-sr">En curso</span>
+            <span className="nx-sr">{t("En curso")}</span>
           </>
         ) : h.estado === "fallo" ? (
           <span className="herramienta__fallo">
             <Icono nombre="alerta" tamano={14} />
-            Error
+            {t("Error")}
           </span>
         ) : h.ms !== undefined && h.nombre !== "preguntar" ? (
           duracion(h.ms)
         ) : (
           <>
             <Icono nombre="check" tamano={14} grosor={2.5} />
-            <span className="nx-sr">Hecho</span>
+            <span className="nx-sr">{t("Hecho")}</span>
           </>
         )}
       </span>
@@ -159,7 +159,7 @@ export function TarjetaHerramienta({ h, cwd }: { h: Herramienta; cwd: string }) 
         <div className="herramienta__fila">
           {cabecera}
           <Boton variante="fantasma" tamano="pequeno" icono="flecha-diagonal" className="herramienta__ver" onClick={ver}>
-            Ver
+            {t("Ver")}
           </Boton>
         </div>
       ) : (

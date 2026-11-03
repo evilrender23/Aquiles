@@ -1,4 +1,4 @@
-import { copiarTexto, rehypeBlurText, useMenuContextual } from "@aquiles/ui";
+import { copiarTexto, rehypeBlurText, t, useMenuContextual } from "@aquiles/ui";
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { useAcciones, useEstado } from "../estado/almacen";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
@@ -31,8 +31,8 @@ export function TextoAsistente({ texto, abierto }: { texto: string; abierto: boo
       setAnimar(true);
       return;
     }
-    const t = setTimeout(() => setAnimar(false), 700);
-    return () => clearTimeout(t);
+    const espera = setTimeout(() => setAnimar(false), 700);
+    return () => clearTimeout(espera);
   }, [abierto]);
   return <Markdown texto={texto} animar={animar} cursor={abierto} />;
 }
@@ -47,8 +47,8 @@ function BloqueCodigoMd(props: ComponentProps<"pre">) {
     const lenguaje = pre.current?.querySelector("code")?.className.match(/language-(\S+)/)?.[1] ?? "";
     const valla = "```";
     return [
-      { texto: "Copiar", icono: "copiar", atajo: seleccion ? "Ctrl+C" : undefined, alElegir: () => copiarTexto(seleccion || codigo) },
-      activa && { texto: "Insertar en la caja", icono: "cita", alElegir: () => insertarEnCaja(valla + lenguaje + "\n" + (seleccion || codigo) + "\n" + valla) },
+      { texto: t("Copiar"), icono: "copiar", atajo: seleccion ? "Ctrl+C" : undefined, alElegir: () => copiarTexto(seleccion || codigo) },
+      activa && { texto: t("Insertar en la caja"), icono: "cita", alElegir: () => insertarEnCaja(valla + lenguaje + "\n" + (seleccion || codigo) + "\n" + valla) },
     ];
   });
   return <pre ref={pre} className="nx-codigo md__pre" {...props} {...menu} />;
